@@ -32,6 +32,12 @@ Everything is self-contained in the Sammie-Roto folder. If you want to remove th
 - Execute the following command: `bash install_dependencies.sh` then follow the prompt.
 - MacOS users: double-click "run_sammie.command" to launch the program. Linux users: `bash run_sammie.command` or execute the file however you prefer.
 
+### Showcase
+A few videos that have utilized Sammie-Roto
+
+[![Eleven Hearts Beat as One](https://img.youtube.com/vi/at85mbn88xI/0.jpg)](https://www.youtube.com/watch?v=at85mbn88xI "Eleven Hearts Beat as One")
+[![Problem Solver](https://img.youtube.com/vi/MmksgfY45s0/0.jpg)](https://www.youtube.com/watch?v=MmksgfY45s0 "Problem Solver")
+
 ### Acknowledgements
 * [SAM 2](https://github.com/facebookresearch/sam2)
 * [MatAnyone](https://github.com/pq-yang/MatAnyone)
