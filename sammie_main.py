@@ -1620,11 +1620,11 @@ class MainWindow(QMainWindow):
     
     def _on_point_selected(self, point_data):
         """Handle point selection from table"""
-        if point_data and 'frame' in point_data:
+        if point_data:
             # Store the highlighted point
             self.highlighted_point = point_data
             # Navigate to the frame
-            self.frame_slider.setValue(point_data['frame'])
+            self.frame_slider.setValue(point_data[-1]['frame'])
             self._update_current_frame_display()
             
         else:

@@ -1856,24 +1856,38 @@ def draw_points(image, frame_number, points, highlighted_point=None):
     if not frame_points:
         return image
     
+    is_highlighted = False
+
     # Get the object_id of the highlighted point (if any)
-    highlighted_object_id = highlighted_point.get('object_id') if highlighted_point else None
+    # highlighted_object_id = highlighted_point.get('object_id') if highlighted_point else None
     
     for point in frame_points:
+        is_highlighted = False
+        if highlighted_point:
+            for specific_point in highlighted_point:
+                is_highlighted = (
+                    specific_point['frame'] == point['frame'] and
+                    specific_point['x'] == point['x'] and
+                    specific_point['y'] == point['y']
+                )
+                if is_highlighted:
+                    highlighted_point.remove(specific_point)
+                    break
+
         # Check if this is the highlighted point
-        is_highlighted = (
-            highlighted_point is not None and
-            point['frame'] == highlighted_point.get('frame') and
-            point['object_id'] == highlighted_point.get('object_id') and
-            point['x'] == highlighted_point.get('x') and
-            point['y'] == highlighted_point.get('y')
-        )
+        # is_highlighted = (
+        #     highlighted_point is not None and
+        #     point['frame'] == highlighted_point.get('frame') and
+            # point['object_id'] == highlighted_point.get('object_id') and
+        #     point['x'] == highlighted_point.get('x') and
+        #     point['y'] == highlighted_point.get('y')
+        # )
 
         # Check if this point belongs to a different object than the highlighted one
-        is_different_object = (
-            highlighted_object_id is not None and
-            point['object_id'] != highlighted_object_id
-        )
+        # is_different_object = (
+        #     highlighted_object_id is not None and
+        #     point['object_id'] != highlighted_object_id
+        # )
 
         if is_highlighted:
             # Draw highlighted point with different colors/sizes
@@ -1892,16 +1906,16 @@ def draw_points(image, frame_number, points, highlighted_point=None):
             # Draw filled circle (radius 4, filled)
             cv2.circle(image, center, 4, point_color, -1)
         
-        elif is_different_object:
-            # Apply different processing for points from different objects
-            point_color = (0, 255, 0) if point['positive'] else (255, 0, 0)
-            center = (point['x'], point['y'])
+        # elif is_different_object:
+        #     # Apply different processing for points from different objects
+        #     point_color = (0, 255, 0) if point['positive'] else (255, 0, 0)
+        #     center = (point['x'], point['y'])
 
-            # Example: Draw with gray outline instead of yellow
-            cv2.circle(image, center, 5, (128, 128, 128), 2)  # Gray outline
+        #     # Example: Draw with gray outline instead of yellow
+        #     cv2.circle(image, center, 5, (128, 128, 128), 2)  # Gray outline
 
-            # Draw filled circle (radius 4, filled)
-            cv2.circle(image, center, 4, point_color, -1)
+        #     # Draw filled circle (radius 4, filled)
+        #     cv2.circle(image, center, 4, point_color, -1)
 
         else:
             # Draw regular points

@@ -226,7 +226,7 @@ class HotkeysHelpDialog(QDialog):
 class PointTable(QTableWidget):
     """Custom table widget for displaying point data with delete functionality"""
     
-    point_selected = Signal(dict)  # Emits point data: {frame, object_id, x, y}
+    point_selected = Signal(list)  # Emits list of selected points data: {frame, object_id, x, y}
 
     def __init__(self):
         super().__init__()
@@ -475,14 +475,16 @@ class PointTable(QTableWidget):
     def _on_selection_changed(self):
         """Handle row selection changes"""
         selected_rows = self.selectionModel().selectedRows()
+        point_data = []
         if selected_rows:
-            row = selected_rows[0].row()
-            point_data = self._get_point_from_row(row)
+            for row in selected_rows:
+                i_row = row.row()
+                point_data.append(self._get_point_from_row(i_row))
             if point_data:
                 self.point_selected.emit(point_data)
         else:
             # No selection - emit None or empty dict
-            self.point_selected.emit({})
+            self.point_selected.emit([])
     
     def _get_point_from_row(self, row):
         """Extract point data from a table row"""
