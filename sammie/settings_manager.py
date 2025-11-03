@@ -93,6 +93,7 @@ class SessionSettings:
     antialias: bool = False
     show_removal_mask: bool = True
     bgcolor: tuple = (0, 255, 0)  # RGB green
+    show_all_points: bool = True  # If True, only show points for current frame
     
     # Segmentation parameters
     holes: int = 0
