@@ -1732,7 +1732,7 @@ def _handle_matting_bgcolor_view(frame_number, view_options, points, return_nump
     else:
         return _convert_to_qpixmap(image)
     
-def _handle_matting_alpha_view(frame_number, view_options, points, return_numpy=False, object_id_filter=None, folder=matting_dir):
+def _handle_matting_alpha_view(frame_number, view_options, points, return_numpy=False, object_id_filter=None):
     """Handle Matting-Alpha view"""
     image = load_base_frame(frame_number)
     if image is None:
@@ -1744,7 +1744,7 @@ def _handle_matting_alpha_view(frame_number, view_options, points, return_numpy=
     image_rgba[:, :, 3] = 255     # Alpha channel (fully opaque initially)
     
     # Load combined mask
-    mask = load_masks_for_frame(frame_number, points, return_combined=True, object_id_filter=object_id_filter)
+    mask = load_masks_for_frame(frame_number, points, return_combined=True, object_id_filter=object_id_filter, folder=matting_dir)
     if mask is None:
         if return_numpy:
             return image_rgba

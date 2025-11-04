@@ -50,6 +50,20 @@ def show_error_dialog(app, error_message, detailed_error=""):
     try:
         with open("sammie_debug.log", "w", encoding="utf-8") as f:
             f.write(error_message + '\n' + detailed_error)
+    except PermissionError:
+        # Show a more specific permission error
+        app_dir = os.path.dirname(os.path.abspath(__file__))
+        perm_msg_box = QMessageBox()
+        perm_msg_box.setIcon(QMessageBox.Critical)
+        perm_msg_box.setWindowTitle("Permission Error")
+        perm_msg_box.setText("Sammie-Roto does not have write permission in its installation directory.")
+        perm_msg_box.setInformativeText(
+            f"Current location:\n{app_dir}\n\n"
+            f"Please move Sammie-Roto to a location where you have write access.\n\n"
+            f"Avoid running from Program Files or system directories."
+        )
+        perm_msg_box.setWindowFlags(perm_msg_box.windowFlags() | Qt.WindowStaysOnTopHint)
+        perm_msg_box.exec()
     except:
         pass
 
