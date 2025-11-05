@@ -2,7 +2,7 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QTabWidget,
     QGroupBox, QLabel, QSpinBox, QDoubleSpinBox, QCheckBox, 
-    QPushButton, QComboBox, QSlider, QWidget, QFormLayout
+    QPushButton, QComboBox, QSlider, QWidget, QFormLayout, QScrollArea
 )
 from PySide6.QtCore import Qt
 from sammie.settings_manager import SettingsManager
@@ -43,9 +43,23 @@ class SettingsDialog(QDialog):
         # Create tab widget
         self.tab_widget = QTabWidget()
         
-        # Add tabs
-        self.tab_widget.addTab(self._create_general_tab(), "General")
-        self.tab_widget.addTab(self._create_defaults_tab(), "Defaults")
+        # Add tabs with scroll areas
+        general_tab = self._create_general_tab()
+        defaults_tab = self._create_defaults_tab()
+        
+        # Wrap each tab in a scroll area
+        general_scroll = QScrollArea()
+        general_scroll.setWidget(general_tab)
+        general_scroll.setWidgetResizable(True)
+        general_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        
+        defaults_scroll = QScrollArea()
+        defaults_scroll.setWidget(defaults_tab)
+        defaults_scroll.setWidgetResizable(True)
+        defaults_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        
+        self.tab_widget.addTab(general_scroll, "General")
+        self.tab_widget.addTab(defaults_scroll, "Defaults")
         
         layout.addWidget(self.tab_widget)
         
@@ -175,7 +189,6 @@ class SettingsDialog(QDialog):
         
         layout.addWidget(minimax_group)
         
-        layout.addStretch()
         return tab
     
     def _create_general_tab(self):
@@ -250,7 +263,6 @@ class SettingsDialog(QDialog):
         
         layout.addWidget(deduplication_group)
 
-        layout.addStretch()
         return tab
     
     def _load_current_values(self):
