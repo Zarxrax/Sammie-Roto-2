@@ -44,7 +44,7 @@ class SettingsDialog(QDialog):
         self.tab_widget = QTabWidget()
         
         # Add tabs
-        self.tab_widget.addTab(self._create_performance_tab(), "Performance")
+        self.tab_widget.addTab(self._create_general_tab(), "General")
         self.tab_widget.addTab(self._create_defaults_tab(), "Defaults")
         
         layout.addWidget(self.tab_widget)
@@ -178,8 +178,8 @@ class SettingsDialog(QDialog):
         layout.addStretch()
         return tab
     
-    def _create_performance_tab(self):
-        """Create the performance settings tab"""
+    def _create_general_tab(self):
+        """Create the general settings tab"""
         tab = QWidget()
         layout = QVBoxLayout(tab)
         
@@ -278,7 +278,7 @@ class SettingsDialog(QDialog):
         self.default_minimax_vae_tiling_cb.setChecked(app_settings.default_minimax_vae_tiling)
         self.default_minimax_steps_spin.setValue(app_settings.default_minimax_steps)
 
-        # Performance tab
+        # General tab
         self.sam_model_combo.setCurrentText(app_settings.sam_model)
         self.force_cpu_cb.setChecked(app_settings.force_cpu)
         self.frame_format_combo.setCurrentText(app_settings.frame_format)
@@ -322,7 +322,7 @@ class SettingsDialog(QDialog):
         app_settings.default_minimax_vae_tiling = self.default_minimax_vae_tiling_cb.isChecked()
         app_settings.default_minimax_steps = self.default_minimax_steps_spin.value()
 
-        # Performance tab
+        # General tab
         app_settings.sam_model = self.sam_model_combo.currentText()
         app_settings.force_cpu = self.force_cpu_cb.isChecked()
         app_settings.frame_format = self.frame_format_combo.currentText()
