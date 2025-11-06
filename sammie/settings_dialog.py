@@ -259,6 +259,7 @@ class SettingsDialog(QDialog):
         self.deduplication_threshold_spin.setRange(0,1)
         self.deduplication_threshold_spin.setValue(0.8)
         self.deduplication_threshold_spin.setSingleStep(0.01)
+        self.deduplication_threshold_spin.setToolTip("Value from 0 to 1 used as a threshold for how similar masks have to be before they're considered the same and deduped.\nHigher values are more strict.")
         deduplication_layout.addRow("Threshold:", self.deduplication_threshold_spin)
         
         layout.addWidget(deduplication_group)
