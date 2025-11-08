@@ -355,63 +355,72 @@ class PointTable(QTableWidget):
         self.setCellWidget(row, 5, widget_container)
     
     def delete_selected_row(self, single_row):
-        """Delete the currently selected row"""
+        """Delete the currently selected rows or a single specified row"""
         selected_rows = self.selectionModel().selectedRows()
-        if selected_rows: # If there is a selection, delete the selected rows
-            # Get row numbers, sort descending to avoid shifting issues
-            rows = sorted([idx.row() for idx in selected_rows], reverse=True)
-            for row in rows:
-                self._delete_row(row)
-        else: # If no selection, delete the specified row
-            self._delete_row(single_row)
-
-    def _delete_row(self, row):
-        """Delete row and remove from point manager"""
-        if row >= self.rowCount():
+        
+        # If there are multiple rows selected, order and delete the selected rows
+        if selected_rows:  
+            rows = sorted([idx.row() for idx in selected_rows], reverse=True) # Sort in reverse order for removal process
+        # If no there is no selection, delete the specified row
+        else:
+            rows = [single_row] if single_row is not None and single_row < self.rowCount() else []
+        # Just one row, return from function
+        if not rows:
             return
         
-        # Get point data from row
-        frame_item = self.item(row, 0)
-        if not frame_item:
-            return
+        # Batch remove all points first
+        removed_points = []
+        for row in rows:
+            if row >= self.rowCount():
+                continue
+            
+            # Get point data from row
+            frame_item = self.item(row, 0)
+            if not frame_item:
+                continue
+            
+            frame = int(frame_item.text())
+            
+            # Get object ID from the colored widget
+            object_id = 0
+            widget = self.cellWidget(row, 1)
+            if widget:
+                labels = widget.findChildren(QLabel)
+                for label in labels:
+                    try:
+                        object_id = int(label.text())
+                        break
+                    except ValueError:
+                        continue
+            
+            # Get coordinates
+            x_item = self.item(row, 3)
+            y_item = self.item(row, 4)
+            if not x_item or not y_item:
+                continue
+            
+            x, y = int(x_item.text()), int(y_item.text())
+            
+            # Remove point from manager
+            if hasattr(self, 'parent_window') and hasattr(self.parent_window, 'point_manager'):
+                removed_point = self.parent_window.point_manager.remove_point(frame, object_id, x, y)
+                if removed_point:
+                    removed_points.append(removed_point)
+                    print(f"Deleted point: Frame {frame}, Object {object_id}, Position ({x}, {y})")
+                elif len(rows) == 1:  # Single deletion - print warning
+                    print(f"Warning: Point not found in manager: Frame {frame}, Object {object_id}, Position ({x}, {y})")
         
-        frame = int(frame_item.text())
-        
-        # Get object ID from the colored widget
-        object_id = 0
-        widget = self.cellWidget(row, 1)
-        if widget:
-            labels = widget.findChildren(QLabel)
-            for label in labels:
-                try:
-                    object_id = int(label.text())
-                    break
-                except ValueError:
-                    continue
-        
-        # Get coordinates
-        x_item = self.item(row, 3)
-        y_item = self.item(row, 4)
-        if not x_item or not y_item:
-            return
-        
-        x, y = int(x_item.text()), int(y_item.text())
-        
-        # Remove from point manager
-        if hasattr(self, 'parent_window') and hasattr(self.parent_window, 'point_manager'):
-            removed_point = self.parent_window.point_manager.remove_point(frame, object_id, x, y)
-            if removed_point:
-                points = self.parent_window.point_manager.get_all_points()
-                self.parent_window.sam_manager.clear_tracking()
-                self.parent_window.update_tracking_status()
-                self.parent_window.sam_manager.replay_points(points)
-                print(f"Deleted point: Frame {frame}, Object {object_id}, Position ({x}, {y})")
-            else:
-                print(f"Warning: Point not found in manager: Frame {frame}, Object {object_id}, Position ({x}, {y})")
-        
-        # Remove from table
-        self.removeRow(row)
+        # Remove all rows from table
+        for row in rows:
+            self.removeRow(row)
         self._update_delete_buttons()
+        
+        # Replay points and rebuild masks after all points have been deleted
+        if removed_points and hasattr(self, 'parent_window'):
+            points = self.parent_window.point_manager.get_all_points()
+            self.parent_window.sam_manager.clear_tracking()
+            self.parent_window.update_tracking_status()
+            self.parent_window.sam_manager.replay_points(points)
 
     def _update_delete_buttons(self):
         """Update all delete button connections after a row is removed"""
