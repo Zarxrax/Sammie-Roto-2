@@ -1563,10 +1563,20 @@ def _handle_segmentation_edit_view(frame_number, view_options, points, return_nu
     image = apply_postprocessing_to_display(image, frame_number, points, view_options, object_id_filter)
     
     # Get highlighted point from view options if present
-    highlighted_point = view_options.get('highlighted_point', None)
+    highlighted_points = view_options.get('highlighted_point', None)
+
+    # Make a copy of the selected points list to avoid modifying the original 
+    # Also handle case where it might be None or a single dict
+    if highlighted_points is None:
+        highlighted_points = None
+    elif isinstance(highlighted_points, list):
+        highlighted_points = highlighted_points.copy()
+    else:
+        # Single point dict - convert to list
+        highlighted_points = [highlighted_points]
 
     # Always show points in edit view
-    image = draw_points(image, frame_number, points, highlighted_point)
+    image = draw_points(image, frame_number, points, highlighted_points)
     
     if return_numpy:
         return image
@@ -1849,7 +1859,7 @@ def draw_contours(image, processed_masks):
     return overlay
 
 
-def draw_points(image, frame_number, points, highlighted_point=None):
+def draw_points(image, frame_number, points, highlighted_points=None):
     """Draw points on image, with optional highlighting"""
     # Filter once for current frame
     frame_points = [p for p in points if p['frame'] == frame_number]
@@ -1863,15 +1873,16 @@ def draw_points(image, frame_number, points, highlighted_point=None):
     
     for point in frame_points:
         is_highlighted = False
-        if highlighted_point:
-            for specific_point in highlighted_point:
+        if highlighted_points:
+            for point_in_highlighted_list in highlighted_points:
+                # Check if the current point is the same as the one in the highlighted list one
                 is_highlighted = (
-                    specific_point['frame'] == point['frame'] and
-                    specific_point['x'] == point['x'] and
-                    specific_point['y'] == point['y']
+                    point_in_highlighted_list['frame'] == point['frame'] and
+                    point_in_highlighted_list['x'] == point['x'] and
+                    point_in_highlighted_list['y'] == point['y']
                 )
                 if is_highlighted:
-                    highlighted_point.remove(specific_point)
+                    highlighted_points.remove(point_in_highlighted_list)
                     break
 
         # Check if this is the highlighted point

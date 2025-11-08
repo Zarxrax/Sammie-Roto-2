@@ -1691,10 +1691,14 @@ class MainWindow(QMainWindow):
         if point_data:
             # Store the highlighted point
             self.highlighted_point = point_data
-            # Navigate to the frame
-            self.frame_slider.setValue(point_data[-1]['frame'])
-            self._update_current_frame_display()
-            
+            # Navigate to the frame (incase of multiple points, the frame of the last point in the list)
+            target_frame = point_data[-1]['frame']
+            # Only update if frame is different to avoid unnecessary updates
+            if self.frame_slider.value() != target_frame:
+                self.frame_slider.setValue(target_frame)
+            else:
+                self._update_current_frame_display()
+                
         else:
             # Clear highlight
             self.highlighted_point = None
