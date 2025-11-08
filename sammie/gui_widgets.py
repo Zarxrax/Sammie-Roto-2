@@ -226,10 +226,11 @@ class HotkeysHelpDialog(QDialog):
 class PointTable(QTableWidget):
     """Custom table widget for displaying point data with delete functionality"""
     
-    point_selected = Signal(dict)  # Emits point data: {frame, object_id, x, y}
+    point_selected = Signal(list)  # Emits list of selected points data: {frame, object_id, x, y}
 
     def __init__(self):
         super().__init__()
+        self.current_frame = 0  # Track current frame for show_all_points feature
         self._setup_table()
         self.itemSelectionChanged.connect(self._on_selection_changed)
     
@@ -293,6 +294,14 @@ class PointTable(QTableWidget):
     
     def add_point(self, frame, object_id, positive, x, y):
         """Add a new point to the table"""
+        # Check if show_all_points is enabled and if frame matches current_frame
+        settings_mgr = get_settings_manager()
+        show_all_points = settings_mgr.get_session_setting("show_all_points", True)
+        
+        if not show_all_points and frame != self.current_frame:
+            # Don't add the point if show_all_points is disabled and frame doesn't match
+            return
+        
         row_count = self.rowCount()
         self.insertRow(row_count)
         
@@ -316,6 +325,17 @@ class PointTable(QTableWidget):
         self._add_delete_button(row_count)
         
         self.scrollToBottom()
+    
+    def set_current_frame(self, frame):
+        """Update current frame and refresh table if show_all_points is enabled"""
+        self.current_frame = frame
+        settings_mgr = get_settings_manager()
+        show_all_points = settings_mgr.get_session_setting("show_all_points", True)
+        
+        if not show_all_points:
+            # Refresh table to show only points for current frame
+            # This will be called by parent window with all points
+            pass  # The refresh will be handled by parent window's _refresh_table method
     
     def _add_delete_button(self, row):
         """Add a delete button to the specified row"""
@@ -475,14 +495,16 @@ class PointTable(QTableWidget):
     def _on_selection_changed(self):
         """Handle row selection changes"""
         selected_rows = self.selectionModel().selectedRows()
+        point_data = []
         if selected_rows:
-            row = selected_rows[0].row()
-            point_data = self._get_point_from_row(row)
+            for row in selected_rows:
+                i_row = row.row()
+                point_data.append(self._get_point_from_row(i_row))
             if point_data:
                 self.point_selected.emit(point_data)
         else:
             # No selection - emit None or empty dict
-            self.point_selected.emit({})
+            self.point_selected.emit([])
     
     def _get_point_from_row(self, row):
         """Extract point data from a table row"""

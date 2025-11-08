@@ -982,6 +982,9 @@ class MainWindow(QMainWindow):
         self.update_checker.update_available.connect(self.on_update_available)
         self.update_menu_action = None  # Will store the update menu action when created
         
+        # Load session settings
+        self.settings_mgr.load_session_settings()
+
         # Initialize UI
         self._init_ui()
         self._connect_signals()
@@ -1259,7 +1262,32 @@ class MainWindow(QMainWindow):
         self._create_playback_controls(layout)
         
         return center_panel
+
+    def _toggle_show_all_points(self, checked):
+        """Toggle show_all_points setting and refresh table"""
+        self.settings_mgr.set_session_setting("show_all_points", checked)
+        self.settings_mgr.save_session_settings()
+        self._update_show_all_points_button_text()
+        self._refresh_table()
     
+    def _update_show_all_points_button_text(self):
+        """Update the button text based on current state"""
+        if hasattr(self, 'show_all_points_btn'):
+            if self.show_all_points_btn.isChecked():
+                self.show_all_points_btn.setText("List All Frame Points")
+                self.settings_mgr.set_session_setting("show_all_points", True)
+            else:
+                self.show_all_points_btn.setText("List Current Frame Points")
+                self.settings_mgr.set_session_setting("show_all_points", False)
+
+    def _reset_show_all_points_button_state(self):
+        """Update the show_all_points button state from settings"""
+        if hasattr(self, 'show_all_points_btn'):
+            show_all_points = self.settings_mgr.get_app_setting("default_show_all_points", True)
+            self.show_all_points_btn.setChecked(show_all_points)
+            self._update_show_all_points_button_text()
+
+
     def _create_bottom_panel(self):
         """Create the bottom panel with side-by-side layout"""
         # Create a horizontal splitter for side-by-side layout
@@ -1276,17 +1304,47 @@ class MainWindow(QMainWindow):
         console_layout.setContentsMargins(2, 2, 2, 2)
         
         # Add labels to identify each panel
+        point_header_layout = QHBoxLayout()
         point_label = QLabel("Segmentation Point List")
         point_label.setStyleSheet("font-weight: bold; padding: 3px;")
-        point_layout.addWidget(point_label)
+        point_header_layout.addWidget(point_label)
         
         console_label = QLabel("Console")
         console_label.setStyleSheet("font-weight: bold; padding: 3px;")
         console_layout.addWidget(console_label)
+
+        # Add show_all_points toggle button
+        self.show_all_points_btn = QPushButton("Show All Frames")
+        self.show_all_points_btn.setCheckable(True)
+        # Specific styling to overwrite the default blue check toggle
+        self.show_all_points_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #fafafa;
+                border: 1px solid #8f8f91;
+                border-radius: 4px;
+                padding: 4px 8px;
+            }
+            QPushButton:hover {
+                background-color: #f0f0f0;
+            }
+        """)
+        self.show_all_points_btn.setToolTip("Toggle to show all points for all frames in the segmentation point list\nOr just the points for the current frame in the view window")
+        self.show_all_points_btn.setFixedWidth(150)
+        
+        # Load initial state from settings
+        show_all_points = self.settings_mgr.get_session_setting("show_all_points", True)
+        self.show_all_points_btn.setChecked(show_all_points)
+        self._update_show_all_points_button_text()
+        self.show_all_points_btn.clicked.connect(self._toggle_show_all_points)
+        point_header_layout.addStretch()  # Push button to the right
+        point_header_layout.addWidget(self.show_all_points_btn)
+        point_layout.addLayout(point_header_layout)
         
         # Point table
         self.point_table = PointTable()
         self.point_table.parent_window = self
+        # Initialize current_frame in point table
+        self.point_table.set_current_frame(self.frame_slider.value())
         point_layout.addWidget(self.point_table)
         self.point_table.point_selected.connect(self._on_point_selected)
         
@@ -1505,6 +1563,14 @@ class MainWindow(QMainWindow):
         """Handle frame slider changes"""
         self.frame_value.setText(str(value))
         current_frame = value
+        
+        # Update current_frame in point table and refresh if show_all_points is disabled
+        settings_mgr = self.settings_mgr
+        show_all_points = settings_mgr.get_session_setting("show_all_points", True)
+        if not show_all_points:
+            self.point_table.set_current_frame(current_frame)
+            self._refresh_table()
+        
         view_options = self.get_view_options()
         updated_image = sammie.update_image(current_frame, view_options, self.point_manager.points)
         if updated_image:
@@ -1568,6 +1634,8 @@ class MainWindow(QMainWindow):
         """Update GUI when point data changes"""
         if action == 'add':
             point = kwargs['point']
+            # Ensure current_frame is up to date before adding point
+            self.point_table.set_current_frame(self.frame_slider.value())
             self.point_table.add_point(point['frame'], point['object_id'], point['positive'], point['x'], point['y'])
             # No image update here - wait for segmentation to complete
             
@@ -1620,13 +1688,17 @@ class MainWindow(QMainWindow):
     
     def _on_point_selected(self, point_data):
         """Handle point selection from table"""
-        if point_data and 'frame' in point_data:
+        if point_data:
             # Store the highlighted point
             self.highlighted_point = point_data
-            # Navigate to the frame
-            self.frame_slider.setValue(point_data['frame'])
-            self._update_current_frame_display()
-            
+            # Navigate to the frame (incase of multiple points, the frame of the last point in the list)
+            target_frame = point_data[-1]['frame']
+            # Only update if frame is different to avoid unnecessary updates
+            if self.frame_slider.value() != target_frame:
+                self.frame_slider.setValue(target_frame)
+            else:
+                self._update_current_frame_display()
+                
         else:
             # Clear highlight
             self.highlighted_point = None
@@ -1671,9 +1743,20 @@ class MainWindow(QMainWindow):
             
     def _refresh_table(self):
         """Rebuild table from point manager data"""
+        settings_mgr = self.settings_mgr
+        show_all_points = settings_mgr.get_session_setting("show_all_points", True)
+        current_frame = self.frame_slider.value()
+        
+        # Update current_frame in point table
+        self.point_table.set_current_frame(current_frame)
+        
         self.point_table.clear_points()
         for point in self.point_manager.points:
-            self.point_table.add_point(point['frame'], point['object_id'], point['positive'], point['x'], point['y'])
+            # If show_all_points is disabled, only add points for current frame
+            if not show_all_points and point['frame'] == current_frame:
+                self.point_table.add_point(point['frame'], point['object_id'], point['positive'], point['x'], point['y'])
+            elif show_all_points:
+                self.point_table.add_point(point['frame'], point['object_id'], point['positive'], point['x'], point['y'])
 
     def closeEvent(self, event):
         """Clean up on close"""
@@ -2241,6 +2324,7 @@ class MainWindow(QMainWindow):
         # Reset UI
         self.frame_slider.setRange(0, 0)
         self.frame_slider.setValue(0)
+        self._reset_show_all_points_button_state()
         self.viewer.clear_image()
         self.sidebar.load_values_from_settings()
         self._update_dynamic_widgets()
@@ -2297,8 +2381,8 @@ class MainWindow(QMainWindow):
 
     def resume_prev_session(self):
         """Resume previous session"""
-        # Load session settings first
-        session_loaded = self.settings_mgr.load_session_settings()
+        # Session settings loaded earlier in __init__, just check if session exists
+        session_loaded = self.settings_mgr.session_exists() 
         framecount = sammie.resume_session()
         if framecount is not None and framecount > 0:
             print(f"Loaded {framecount} frames")
