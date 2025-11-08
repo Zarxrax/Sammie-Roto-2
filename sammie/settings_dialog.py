@@ -2,7 +2,7 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QTabWidget,
     QGroupBox, QLabel, QSpinBox, QDoubleSpinBox, QCheckBox, 
-    QPushButton, QComboBox, QSlider, QWidget, QFormLayout
+    QPushButton, QComboBox, QSlider, QWidget, QFormLayout, QScrollArea
 )
 from PySide6.QtCore import Qt
 from sammie.settings_manager import SettingsManager
@@ -43,9 +43,23 @@ class SettingsDialog(QDialog):
         # Create tab widget
         self.tab_widget = QTabWidget()
         
-        # Add tabs
-        self.tab_widget.addTab(self._create_performance_tab(), "Performance")
-        self.tab_widget.addTab(self._create_defaults_tab(), "Defaults")
+        # Add tabs with scroll areas
+        general_tab = self._create_general_tab()
+        defaults_tab = self._create_defaults_tab()
+        
+        # Wrap each tab in a scroll area
+        general_scroll = QScrollArea()
+        general_scroll.setWidget(general_tab)
+        general_scroll.setWidgetResizable(True)
+        general_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        
+        defaults_scroll = QScrollArea()
+        defaults_scroll.setWidget(defaults_tab)
+        defaults_scroll.setWidgetResizable(True)
+        defaults_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        
+        self.tab_widget.addTab(general_scroll, "General")
+        self.tab_widget.addTab(defaults_scroll, "Defaults")
         
         layout.addWidget(self.tab_widget)
         
@@ -175,11 +189,10 @@ class SettingsDialog(QDialog):
         
         layout.addWidget(minimax_group)
         
-        layout.addStretch()
         return tab
     
-    def _create_performance_tab(self):
-        """Create the performance settings tab"""
+    def _create_general_tab(self):
+        """Create the general settings tab"""
         tab = QWidget()
         layout = QVBoxLayout(tab)
         
@@ -238,7 +251,19 @@ class SettingsDialog(QDialog):
         display_layout.addRow("Display Update Frequency:", slider_layout)
         layout.addWidget(display_group)
         
-        layout.addStretch()
+        # Deduplication threshold settings group
+        deduplication_group = QGroupBox("Deduplication Threshold")
+        deduplication_layout = QFormLayout(deduplication_group)
+        
+        self.deduplication_threshold_spin = QDoubleSpinBox()
+        self.deduplication_threshold_spin.setRange(0,1)
+        self.deduplication_threshold_spin.setValue(0.8)
+        self.deduplication_threshold_spin.setSingleStep(0.01)
+        self.deduplication_threshold_spin.setToolTip("Value from 0 to 1 used as a threshold for how similar masks have to be before they're considered the same and deduped.\nHigher values are more strict.")
+        deduplication_layout.addRow("Threshold:", self.deduplication_threshold_spin)
+        
+        layout.addWidget(deduplication_group)
+
         return tab
     
     def _load_current_values(self):
@@ -278,12 +303,13 @@ class SettingsDialog(QDialog):
         self.default_minimax_vae_tiling_cb.setChecked(app_settings.default_minimax_vae_tiling)
         self.default_minimax_steps_spin.setValue(app_settings.default_minimax_steps)
 
-        # Performance tab
+        # General tab
         self.sam_model_combo.setCurrentText(app_settings.sam_model)
         self.force_cpu_cb.setChecked(app_settings.force_cpu)
         self.frame_format_combo.setCurrentText(app_settings.frame_format)
         self.display_update_slider.setValue(app_settings.display_update_frequency)
         self.display_update_label.setText(str(app_settings.display_update_frequency))
+        self.deduplication_threshold_spin.setValue(app_settings.dedupe_threshold)
     
     
     def _save_current_values(self):
@@ -322,11 +348,12 @@ class SettingsDialog(QDialog):
         app_settings.default_minimax_vae_tiling = self.default_minimax_vae_tiling_cb.isChecked()
         app_settings.default_minimax_steps = self.default_minimax_steps_spin.value()
 
-        # Performance tab
+        # General tab
         app_settings.sam_model = self.sam_model_combo.currentText()
         app_settings.force_cpu = self.force_cpu_cb.isChecked()
         app_settings.frame_format = self.frame_format_combo.currentText()
         app_settings.display_update_frequency = self.display_update_slider.value()
+        app_settings.dedupe_threshold = self.deduplication_threshold_spin.value()
             
     
     def accept(self):
