@@ -1274,10 +1274,10 @@ class MainWindow(QMainWindow):
         """Update the button text based on current state"""
         if hasattr(self, 'show_all_points_btn'):
             if self.show_all_points_btn.isChecked():
-                self.show_all_points_btn.setText("List Current Frame Points")
+                self.show_all_points_btn.setText("List All Frame Points")
                 self.settings_mgr.set_session_setting("show_all_points", True)
             else:
-                self.show_all_points_btn.setText("List All Frames Points")
+                self.show_all_points_btn.setText("List Current Frame Points")
                 self.settings_mgr.set_session_setting("show_all_points", False)
 
     def _reset_show_all_points_button_state(self):
