@@ -34,6 +34,7 @@ class ApplicationSettings:
     default_dots: int = 0
     default_border_fix: int = 0
     default_grow: int = 0
+    default_show_all_points: bool = True  # If True, show points from all frames
     
     # MatAnyone Processing defaults
     default_matany_grow: int = 0
@@ -93,7 +94,7 @@ class SessionSettings:
     antialias: bool = False
     show_removal_mask: bool = True
     bgcolor: tuple = (0, 255, 0)  # RGB green
-    show_all_points: bool = True  # If True, only show points for current frame
+    show_all_points: bool = True  # If True, show points from all frames
     
     # Segmentation parameters
     holes: int = 0
@@ -246,6 +247,7 @@ class SettingsManager:
             antialias=self.app_settings.default_antialias,
             show_removal_mask=self.app_settings.default_show_removal_mask,
             bgcolor=self.app_settings.default_bgcolor,
+            show_all_points=self.app_settings.default_show_all_points,
             holes=self.app_settings.default_holes,
             dots=self.app_settings.default_dots,
             border_fix=self.app_settings.default_border_fix,

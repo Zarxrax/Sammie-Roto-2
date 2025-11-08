@@ -982,6 +982,9 @@ class MainWindow(QMainWindow):
         self.update_checker.update_available.connect(self.on_update_available)
         self.update_menu_action = None  # Will store the update menu action when created
         
+        # Load session settings
+        self.settings_mgr.load_session_settings()
+
         # Initialize UI
         self._init_ui()
         self._connect_signals()
@@ -1271,9 +1274,19 @@ class MainWindow(QMainWindow):
         """Update the button text based on current state"""
         if hasattr(self, 'show_all_points_btn'):
             if self.show_all_points_btn.isChecked():
-                self.show_all_points_btn.setText("List All Points")
+                self.show_all_points_btn.setText("List Current Frame Points")
+                self.settings_mgr.set_session_setting("show_all_points", True)
             else:
-                self.show_all_points_btn.setText("List All Points")
+                self.show_all_points_btn.setText("List All Frames Points")
+                self.settings_mgr.set_session_setting("show_all_points", False)
+
+    def _reset_show_all_points_button_state(self):
+        """Update the show_all_points button state from settings"""
+        if hasattr(self, 'show_all_points_btn'):
+            show_all_points = self.settings_mgr.get_app_setting("default_show_all_points", True)
+            self.show_all_points_btn.setChecked(show_all_points)
+            self._update_show_all_points_button_text()
+
 
     def _create_bottom_panel(self):
         """Create the bottom panel with side-by-side layout"""
@@ -1303,7 +1316,21 @@ class MainWindow(QMainWindow):
         # Add show_all_points toggle button
         self.show_all_points_btn = QPushButton("Show All Frames")
         self.show_all_points_btn.setCheckable(True)
-        self.show_all_points_btn.setToolTip("Toggle to show only current frame points (ON) or all frames (OFF)")
+        # Specific styling to overwrite the default blue check toggle
+        self.show_all_points_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #fafafa;
+                border: 1px solid #8f8f91;
+                border-radius: 4px;
+                padding: 4px 8px;
+            }
+            QPushButton:hover {
+                background-color: #f0f0f0;
+            }
+        """)
+        self.show_all_points_btn.setToolTip("Toggle to show all points for all frames in the segmentation point list\nOr just the points for the current frame in the view window")
+        self.show_all_points_btn.setFixedWidth(150)
+        
         # Load initial state from settings
         show_all_points = self.settings_mgr.get_session_setting("show_all_points", True)
         self.show_all_points_btn.setChecked(show_all_points)
@@ -1721,7 +1748,7 @@ class MainWindow(QMainWindow):
         
         self.point_table.clear_points()
         for point in self.point_manager.points:
-            # If show_all_points is enabled, only add points for current frame
+            # If show_all_points is disabled, only add points for current frame
             if not show_all_points and point['frame'] == current_frame:
                 self.point_table.add_point(point['frame'], point['object_id'], point['positive'], point['x'], point['y'])
             elif show_all_points:
@@ -2293,6 +2320,7 @@ class MainWindow(QMainWindow):
         # Reset UI
         self.frame_slider.setRange(0, 0)
         self.frame_slider.setValue(0)
+        self._reset_show_all_points_button_state()
         self.viewer.clear_image()
         self.sidebar.load_values_from_settings()
         self._update_dynamic_widgets()
@@ -2349,8 +2377,8 @@ class MainWindow(QMainWindow):
 
     def resume_prev_session(self):
         """Resume previous session"""
-        # Load session settings first
-        session_loaded = self.settings_mgr.load_session_settings()
+        # Session settings loaded earlier in __init__, just check if session exists
+        session_loaded = self.settings_mgr.session_exists() 
         framecount = sammie.resume_session()
         if framecount is not None and framecount > 0:
             print(f"Loaded {framecount} frames")
