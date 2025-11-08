@@ -3,6 +3,12 @@ python-3.12.8-embed-amd64/
 temp/
 sammie_debug.log
 sammie_settings.json
+sammie_settings.conf
+checkpoints/matanyone.pth
+checkpoints/sam2.1_hiera_base_plus.pt
+checkpoints/sam2.1_hiera_large.pt
+checkpoints/transformer/diffusion_pytorch_model.safetensors
+checkpoints/vae/diffusion_pytorch_model.safetensors
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
