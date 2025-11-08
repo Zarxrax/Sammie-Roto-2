@@ -3,6 +3,12 @@
 
 ![Sammie-Roto 2 screenshot](https://github.com/user-attachments/assets/dfd86bec-f128-47e6-b2e4-dfc9b340236a)
 
+![visitors](https://visitor-badge.laobi.icu/badge?page_id=Zarxrax/Sammie-Roto-2)
+[![GitHub Repo stars](https://img.shields.io/github/stars/Zarxrax/Sammie-Roto-2?style=social)](https://github.com/Zarxrax/Sammie-Roto-2/stargazers)
+[![GitHub Code License](https://img.shields.io/github/license/Zarxrax/Sammie-Roto-2)](LICENSE)
+[![GitHub last commit](https://img.shields.io/github/last-commit/Zarxrax/Sammie-Roto-2)](https://github.com/Zarxrax/Sammie-Roto-2/commits/master)
+[![GitHub pull request](https://img.shields.io/badge/PRs-welcome-blue)](https://github.com/Zarxrax/Sammie-Roto-2/pulls)
+
 Sammie-Roto 2 is a full-featured, cross-platform desktop application for AI assisted masking of video clips. It has 3 primary functions:
 - Video Segmentation using [SAM2](https://github.com/facebookresearch/sam2)
 - Video Matting using [MatAnyone](https://github.com/pq-yang/MatAnyone)
