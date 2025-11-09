@@ -1,6 +1,7 @@
 # sammie/settings_manager.py
 import json
 import os
+import shutil
 from typing import Dict, Any, Optional
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
@@ -137,8 +138,19 @@ class SettingsManager:
     
     def __init__(self, temp_dir: str = "temp"):
         self.temp_dir = temp_dir
-        self.app_settings_file = "sammie_settings.json"
-        self.session_settings_file = os.path.join(temp_dir, "session_settings.json")
+
+        # Rename .json settings files to .conf for backward compatibility.
+        # This will be removed in a future version
+        try:
+            if os.path.exists("sammie_settings.json") :
+                shutil.move("sammie_settings.json", "sammie_settings.conf")
+                if os.path.exists(os.path.join(temp_dir, "session_settings.json")) :
+                    shutil.move(os.path.join(temp_dir, "session_settings.json"), os.path.join(temp_dir, "session_settings.conf"))
+        except Exception as e:
+            print(f"Warning: Failed to rename settings files: {e}")
+
+        self.app_settings_file = "sammie_settings.conf"
+        self.session_settings_file = os.path.join(temp_dir, "session_settings.conf")
         self.points_file = os.path.join(temp_dir, "points.json")
         
         # Initialize settings
