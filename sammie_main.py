@@ -152,7 +152,7 @@ class SegmentationTab(QWidget):
         clear_layout = QVBoxLayout(clear_group)
         
         button_configs = [
-            ("Undo Last Point", "undo_last_point_btn", 
+            ("Remove Last Point", "undo_last_point_btn", 
             "Remove the most recently added point"),
             ("Clear Frame", "clear_frame_btn", 
             "Remove all points from the current frame"),
@@ -2247,7 +2247,7 @@ class MainWindow(QMainWindow):
         self._create_shortcut("Space", self.toggle_play_pause, "Play/Pause")
         
         # Point operations
-        self._create_shortcut("Ctrl+Z", self.undo_last_point, "Undo Last Point")
+        self._create_shortcut("Ctrl+Z", self.undo_last_point, "Remove Last Point")
         self._create_shortcut("Delete", self.delete_selected_point, "Delete Selected Point")
         self._create_shortcut("Ctrl+Delete", self.clear_frame_points, "Clear Frame Points")
         self._create_shortcut("Shift+Delete", self.clear_object_points, "Clear Object Points")
