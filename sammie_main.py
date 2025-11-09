@@ -2532,6 +2532,7 @@ class MainWindow(QMainWindow):
     def show_settings(self):
         """Show settings dialog"""
         self.settings_mgr.save_app_settings()
+        self.settings_mgr.save_session_settings()
         # get model settings
         cpu = self.settings_mgr.get_app_setting("force_cpu", 0)
         segmentation = self.settings_mgr.get_app_setting("sam_model", "None")
