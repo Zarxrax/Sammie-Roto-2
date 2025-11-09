@@ -1091,23 +1091,37 @@ class RemovalManager:
         
         return composited
 
+
     def resize_image_minimax(self, image, mask=False):
-        """Resize image based on minimax internal resolution setting"""
+        """
+        Resize image based on minimax internal resolution setting.
+        - Downscales if the smaller side exceeds max_size.
+        - Always ensures dimensions are multiples of 16 (rounded down).
+        - Skips resizing if the output size would be identical.
+        - Uses INTER_NEAREST for masks, INTER_AREA otherwise.
+        """
         settings_mgr = get_settings_manager()
         max_size = settings_mgr.get_session_setting("minimax_resolution", 480)
 
         h, w = image.shape[:2]
         min_side = min(h, w)
+
         if min_side > max_size:
+            # Downscale proportionally and align to multiple of 16 (rounded down)
             scale = max_size / min_side
-            new_h = math.ceil((h * scale) / 16) * 16
-            new_w = math.ceil((w * scale) / 16) * 16
-            if not mask:
-                image = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_AREA)
-            else:
-                image = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
+            new_h = math.floor((h * scale) / 16) * 16
+            new_w = math.floor((w * scale) / 16) * 16
+        else:
+            # Keep same size, just align down to multiple of 16
+            new_h = math.floor(h / 16) * 16
+            new_w = math.floor(w / 16) * 16
+
+        # Only resize if necessary
+        if (new_w, new_h) != (w, h):
+            interpolation = cv2.INTER_NEAREST if mask else cv2.INTER_AREA
+            image = cv2.resize(image, (new_w, new_h), interpolation=interpolation)
+
         return image
-    
     
     def run_object_removal_cv(self, points_list, parent_window):
         """

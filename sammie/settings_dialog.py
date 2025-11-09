@@ -177,7 +177,7 @@ class SettingsDialog(QDialog):
         minimax_layout = QFormLayout(minimax_group)
         
         self.default_minimax_res_combo = QComboBox()
-        self.default_minimax_res_combo.addItems(["360", "480", "720", "1080"])
+        self.default_minimax_res_combo.addItems(["352", "480", "720", "1080"])
         minimax_layout.addRow("Internal Resolution:", self.default_minimax_res_combo)
         
         self.default_minimax_vae_tiling_cb = QCheckBox()

@@ -795,7 +795,7 @@ class ObjectRemovalTab(QWidget):
         # Internal Resolution
         params_layout.addWidget(QLabel("Internal Resolution:"), row, 0)
         self.minimax_resolution_combo = QComboBox()
-        self.minimax_resolution_combo.addItems(["360", "480", "720", "1080"])
+        self.minimax_resolution_combo.addItems(["352", "480", "720", "1080"])
         
         current_resolution = str(settings_mgr.get_session_setting("minimax_resolution", 480))
         index = self.minimax_resolution_combo.findText(current_resolution)
