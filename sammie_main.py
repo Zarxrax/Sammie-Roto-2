@@ -2327,6 +2327,7 @@ class MainWindow(QMainWindow):
         self._reset_show_all_points_button_state()
         self.viewer.clear_image()
         self.sidebar.load_values_from_settings()
+        self.sidebar.tab_widget.setCurrentIndex(0)
         self._update_dynamic_widgets()
         
         file_ext = os.path.splitext(file_path)[1].lower()
