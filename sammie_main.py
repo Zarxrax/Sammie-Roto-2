@@ -1934,6 +1934,7 @@ class MainWindow(QMainWindow):
         """Clear tracking data"""
         self.sam_manager.clear_tracking()  # This already handles the clearing
         self.is_deduplicated = False # Clear deduplication flag
+        self.settings_mgr.set_session_setting("is_deduplicated", self.is_deduplicated)
         self.matany_manager.propagated = False # Clear matting flag
         self.update_tracking_status()
         self.update_matting_status()
@@ -1950,13 +1951,19 @@ class MainWindow(QMainWindow):
         if not self.sam_manager.propagated:
             print("Run Track Objects before Deduplication")
             return
-        
+        self.is_deduplicated = False
         print("Running deduplication...")
-        deduplicated = sammie.deduplicate_masks(parent_window=self)
+        self.is_deduplicated = sammie.deduplicate_masks(parent_window=self)
+        
+        # Update deduplication status with the return of the deuplicate masks function
+        self.settings_mgr.set_session_setting("is_deduplicated", self.is_deduplicated)
+
+        # Update display after deduping finished
+        self._update_current_frame_display()
         
         # Update the button status
         if hasattr(self, 'segmentation_tab'):
-            self.segmentation_tab.update_deduplicate_status(deduplicated)
+            self.segmentation_tab.update_deduplicate_status(self.is_deduplicated)
 
     def run_matting(self):
         """Run matting process"""
@@ -2036,6 +2043,7 @@ class MainWindow(QMainWindow):
             # Clear deduplication status when tracking status changes
             if not self.sam_manager.propagated:
                 self.is_deduplicated = False
+                self.settings_mgr.set_session_setting("is_deduplicated", self.is_deduplicated)
                 self.segmentation_tab.update_deduplicate_status(False)
                 self.matany_manager.propagated = False
                 self.removal_manager.propagated = False
