@@ -2539,8 +2539,6 @@ class MainWindow(QMainWindow):
         segmentation = self.settings_mgr.get_app_setting("sam_model", "None")
         dialog = SettingsDialog(self.settings_mgr, self)
         if dialog.exec():
-            # Reload UI elements that depend on settings
-            self._load_session_ui_state(reset_view=False)
             print("Application settings saved.")
 
             # Prompt to restart if needed
