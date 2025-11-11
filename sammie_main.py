@@ -1922,6 +1922,11 @@ class MainWindow(QMainWindow):
                 self.update_tracking_status()
                 self._update_current_frame_display()
             else: # completed
+                self.is_deduplicated = False # Clear deduplication flag
+                self.settings_mgr.set_session_setting("is_deduplicated", self.is_deduplicated)
+                # Update dedupe button status
+                if hasattr(self, 'segmentation_tab'):
+                    self.segmentation_tab.update_deduplicate_status(self.is_deduplicated)
                 self.frame_slider.setValue(0)
                 self.update_tracking_status()
                 self._update_current_frame_display()

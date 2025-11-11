@@ -113,9 +113,9 @@ def replace_similar_matte_frames(parent_window, dedupe_min_threshold):
     if is_deduplicated:
         restore_backup_mattes(mask_dir, backup_dir)
         settings_mgr.set_session_setting("is_deduplicated", False)
-    
-    # Before deduplicating and overwriting the masks, backup the current masks
-    backup_mattes(mask_dir, backup_dir)
+    elif not is_deduplicated:
+        # Only backup the masks if we are deduplicating for the first time (for example after tracking objects)
+        backup_mattes(mask_dir, backup_dir)
 
     frame_index = 0 # Keeps track of the current "base" frame for comparisons
     deduped_frames_amount = 0 # Keep track of how many frames/masks have been replaced/deduped
@@ -169,7 +169,7 @@ def replace_similar_matte_frames(parent_window, dedupe_min_threshold):
             progress.n = frames_amount
             progress.refresh()
             progress.close()
-            print(f"\nDeduplicated {deduped_frames_amount} mask frames")
+            print(f"Deduplicated {deduped_frames_amount} mask frames")
             return True
         else:
             # Load the next frame
