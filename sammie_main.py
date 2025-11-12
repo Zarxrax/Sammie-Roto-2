@@ -967,7 +967,7 @@ class MainWindow(QMainWindow):
         self.matany_manager = sammie.MatAnyManager()
         self.removal_manager = sammie.RemovalManager()
         self.point_manager = sammie.PointManager()
-        self.is_deduplicated = False
+        self.is_deduplicated = self.settings_mgr.get_session_setting("is_deduplicated", False)
         self.highlighted_point = None
         
         # Store initial file to load after initialization
@@ -1956,7 +1956,6 @@ class MainWindow(QMainWindow):
         if not self.sam_manager.propagated:
             print("Run Track Objects before Deduplication")
             return
-        self.is_deduplicated = False
         print("Running deduplication...")
         self.is_deduplicated = sammie.deduplicate_masks(parent_window=self)
         
@@ -2045,7 +2044,7 @@ class MainWindow(QMainWindow):
         """Update the tracking status display"""
         if hasattr(self, 'segmentation_tab'):
             self.segmentation_tab.update_tracking_status(self.sam_manager.propagated)
-            # Clear deduplication status when tracking status changes
+            # Clear deduplication, matting, and dedupe status when tracking is cleared
             if not self.sam_manager.propagated:
                 self.is_deduplicated = False
                 self.settings_mgr.set_session_setting("is_deduplicated", self.is_deduplicated)
@@ -2519,6 +2518,7 @@ class MainWindow(QMainWindow):
         self.matany_manager.propagated = settings_mgr.get_session_setting("is_matted", False)
         self.removal_manager.propagated = settings_mgr.get_session_setting("is_removed", False)
         self.update_tracking_status()
+        self.segmentation_tab.update_deduplicate_status(self.is_deduplicated)
         self.update_matting_status()
         self.update_removal_status()
         # Update display

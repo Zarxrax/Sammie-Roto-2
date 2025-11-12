@@ -2085,8 +2085,7 @@ def deduplicate_masks(parent_window):
     """Deduplicate similar masks using settings threshold"""
     settings_mgr = get_settings_manager()
     threshold = settings_mgr.app_settings.dedupe_threshold
-    replace_similar_matte_frames(parent_window, threshold)
-    return 1
+    return replace_similar_matte_frames(parent_window, threshold)
     
 
 def load_video(video_file, parent_window):
