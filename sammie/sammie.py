@@ -107,6 +107,7 @@ class SamManager:
         self.predictor = None
         self.inference_state = None
         self.propagated = False # whether we have propagated the masks
+        self.deduplicated = False # whether we have deduplicated the masks
         self.callbacks = []  # Add callbacks for segmentation events
         
     def add_callback(self, callback):
@@ -301,6 +302,7 @@ class SamManager:
         if self.propagated:
             print("Tracking data cleared")
         self.propagated = False
+        self.deduplicated = False
 
 class MatAnyManager:
     
