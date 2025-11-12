@@ -2,7 +2,8 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QTabWidget,
     QGroupBox, QLabel, QSpinBox, QDoubleSpinBox, QCheckBox, 
-    QPushButton, QComboBox, QSlider, QWidget, QFormLayout, QScrollArea
+    QPushButton, QComboBox, QSlider, QWidget, QFormLayout, QScrollArea,
+    QDialogButtonBox
 )
 from PySide6.QtCore import Qt
 from sammie.settings_manager import SettingsManager
@@ -63,20 +64,14 @@ class SettingsDialog(QDialog):
         
         layout.addWidget(self.tab_widget)
         
-        # Buttons
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-        
-        self.ok_btn = QPushButton("OK")
-        self.cancel_btn = QPushButton("Cancel")
-        
-        self.ok_btn.clicked.connect(self.accept)
-        self.cancel_btn.clicked.connect(self.reject)
-        
-        button_layout.addWidget(self.ok_btn)
-        button_layout.addWidget(self.cancel_btn)
-        
-        layout.addLayout(button_layout)
+        # Buttons using QDialogButtonBox for platform-specific ordering
+        self.button_box = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+        )
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+
+        layout.addWidget(self.button_box)
         
     def _create_defaults_tab(self):
         """Create the defaults settings tab"""
