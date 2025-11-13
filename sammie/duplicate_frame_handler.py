@@ -80,9 +80,8 @@ def restore_backup_mattes(mask_dir, backup_dir):
         return
     print("Restoring original masks backup")
     shutil.copytree(backup_dir, mask_dir, dirs_exist_ok=True)
-    shutil.rmtree(backup_dir)
 
-def remove_backup_mattes(backup_dir):
+def remove_backup_mattes():
     if os.path.exists(backup_dir):
         shutil.rmtree(backup_dir)
 
@@ -108,13 +107,10 @@ def replace_similar_matte_frames(parent_window, dedupe_min_threshold):
         print("Mismatch between frames and masks.\nPlease fully track objects first.")
         return False
     
-    # If a backup of the masks exists, it means deduplication was run before.
-    # Restore the original masks to ensure we're working with the source data.
-    if os.path.exists(backup_dir):
+    # If a backup of the masks exists, it means deduplication has been executed before
+    if os.path.exists(backup_dir): # Restore the original masks to ensure we're working with the source data.
         restore_backup_mattes(mask_dir, backup_dir)
-    
-    # Always create a fresh backup of the current masks before deduplicating.
-    if not os.path.exists(backup_dir):
+    else: # Create a backup of the original masks
         backup_mattes(mask_dir, backup_dir)
 
     frame_index = 0 # Keeps track of the current "base" frame for comparisons

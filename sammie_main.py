@@ -22,6 +22,7 @@ from sammie.export_image_dialog import ImageExportDialog
 from sammie.export_dialog import ExportDialog
 from sammie.settings_dialog import SettingsDialog
 from sammie.settings_manager import get_settings_manager, initialize_settings, ApplicationSettings
+from sammie.duplicate_frame_handler import remove_backup_mattes
 
 # Import GUI widgets
 from sammie.gui_widgets import (
@@ -1922,6 +1923,7 @@ class MainWindow(QMainWindow):
                 self._update_current_frame_display()
             else: # completed
                 self.sam_manager.deduplicated = False # Clear deduplication flag
+                remove_backup_mattes() # Make sure to remove an existing mattes backup folder
                 self.update_tracking_status()
                 self._update_current_frame_display()
         else:
@@ -1933,6 +1935,8 @@ class MainWindow(QMainWindow):
         """Clear tracking data"""
         self.sam_manager.clear_tracking()  # This already handles the clearing both propagated and deduplicated
         self.matany_manager.propagated = False # Clear matting flag
+        self.sam_manager.deduplicated = False # Clear deduplication flag
+        remove_backup_mattes() # Make sure to remove an existing mattes backup folder
         self.update_tracking_status()
         self.update_matting_status()
         self.update_removal_status()
