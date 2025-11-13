@@ -308,9 +308,9 @@ class SegmentationTab(QWidget):
             self.deduplicate_masks_btn.setEnabled(False)
             self.deduplicate_masks_btn.setText("Deduplicate Similar Masks")
 
-    def update_deduplicate_status(self, is_deduplicated):
+    def update_deduplicate_status(self, deduplicated):
         """Update the Deduplicate button text based on deduplication status"""
-        if is_deduplicated:
+        if deduplicated:
             self.deduplicate_masks_btn.setText("Deduplicate Similar Masks ✅")
         else:
             self.deduplicate_masks_btn.setText("Deduplicate Similar Masks")
@@ -2035,14 +2035,15 @@ class MainWindow(QMainWindow):
 
     def update_tracking_status(self):
         """Update the tracking status display"""
+        # Update the button status
         if hasattr(self, 'segmentation_tab'):
             self.segmentation_tab.update_tracking_status(self.sam_manager.propagated)
             # Clear deduplication, matting, and dedupe status when tracking is cleared
             if not self.sam_manager.propagated:
                 self.sam_manager.deduplicated = False
-                self.segmentation_tab.update_deduplicate_status(False)
                 self.matany_manager.propagated = False
                 self.removal_manager.propagated = False
+            self.segmentation_tab.update_deduplicate_status(self.sam_manager.deduplicated)
 
     def update_matting_status(self):
         """Update the matting status display"""
