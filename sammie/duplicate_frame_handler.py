@@ -69,7 +69,7 @@ def replace_files_similar_mattes(mask_dir, similar_frames):
             shutil.copy(file_path, replace_mask_dir)
 
 def backup_mattes(mask_dir, backup_dir):
-    print("Creating original masks backup")
+    #print("Creating original masks backup")
     if os.path.exists(backup_dir):
         shutil.rmtree(backup_dir)
     shutil.copytree(mask_dir, backup_dir)

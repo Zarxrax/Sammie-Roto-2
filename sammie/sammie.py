@@ -33,6 +33,7 @@ from minimax_remover.transformer_minimax_remover import Transformer3DModel
 temp_dir = "temp"
 frames_dir = os.path.join(temp_dir, "frames")
 mask_dir = os.path.join(temp_dir, "masks")
+backup_dir = os.path.join(temp_dir, "masks_backup")
 matting_dir = os.path.join(temp_dir, "matting")
 removal_dir = os.path.join(temp_dir, "removal")
 smoothing_model = None #global variable needed to avoid complexity of passing the model around
@@ -2088,6 +2089,10 @@ def deduplicate_masks(parent_window):
     settings_mgr = get_settings_manager()
     threshold = settings_mgr.app_settings.dedupe_threshold
     return replace_similar_matte_frames(parent_window, threshold)
+
+def remove_backup_mattes():
+    if os.path.exists(backup_dir):
+        shutil.rmtree(backup_dir)
     
 
 def load_video(video_file, parent_window):
