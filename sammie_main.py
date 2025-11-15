@@ -1949,6 +1949,7 @@ class MainWindow(QMainWindow):
             sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
             self.update_tracking_status()
             self._update_current_frame_display()
+            self.settings_mgr.save_session_settings()
         else:
             # If no points, just update display
             print("Points must be added before tracking")
@@ -1984,6 +1985,7 @@ class MainWindow(QMainWindow):
         # Update the button status
         if hasattr(self, 'segmentation_tab'):
             self.update_deduplicate_status()
+        self.settings_mgr.save_session_settings()
 
     def run_matting(self):
         """Run matting process"""
@@ -2011,6 +2013,7 @@ class MainWindow(QMainWindow):
                 self._update_current_frame_display()
             # self.matany_manager.offload_model_to_cpu()
             QApplication.processEvents()
+            self.settings_mgr.save_session_settings()
             self.matany_manager.unload_matting_model() # unload matting model since its not needed in memory
             self.sam_manager.load_model_to_device()
         else:
@@ -2050,6 +2053,7 @@ class MainWindow(QMainWindow):
                 self.update_removal_status()
                 self._update_current_frame_display()
 
+            self.settings_mgr.save_session_settings()
             # unload minimax model and load sam model
             self.removal_manager.unload_minimax_model()    
             self.sam_manager.load_model_to_device()
@@ -2443,6 +2447,7 @@ class MainWindow(QMainWindow):
     
     def save_points(self):
         """Save points to file"""
+        self.settings_mgr.save_session_settings()
         file_name, _ = QFileDialog.getSaveFileName(self, "Save Points", "", "JSON Files (*.json)")
         if file_name:
             points = self.point_manager.get_all_points()
@@ -2467,6 +2472,7 @@ class MainWindow(QMainWindow):
 
     def save_project(self):
         """Save project to file"""
+        self.settings_mgr.save_session_settings()
         file_name, _ = QFileDialog.getSaveFileName(self, "Save Project", "", "Sammie Files (*.sammie)")
         if file_name:
             success = sammie.save_project(file_name, parent_window=self)
