@@ -33,6 +33,7 @@ from minimax_remover.transformer_minimax_remover import Transformer3DModel
 temp_dir = "temp"
 frames_dir = os.path.join(temp_dir, "frames")
 mask_dir = os.path.join(temp_dir, "masks")
+backup_dir = os.path.join(temp_dir, "masks_backup")
 matting_dir = os.path.join(temp_dir, "matting")
 removal_dir = os.path.join(temp_dir, "removal")
 smoothing_model = None #global variable needed to avoid complexity of passing the model around
@@ -107,6 +108,7 @@ class SamManager:
         self.predictor = None
         self.inference_state = None
         self.propagated = False # whether we have propagated the masks
+        self.deduplicated = False # whether we have deduplicated the masks
         self.callbacks = []  # Add callbacks for segmentation events
         
     def add_callback(self, callback):
@@ -301,6 +303,7 @@ class SamManager:
         if self.propagated:
             print("Tracking data cleared")
         self.propagated = False
+        self.deduplicated = False
 
 class MatAnyManager:
     
@@ -2085,8 +2088,11 @@ def deduplicate_masks(parent_window):
     """Deduplicate similar masks using settings threshold"""
     settings_mgr = get_settings_manager()
     threshold = settings_mgr.app_settings.dedupe_threshold
-    replace_similar_matte_frames(parent_window, threshold)
-    return 1
+    return replace_similar_matte_frames(parent_window, threshold)
+
+def remove_backup_mattes():
+    if os.path.exists(backup_dir):
+        shutil.rmtree(backup_dir)
     
 
 def load_video(video_file, parent_window):

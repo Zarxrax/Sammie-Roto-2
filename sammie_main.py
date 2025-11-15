@@ -297,9 +297,9 @@ class SegmentationTab(QWidget):
         return object_names.get(str(object_id), "")
     
         
-    def update_tracking_status(self, is_propagated):
+    def update_tracking_status_helper(self, propagated):
         """Update the Track Objects button text based on propagation state"""
-        if is_propagated:
+        if propagated:
             self.track_objects_btn.setText("Track Objects ✅")
             self.deduplicate_masks_btn.setEnabled(True)
         else:
@@ -307,9 +307,9 @@ class SegmentationTab(QWidget):
             self.deduplicate_masks_btn.setEnabled(False)
             self.deduplicate_masks_btn.setText("Deduplicate Similar Masks")
 
-    def update_deduplicate_status(self, is_deduplicated):
+    def update_deduplicate_status_helper(self, deduplicated):
         """Update the Deduplicate button text based on deduplication status"""
-        if is_deduplicated:
+        if deduplicated:
             self.deduplicate_masks_btn.setText("Deduplicate Similar Masks ✅")
         else:
             self.deduplicate_masks_btn.setText("Deduplicate Similar Masks")
@@ -967,7 +967,6 @@ class MainWindow(QMainWindow):
         self.matany_manager = sammie.MatAnyManager()
         self.removal_manager = sammie.RemovalManager()
         self.point_manager = sammie.PointManager()
-        self.is_deduplicated = False
         self.highlighted_point = None
         
         # Store initial file to load after initialization
@@ -1051,7 +1050,7 @@ class MainWindow(QMainWindow):
         
         # Save tracking state
         settings_mgr.set_session_setting("is_propagated", self.sam_manager.propagated)
-        settings_mgr.set_session_setting("is_deduplicated", self.is_deduplicated)
+        settings_mgr.set_session_setting("is_deduplicated", self.sam_manager.deduplicated)
         settings_mgr.set_session_setting("is_matted", self.matany_manager.propagated)
         settings_mgr.set_session_setting("is_removed", self.removal_manager.propagated)
 
@@ -1087,7 +1086,7 @@ class MainWindow(QMainWindow):
             # Store reference to segmentation tab for status updates
             self.segmentation_tab = seg_tab
             # Initialize the button status
-            self.segmentation_tab.update_tracking_status(self.sam_manager.propagated)
+            self.segmentation_tab.update_tracking_status_helper(self.sam_manager.propagated)
 
         # Get the matting tab
         matting_tab = self.sidebar.matting_tab
@@ -1919,12 +1918,11 @@ class MainWindow(QMainWindow):
             if self.sam_manager.track_objects(parent_window=self) == 0: # if cancelled
                 self.sam_manager.clear_tracking() 
                 self.sam_manager.replay_points(self.point_manager.get_all_points())
-                self.update_tracking_status()
-                self._update_current_frame_display()
             else: # completed
-                self.frame_slider.setValue(0)
-                self.update_tracking_status()
-                self._update_current_frame_display()
+                pass
+            sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
+            self.update_tracking_status()
+            self._update_current_frame_display()
         else:
             # If no points, just update display
             print("Points must be added before tracking")
@@ -1932,9 +1930,10 @@ class MainWindow(QMainWindow):
     
     def clear_tracking_data(self):
         """Clear tracking data"""
-        self.sam_manager.clear_tracking()  # This already handles the clearing
-        self.is_deduplicated = False # Clear deduplication flag
+        self.sam_manager.clear_tracking()  # This already handles the clearing both propagated and deduplicated
         self.matany_manager.propagated = False # Clear matting flag
+        self.sam_manager.deduplicated = False # Clear deduplication flag
+        sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
         self.update_tracking_status()
         self.update_matting_status()
         self.update_removal_status()
@@ -1950,13 +1949,15 @@ class MainWindow(QMainWindow):
         if not self.sam_manager.propagated:
             print("Run Track Objects before Deduplication")
             return
+        #print("Running deduplication...")
+        self.sam_manager.deduplicated = sammie.deduplicate_masks(parent_window=self)
         
-        print("Running deduplication...")
-        deduplicated = sammie.deduplicate_masks(parent_window=self)
+        # Update display after deduping finished
+        self._update_current_frame_display()
         
         # Update the button status
         if hasattr(self, 'segmentation_tab'):
-            self.segmentation_tab.update_deduplicate_status(deduplicated)
+            self.update_deduplicate_status()
 
     def run_matting(self):
         """Run matting process"""
@@ -2031,14 +2032,19 @@ class MainWindow(QMainWindow):
 
     def update_tracking_status(self):
         """Update the tracking status display"""
+        # Update the button status
         if hasattr(self, 'segmentation_tab'):
-            self.segmentation_tab.update_tracking_status(self.sam_manager.propagated)
-            # Clear deduplication status when tracking status changes
+            self.segmentation_tab.update_tracking_status_helper(self.sam_manager.propagated)
+            # Clear deduplication, matting, and dedupe status when tracking is cleared
             if not self.sam_manager.propagated:
-                self.is_deduplicated = False
-                self.segmentation_tab.update_deduplicate_status(False)
+                self.sam_manager.deduplicated = False
                 self.matany_manager.propagated = False
                 self.removal_manager.propagated = False
+            self.update_deduplicate_status()
+
+    def update_deduplicate_status(self):
+        """Update the Deduplicate button text based on deduplication status"""
+        self.segmentation_tab.update_deduplicate_status_helper(self.sam_manager.deduplicated)
 
     def update_matting_status(self):
         """Update the matting status display"""
@@ -2063,7 +2069,7 @@ class MainWindow(QMainWindow):
             # Start playback
             self.is_playing = True
             self.play_pause_btn.setText("Pause")
-            # Adjust interval to your desired FPS (e.g. ~33 ms for 30fps)
+            # Adjust interval to your desired FPS (e.g. ~33 ms for 30fps, 40 ms for 25fps)
             self.play_timer.start(40)
 
         else:
@@ -2502,10 +2508,10 @@ class MainWindow(QMainWindow):
         
         # Load tracking state
         self.sam_manager.propagated = settings_mgr.get_session_setting("is_propagated", False)
-        self.is_deduplicated = settings_mgr.get_session_setting("is_deduplicated", False)
+        self.sam_manager.deduplicated = settings_mgr.get_session_setting("is_deduplicated", False)
         self.matany_manager.propagated = settings_mgr.get_session_setting("is_matted", False)
         self.removal_manager.propagated = settings_mgr.get_session_setting("is_removed", False)
-        self.update_tracking_status()
+        self.update_tracking_status() # also updates deduplication status
         self.update_matting_status()
         self.update_removal_status()
         # Update display
