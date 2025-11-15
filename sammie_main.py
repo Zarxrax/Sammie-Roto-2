@@ -18,6 +18,7 @@ from PySide6.QtCore import Qt, QTimer
 
 # Import external logic functions
 from sammie import sammie
+from sammie import resources
 from sammie.export_image_dialog import ImageExportDialog
 from sammie.export_dialog import ExportDialog
 from sammie.settings_dialog import SettingsDialog
@@ -176,11 +177,11 @@ class SegmentationTab(QWidget):
         tracking_layout = QVBoxLayout(tracking_group)
         
         button_configs = [
-            ("Track Objects", "track_objects_btn", 
+            (" Track Objects ", "track_objects_btn", 
             "Propagate segmentation masks to all frames using the added points as guidance"),
             ("Clear Tracking Data", "clear_tracking_data_btn", 
             "Remove all propagated masks but keep the point annotations"),
-            ("Deduplicate Similar Masks", "deduplicate_masks_btn", 
+            (" Deduplicate Similar Masks ", "deduplicate_masks_btn", 
             "Reduce edge chatter in animated content by repeating masks on duplicated frames (requires tracking first)")
         ]
         
@@ -190,6 +191,10 @@ class SegmentationTab(QWidget):
             tracking_layout.addWidget(btn)
             setattr(self, attr_name, btn)
         
+        # Put icon on the right side of text
+        self.track_objects_btn.setLayoutDirection(Qt.RightToLeft)
+        self.deduplicate_masks_btn.setLayoutDirection(Qt.RightToLeft)
+
         layout.addWidget(tracking_group)
     
     def _create_parameter_sliders(self, layout):
@@ -298,21 +303,26 @@ class SegmentationTab(QWidget):
     
         
     def update_tracking_status_helper(self, propagated):
-        """Update the Track Objects button text based on propagation state"""
+        """Update the Track Objects button icon based on propagation state"""
         if propagated:
-            self.track_objects_btn.setText("Track Objects ✅")
+            self.track_objects_btn.setIcon(QIcon(":/icons/check-small.png"))
+            #self.track_objects_btn.setText("Track Objects ✅")
             self.deduplicate_masks_btn.setEnabled(True)
         else:
-            self.track_objects_btn.setText("Track Objects")
+            #self.track_objects_btn.setText("Track Objects")
+            self.track_objects_btn.setIcon(QIcon())
             self.deduplicate_masks_btn.setEnabled(False)
-            self.deduplicate_masks_btn.setText("Deduplicate Similar Masks")
+            self.deduplicate_masks_btn.setIcon(QIcon())
+            #self.deduplicate_masks_btn.setText("Deduplicate Similar Masks")
 
     def update_deduplicate_status_helper(self, deduplicated):
         """Update the Deduplicate button text based on deduplication status"""
         if deduplicated:
-            self.deduplicate_masks_btn.setText("Deduplicate Similar Masks ✅")
+            self.deduplicate_masks_btn.setIcon(QIcon(":/icons/check-small.png"))
+            #self.deduplicate_masks_btn.setText("Deduplicate Similar Masks ✅")
         else:
-            self.deduplicate_masks_btn.setText("Deduplicate Similar Masks")
+            self.deduplicate_masks_btn.setIcon(QIcon())
+            #self.deduplicate_masks_btn.setText("Deduplicate Similar Masks")
 
     def load_values_from_settings(self):
         """Load all values from settings (useful when loading a session)"""
@@ -353,7 +363,8 @@ class MattingTab(QWidget):
         self._create_instructions_section(layout)
         
         # Run button
-        self.run_matting_btn = QPushButton("Run Matting")
+        self.run_matting_btn = QPushButton(" Run Matting ")
+        self.run_matting_btn.setLayoutDirection(Qt.RightToLeft)
         layout.addWidget(self.run_matting_btn)
         
         # MatAnyone Internal Resolution selection
@@ -541,9 +552,11 @@ class MattingTab(QWidget):
     def update_matting_status(self, is_propagated):
         """Update the Run Matting button text based on propagation state"""
         if is_propagated:
-            self.run_matting_btn.setText("Run Matting ✅")
+            self.run_matting_btn.setIcon(QIcon(":/icons/check-small.png"))
+            #self.run_matting_btn.setText("Run Matting ✅")
         else:
-            self.run_matting_btn.setText("Run Matting")
+            self.run_matting_btn.setIcon(QIcon())
+            #self.run_matting_btn.setText("Run Matting")
 
 class ObjectRemovalTab(QWidget):
     """Tab containing object removal controls and parameters"""
@@ -560,7 +573,8 @@ class ObjectRemovalTab(QWidget):
         self._create_instructions_section(layout)
         
         # Run button
-        self.run_removal_btn = QPushButton("Run Object Removal")
+        self.run_removal_btn = QPushButton(" Run Object Removal ")
+        self.run_removal_btn.setLayoutDirection(Qt.RightToLeft)
         layout.addWidget(self.run_removal_btn)
 
         # Method selection (MiniMax-Remover vs OpenCV)
@@ -915,9 +929,11 @@ class ObjectRemovalTab(QWidget):
     def update_removal_status(self, is_completed):
         """Update the Run Object Removal button text based on completion state"""
         if is_completed:
-            self.run_removal_btn.setText("Run Object Removal ✅")
+            self.run_removal_btn.setIcon(QIcon(":/icons/check-small.png"))
+            #self.run_removal_btn.setText("Run Object Removal ✅")
         else:
-            self.run_removal_btn.setText("Run Object Removal")
+            self.run_removal_btn.setIcon(QIcon())
+            #self.run_removal_btn.setText("Run Object Removal")
 
 class Sidebar(QWidget):
     """Main sidebar containing segmentation and matting tabs"""
@@ -959,7 +975,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.settings_mgr = initialize_settings()
         self.setWindowTitle(f"Sammie-Roto {__version__}")
-        self.setWindowIcon(QIcon('sammie/icon.ico'))
+        self.setWindowIcon(QIcon(":/icon.ico"))
         self.is_playing = False
         self.play_timer = QTimer(self)
         self.play_timer.timeout.connect(self.play_next_frame)
@@ -1327,7 +1343,7 @@ class MainWindow(QMainWindow):
                 background-color: #f0f0f0;
             }
         """)
-        self.show_all_points_btn.setToolTip("Toggle to show all points for all frames in the segmentation point list\nOr just the points for the current frame in the view window")
+        self.show_all_points_btn.setToolTip("Toggle to show all points for all frames or just the points for the currently displayed frame")
         self.show_all_points_btn.setFixedWidth(150)
         
         # Load initial state from settings
@@ -1391,22 +1407,32 @@ class MainWindow(QMainWindow):
         """Create playback control buttons"""
         controls_layout = QHBoxLayout()
         
+        # Button Icons
+        self.icon_play = QIcon(":/icons/control-play.png")
+        self.icon_pause = QIcon(":/icons/control-pause.png")
+        icon_prev = QIcon(":/icons/control-step-left.png")
+        icon_next = QIcon(":/icons/control-step-right.png")
+        icon_prev_keyframe = QIcon(":/icons/key-arrow-left.png")
+        icon_next_keyframe = QIcon(":/icons/key-arrow-right.png")
+
         # Playback buttons
         button_configs = [
-            ("◀🔑", 50, self.prev_keyframe),
-            ("◀", 40, self.prev_frame),
-            ("Play", 60, self.toggle_play_pause),
-            ("▶", 40, self.next_frame),
-            ("🔑▶", 50, self.next_keyframe)
+            (icon_prev_keyframe, 40, self.prev_keyframe, "prev_keyframe", "Previous Keyframe"),
+            (icon_prev, 40, self.prev_frame, "prev_frame", "Previous Frame"),
+            (self.icon_play, 40, self.toggle_play_pause, "play_pause", "Play/Pause"),
+            (icon_next, 40, self.next_frame, "next_frame", "Next Frame"),
+            (icon_next_keyframe, 40, self.next_keyframe, "next_keyframe", "Next Keyframe")
         ]
         
-        for text, width, handler in button_configs:
-            btn = QPushButton(text)
+        for icon, width, handler, button_id, tooltip in button_configs:
+            btn = QPushButton()
+            btn.setIcon(icon)
             btn.setMaximumWidth(width)
+            btn.setToolTip(tooltip)
             btn.clicked.connect(handler)
             controls_layout.addWidget(btn)
             
-            if text == "Play":
+            if button_id == "play_pause":
                 self.play_pause_btn = btn
         
         controls_layout.addStretch()
@@ -2068,14 +2094,14 @@ class MainWindow(QMainWindow):
                 self.frame_slider.setValue(0)
             # Start playback
             self.is_playing = True
-            self.play_pause_btn.setText("Pause")
+            self.play_pause_btn.setIcon(self.icon_pause)
             # Adjust interval to your desired FPS (e.g. ~33 ms for 30fps, 40 ms for 25fps)
             self.play_timer.start(40)
 
         else:
             # Pause playback
             self.is_playing = False
-            self.play_pause_btn.setText("Play")
+            self.play_pause_btn.setIcon(self.icon_play)
             self.play_timer.stop()
     
     def play_next_frame(self):
@@ -2662,7 +2688,7 @@ Examples:
             return
 
     app = QApplication(sys.argv)
-    app.setWindowIcon(QIcon('sammie/icon.ico'))
+    app.setWindowIcon(QIcon(":/icon.ico"))
 
     window = MainWindow(initial_file=file_to_load)
     window.show()

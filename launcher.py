@@ -5,10 +5,10 @@ import sys
 import argparse
 import os
 import traceback
+from sammie import resources
 
 def show_splash(app):
-    splash_pix = QPixmap("sammie/splash.webp")
-    #splash = QSplashScreen(splash_pix, Qt.WindowStaysOnTopHint)
+    splash_pix = QPixmap(":/splash.webp")
     splash = QSplashScreen(splash_pix, Qt.SplashScreen)
     splash.showMessage("Loading Sammie-Roto...", Qt.AlignCenter | Qt.AlignBottom, Qt.white)
     splash.show()
@@ -123,7 +123,7 @@ if __name__ == "__main__":
         pass
 
     app = QApplication(sys.argv)
-    app.setWindowIcon(QIcon('sammie/icon.ico'))
+    app.setWindowIcon(QIcon(":/icon.ico"))
     
     # Check for single instance
     lock_file, is_first = check_single_instance()

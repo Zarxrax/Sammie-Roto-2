@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QColorDialog
 )
 from PySide6.QtGui import (
-    QPixmap, QMouseEvent, QWheelEvent, QPainter, QColor
+    QPixmap, QMouseEvent, QWheelEvent, QPainter, QColor, QIcon
 )
 from PySide6.QtCore import Qt, QPointF, QObject, Signal
 
@@ -304,11 +304,11 @@ class PointTable(QTableWidget):
         
         row_count = self.rowCount()
         self.insertRow(row_count)
-        
+
         # Create regular items for most columns
         items = [
             (0, QTableWidgetItem(str(frame))),
-            (2, QTableWidgetItem("➕" if positive else "➖")),
+            #(2, QTableWidgetItem("➕" if positive else "➖")),
             (3, QTableWidgetItem(str(x))),
             (4, QTableWidgetItem(str(y)))
         ]
@@ -316,6 +316,18 @@ class PointTable(QTableWidget):
         # Set regular items
         for col, item in items:
             self.setItem(row_count, col, item)
+
+        # Set icon for positive/negative column
+        type_item = QTableWidgetItem()
+        if positive:
+            type_item.setIcon(QIcon(":/icons/plus.png"))
+        else:
+            type_item.setIcon(QIcon(":/icons/minus.png"))
+        self.setItem(row_count, 2, type_item)
+
+        # Store the boolean value in the item's user data
+        #type_item.setData(Qt.UserRole, positive)
+        #self.setItem(row_count, 2, type_item)
         
         # Set colored widget for Object ID column
         colored_widget = self._create_colored_object_id_widget(object_id)
@@ -443,63 +455,6 @@ class PointTable(QTableWidget):
         row_count = self.rowCount()
         if row_count > 0:
             self.removeRow(row_count - 1)
-    
-    def get_all_points(self):
-        """
-        Retrieve all points from the table as a list of dictionaries.
-        Each dictionary contains: frame, object_id, positive, x, y
-        """
-        points = []
-        for row in range(self.rowCount()):
-            # Get frame
-            frame_item = self.item(row, 0)
-            frame = int(frame_item.text()) if frame_item else 0
-            
-            # Get object ID from the widget
-            object_id = 0
-            widget = self.cellWidget(row, 1)
-            if widget:
-                labels = widget.findChildren(QLabel)
-                for label in labels:
-                    try:
-                        object_id = int(label.text())
-                        break
-                    except ValueError:
-                        continue
-            
-            # Get positive/negative
-            positive_item = self.item(row, 2)
-            if positive_item:
-                positive = (positive_item.text() == "➕")
-            else:
-                positive = True
-            
-            # Get coordinates
-            x_item = self.item(row, 3)
-            y_item = self.item(row, 4)
-            x = int(x_item.text()) if x_item else 0
-            y = int(y_item.text()) if y_item else 0
-            
-            points.append({
-                'frame': frame,
-                'object_id': object_id,
-                'positive': positive,
-                'x': x,
-                'y': y
-            })
-        
-        return points
-
-    def get_points_for_frame(self, frame_number):
-        """Retrieve points for a specific frame."""
-        frame_points = []
-        all_points = self.get_all_points()
-        
-        for point in all_points:
-            if point['frame'] == frame_number:
-                frame_points.append(point)
-        
-        return frame_points
 
     def _on_selection_changed(self):
         """Handle row selection changes"""
