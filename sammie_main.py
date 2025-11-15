@@ -32,7 +32,7 @@ from sammie.gui_widgets import (
 
 # ==================== VERSION ====================
 
-__version__ = "2.0.0b"
+__version__ = "2.0.0"
 
 # ==================== LOGGING HELPER ====================
 
@@ -1500,7 +1500,7 @@ class MainWindow(QMainWindow):
             self.show_outlines_checkbox.stateChanged.connect(self.on_checkbox_changed)
             self.dynamic_widgets_layout.addWidget(self.show_outlines_checkbox)
             
-        elif current_view in ["Segmentation-Matte", "Matting-Matte"]:
+        elif current_view == "Segmentation-Matte":
             # Add antialias checkbox for matte modes
             self.antialias_checkbox = QCheckBox("Antialias")
             antialias = settings_mgr.get_session_setting("antialias", settings_mgr.app_settings.default_antialias)
@@ -1508,7 +1508,7 @@ class MainWindow(QMainWindow):
             self.antialias_checkbox.stateChanged.connect(self.on_checkbox_changed)
             self.dynamic_widgets_layout.addWidget(self.antialias_checkbox)
             
-        elif current_view in ["Segmentation-BGcolor", "Matting-BGcolor"]:
+        elif current_view == "Segmentation-BGcolor":
             # Add antialias checkbox
             self.antialias_checkbox = QCheckBox("Antialias")
             antialias = settings_mgr.get_session_setting("antialias", settings_mgr.app_settings.default_antialias)
@@ -1516,10 +1516,17 @@ class MainWindow(QMainWindow):
             self.antialias_checkbox.stateChanged.connect(self.on_checkbox_changed)
             self.dynamic_widgets_layout.addWidget(self.antialias_checkbox)
             
-            # Add color picker for bgcolor modes
+            # Add color picker
             default_color = getattr(settings_mgr.app_settings, 'default_bgcolor', (0, 255, 0))
             bgcolor = settings_mgr.get_session_setting("bgcolor", default_color)
+            self.color_picker = ColorPickerWidget(bgcolor)
+            self.color_picker.color_changed.connect(self._on_bgcolor_changed)
+            self.dynamic_widgets_layout.addWidget(self.color_picker)
             
+        elif current_view == "Matting-BGcolor":
+            # Add color picker
+            default_color = getattr(settings_mgr.app_settings, 'default_bgcolor', (0, 255, 0))
+            bgcolor = settings_mgr.get_session_setting("bgcolor", default_color)
             self.color_picker = ColorPickerWidget(bgcolor)
             self.color_picker.color_changed.connect(self._on_bgcolor_changed)
             self.dynamic_widgets_layout.addWidget(self.color_picker)
