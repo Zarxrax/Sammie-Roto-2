@@ -1760,6 +1760,8 @@ class MainWindow(QMainWindow):
 
     def _update_current_frame_display(self):
         """Update the current frame display with masks and points"""
+        if sammie.VideoInfo.total_frames == 0:
+            return  # Don't try to update before video is loaded
         current_frame = self.frame_slider.value()
         view_options = self.get_view_options()
         updated_image = sammie.update_image(current_frame, view_options, self.point_manager.points)
