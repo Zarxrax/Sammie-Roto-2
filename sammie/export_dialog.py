@@ -322,17 +322,15 @@ class ExportWorker(QThread):
 
         sanitized_object_name = self._sanitize_filename_component(object_name)
 
-
-        
         tag_values = {
             "input_name": base_params.get('input_name', 'video'),
             "output_type": base_params.get('output_type', ''),
             "codec": base_params.get('codec', ''),
             "object_id": str(object_id),
             "object_name": sanitized_object_name,
-            "date": now.strftime("%Y-%m-%d"),
-            "time": now.strftime("%H-%M-%S"),
-            "datetime": now.strftime("%Y%m%d-%H%M%S"),
+            "date": now.strftime("%Y%m%d"),
+            "time": now.strftime("%H%M%S"),
+            "datetime": now.strftime("%Y%m%d_%H%M%S"),
         }
         
         result = template
@@ -579,7 +577,8 @@ class ExportDialog(QDialog):
         self.tag_dropdown.addItem("Insert tag...")  # placeholder
         self.tag_dropdown.addItems([
         "{input_name}", "{output_type}", "{object_id}", 
-        "{object_name}", "{codec}", "{datetime}"
+        "{object_name}", "{codec}", "{date}", "{time}", 
+        "{datetime}"
         ])
         self.tag_dropdown.currentIndexChanged.connect(self._insert_tag_into_template)
         template_layout.addWidget(self.tag_dropdown)
@@ -779,6 +778,8 @@ class ExportDialog(QDialog):
             "codec": self.codec_combo.currentText() if self.codec_combo else "",
             "object_id": str(selected_object_id) if selected_object_id != -1 else "all",
             "object_name": sanitized_object_name,
+            "date": now.strftime("%Y%m%d"),
+            "time": now.strftime("%H%M%S"),
             "datetime": now.strftime("%Y%m%d_%H%M%S"),
         }
 
