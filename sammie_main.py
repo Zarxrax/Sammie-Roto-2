@@ -135,13 +135,15 @@ class SegmentationTab(QWidget):
         instructions_label = QLabel("Left-click: Add positive point\nRight-click: Add negative point")
         instructions_label.setStyleSheet("""
             QLabel {
-                background-color: #f0f0f0;
-                padding: 8px;
-                border: 1px solid #d0d0d0;
-                border-radius: 4px;
+                background-color: palette(alternate-base);
+                padding: 10px;
+                border: 1px solid palette(mid);
+                border-radius: 5px;
                 font-size: 11px;
+                line-height: 1.3;
             }
         """)
+
         instructions_label.setAlignment(Qt.AlignCenter)
         add_point_layout.addWidget(instructions_label)
         
@@ -414,9 +416,9 @@ class MattingTab(QWidget):
         # Style the text
         instructions_text.setStyleSheet("""
             QLabel {
-                background-color: #f0f0f0;
+                background-color: palette(alternate-base);
                 padding: 10px;
-                border: 1px solid #d0d0d0;
+                border: 1px solid palette(mid);
                 border-radius: 5px;
                 font-size: 11px;
                 line-height: 1.3;
@@ -614,9 +616,9 @@ class ObjectRemovalTab(QWidget):
         # Style the text
         instructions_text.setStyleSheet("""
             QLabel {
-                background-color: #f0f0f0;
+                background-color: palette(alternate-base);
                 padding: 10px;
-                border: 1px solid #d0d0d0;
+                border: 1px solid palette(mid);
                 border-radius: 5px;
                 font-size: 11px;
                 line-height: 1.3;
@@ -1333,14 +1335,8 @@ class MainWindow(QMainWindow):
         self.show_all_points_btn.setCheckable(True)
         # Specific styling to overwrite the default blue check toggle
         self.show_all_points_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #fafafa;
-                border: 1px solid #8f8f91;
-                border-radius: 4px;
-                padding: 4px 8px;
-            }
-            QPushButton:hover {
-                background-color: #f0f0f0;
+            QPushButton:checked {
+                background-color: palette(button);
             }
         """)
         self.show_all_points_btn.setToolTip("Toggle to show all points for all frames or just the points for the currently displayed frame")
