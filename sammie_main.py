@@ -2509,6 +2509,7 @@ class MainWindow(QMainWindow):
             success = sammie.load_project(file_name, parent_window=self)
             if success: 
                 print(f"Loaded project from {file_name}")
+                self.settings_mgr.load_session_settings()
                 self.resume_prev_session()
                 return
             else:
