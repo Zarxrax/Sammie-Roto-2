@@ -1009,9 +1009,23 @@ class ExportDialog(QDialog):
             if not folder:
                 QMessageBox.warning(self, "Invalid Settings", "Please select an output folder.")
                 return False
+            # Prompt to create folder if it doesn't exist
             if not os.path.exists(folder):
-                QMessageBox.warning(self, "Invalid Settings", "Output directory does not exist.")
-                return False
+                reply = QMessageBox.question(
+                    self, "Create Folder?",
+                    f"The output folder does not exist:\n\n{folder}\n\nDo you want to create it?",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.Yes
+                )
+                if reply != QMessageBox.Yes:
+                    return False
+                
+                try:
+                    os.makedirs(folder, exist_ok=True)
+                except OSError as e:
+                    QMessageBox.warning(self, "Invalid Settings", 
+                                    f"Could not create output directory:\n{e}")
+                    return False
         
         template = self.filename_template_edit.text().strip() or "{input_name}-{output_type}"
     
