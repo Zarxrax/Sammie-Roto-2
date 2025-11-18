@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QVBoxLayout, QHBoxLayout, 
     QGridLayout, QWidget, QPushButton, QLabel, QStatusBar, QSlider, 
     QTabWidget, QSpinBox, QComboBox, QSplitter, QGroupBox, QTextEdit,
-    QCheckBox, QLineEdit, QMessageBox, QProgressDialog
+    QCheckBox, QLineEdit, QMessageBox, QProgressDialog, QDialog
 )
 from PySide6.QtGui import (
     QPixmap, QAction, QShortcut, QKeySequence, QTextCursor, QIcon, QFont
@@ -2453,12 +2453,20 @@ class MainWindow(QMainWindow):
     def save_points(self):
         """Save points to file"""
         self.settings_mgr.save_session_settings()
-        file_name, _ = QFileDialog.getSaveFileName(self, "Save Points", "", "JSON Files (*.json)")
-        if file_name:
-            points = self.point_manager.get_all_points()
-            with open(file_name, 'w') as f:
-                json.dump(points, f, indent=2)
-            print(f"Saved {len(points)} points to {file_name}")
+
+        save_dialog = QFileDialog(self, "Save Points", "")
+        save_dialog.setAcceptMode(QFileDialog.AcceptSave)
+        save_dialog.setNameFilter("JSON Files (*.json)")
+        save_dialog.setDefaultSuffix("json")
+
+        # Wait for the user to execute the save before continuing.
+        if save_dialog.exec_() == QDialog.Accepted:
+            file_name = save_dialog.selectedFiles()[0]
+            if file_name:
+                points = self.point_manager.get_all_points()
+                with open(file_name, 'w') as f:
+                    json.dump(points, f, indent=2)
+                print(f"Saved {len(points)} points to {file_name}")
 
     def load_points(self):
         """Load points from file"""
@@ -2478,15 +2486,21 @@ class MainWindow(QMainWindow):
     def save_project(self):
         """Save project to file"""
         self.settings_mgr.save_session_settings()
-        file_name, _ = QFileDialog.getSaveFileName(self, "Save Project", "", "Sammie Files (*.sammie)")
-        if file_name:
-            success = sammie.save_project(file_name, parent_window=self)
-            if success: 
-                print(f"Saved project to {file_name}")
-                return
-            else:
-                print("Failed to save project")
-                return
+
+        save_dialog = QFileDialog(self, "Save Project", "")
+        save_dialog.setAcceptMode(QFileDialog.AcceptSave)
+        save_dialog.setNameFilter("Sammie Files (*.sammie)")
+        save_dialog.setDefaultSuffix("sammie")
+
+        # Wait for the user to execute the save before continuing.
+        if save_dialog.exec_() == QDialog.Accepted:
+            file_name = save_dialog.selectedFiles()[0]
+            if file_name:
+                success = sammie.save_project(file_name, parent_window=self)
+                if success:
+                    print(f"Saved project to {file_name}")
+                else:
+                    print("Failed to save project")
     
     def load_project(self):
         """Load project from file"""
