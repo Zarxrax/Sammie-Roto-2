@@ -2458,8 +2458,6 @@ class MainWindow(QMainWindow):
         save_dialog.setAcceptMode(QFileDialog.AcceptSave)
         save_dialog.setNameFilter("JSON Files (*.json)")
         save_dialog.setDefaultSuffix("json")
-        # Use Qt's dialog window instead of the OS native one, for more consistency.
-        save_dialog.setOption(QFileDialog.DontUseNativeDialog, True)
 
         # Wait for the user to execute the save before continuing.
         if save_dialog.exec_() == QDialog.Accepted:
@@ -2493,8 +2491,6 @@ class MainWindow(QMainWindow):
         save_dialog.setAcceptMode(QFileDialog.AcceptSave)
         save_dialog.setNameFilter("Sammie Files (*.sammie)")
         save_dialog.setDefaultSuffix("sammie")
-        # Use Qt's dialog window instead of the OS native one, for more consistency.
-        save_dialog.setOption(QFileDialog.DontUseNativeDialog, True)
 
         # Wait for the user to execute the save before continuing.
         if save_dialog.exec_() == QDialog.Accepted:
