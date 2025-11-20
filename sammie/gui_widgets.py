@@ -24,9 +24,10 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import (
     QPixmap, QMouseEvent, QWheelEvent, QPainter, QColor, QIcon
 )
-from PySide6.QtCore import Qt, QPointF, QObject, Signal
+from PySide6.QtCore import Qt, QPointF, QObject, Signal, QUrl
 
 from sammie import sammie
+#from sammie import resources
 from sammie.settings_manager import get_settings_manager
 
 # ==================== CONSOLE REDIRECT ====================
@@ -517,12 +518,18 @@ class ImageViewer(QGraphicsView):
     
     # Add signal for point clicks
     point_clicked = Signal(int, int, bool)  # x, y coordinates, is_positive
+    # Add signal for file drops
+    file_dropped = Signal(str)  # file path
     
-    def __init__(self, status_callback=None):
+    def __init__(self, status_callback=None, parent_window=None):
         super().__init__()
         self._setup_graphics_view()
         self._init_variables()
         self.status_callback = status_callback
+        self.parent_window = parent_window
+
+        # Enable drag and drop
+        self.setAcceptDrops(True)
     
     def _setup_graphics_view(self):
         """Initialize the graphics view and scene"""
@@ -668,6 +675,43 @@ class ImageViewer(QGraphicsView):
         """Zoom to 100% (1:1 pixel ratio)"""
         self.set_zoom(1.0)
     
+    def dragEnterEvent(self, event):
+        """Handle drag enter events"""
+        # Check if the dragged data contains URLs (files)
+        if event.mimeData().hasUrls():
+            # Get the first URL
+            urls = event.mimeData().urls()
+            if urls:
+                file_path = urls[0].toLocalFile()
+                # Check if it's a supported file type
+                supported_extensions = [
+                    '.mp4', '.m4v', '.mkv', '.mov', '.avi', '.webm',
+                    '.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif', '.webp'
+                ]
+                if any(file_path.lower().endswith(ext) for ext in supported_extensions):
+                    event.acceptProposedAction()
+                    return
+        event.ignore()
+    
+    def dragMoveEvent(self, event):
+        """Handle drag move events"""
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+    
+    def dropEvent(self, event):
+        """Handle drop events"""
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            if urls:
+                file_path = urls[0].toLocalFile()
+                # Emit signal to notify parent window
+                self.file_dropped.emit(file_path)
+                event.acceptProposedAction()
+                return
+        event.ignore()
+
     # ==================== EVENT HANDLERS ====================
     
     def wheelEvent(self, event: QWheelEvent):

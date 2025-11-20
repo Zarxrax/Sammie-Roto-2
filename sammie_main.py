@@ -1078,6 +1078,9 @@ class MainWindow(QMainWindow):
         """Connect all UI signals"""
         # Connect image viewer point clicks to point addition
         self.viewer.point_clicked.connect(self.add_point_from_click)
+
+        # Connect image viewer file drops to file loading
+        self.viewer.file_dropped.connect(self.handle_dropped_file)
         
         # Connect tab widget signals
         self.sidebar.tab_widget.currentChanged.connect(self.on_tab_changed)
@@ -1269,7 +1272,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(5, 5, 5, 5)
         
         # Image viewer
-        self.viewer = ImageViewer(status_callback=self.update_status_bar)
+        self.viewer = ImageViewer(status_callback=self.update_status_bar, parent_window=self)
         layout.addWidget(self.viewer)
         
         # Frame controls
@@ -2352,6 +2355,31 @@ class MainWindow(QMainWindow):
                 self.frame_slider.setValue(0)
                 self.viewer.clear_image()
     
+    def handle_dropped_file(self, file_path):
+        """Handle file dropped onto the viewer"""
+        if not file_path or not os.path.exists(file_path):
+            print(f"Invalid file path: {file_path}")
+            return
+        
+        # Check if file type is supported
+        supported_extensions = [
+            '.mp4', '.m4v', '.mkv', '.mov', '.avi', '.webm',
+            '.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif', '.webp'
+        ]
+        
+        file_ext = os.path.splitext(file_path)[1].lower()
+        if file_ext not in supported_extensions:
+            print(f"Unsupported file type: {file_ext}")
+            QMessageBox.warning(
+                self,
+                "Unsupported File",
+                f"File type '{file_ext}' is not supported.\n\n"
+                f"Supported formats: {', '.join(supported_extensions)}"
+            )
+            return
+        
+        self.load_file(file_path)
+        
     def load_file(self, file_path):
         """Load a file (consolidated method for both menu and command line usage)"""
         # Clear all points and propagation data
