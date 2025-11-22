@@ -27,7 +27,6 @@ from PySide6.QtGui import (
 from PySide6.QtCore import Qt, QPointF, QObject, Signal, QUrl
 
 from sammie import sammie
-#from sammie import resources
 from sammie.settings_manager import get_settings_manager
 
 # ==================== CONSOLE REDIRECT ====================
@@ -381,6 +380,9 @@ class PointTable(QTableWidget):
         if not rows:
             return
         
+        # Block signals to prevent selection changes during deletion
+        self.blockSignals(True)
+
         # Batch remove all points first
         removed_points = []
         for row in rows:
@@ -426,7 +428,11 @@ class PointTable(QTableWidget):
         # Remove all rows from table
         for row in rows:
             self.removeRow(row)
+        self.clearSelection()
         self._update_delete_buttons()
+
+        # Unblock signals after deletion is complete
+        self.blockSignals(False)
         
         # Replay points and rebuild masks after all points have been deleted
         if removed_points and hasattr(self, 'parent_window'):
