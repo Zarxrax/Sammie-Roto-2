@@ -370,17 +370,13 @@ class PointTable(QTableWidget):
         """Delete the currently selected rows or a single specified row"""
         selected_rows = self.selectionModel().selectedRows()
         
-        # If there are multiple rows selected, order and delete the selected rows
-        if selected_rows:  
-            rows = sorted([idx.row() for idx in selected_rows], reverse=True) # Sort in reverse order for removal process
-            # If the clicked row isn't in the selection, add it
-            if single_row is not None and single_row not in rows:
-                rows.append(single_row)
-                rows.sort(reverse=True)  # Re-sort after adding
-        # If no there is no selection, delete the specified row
+        # If there are selected rows AND the clicked row is in the selection, delete all selected
+        if selected_rows and single_row in [idx.row() for idx in selected_rows]:
+            rows = sorted([idx.row() for idx in selected_rows], reverse=True)
+        # Otherwise, delete only the single clicked row
         else:
             rows = [single_row] if single_row is not None and single_row < self.rowCount() else []
-        # Just one row, return from function
+
         if not rows:
             return
         
