@@ -373,6 +373,10 @@ class PointTable(QTableWidget):
         # If there are multiple rows selected, order and delete the selected rows
         if selected_rows:  
             rows = sorted([idx.row() for idx in selected_rows], reverse=True) # Sort in reverse order for removal process
+            # If the clicked row isn't in the selection, add it
+            if single_row is not None and single_row not in rows:
+                rows.append(single_row)
+                rows.sort(reverse=True)  # Re-sort after adding
         # If no there is no selection, delete the specified row
         else:
             rows = [single_row] if single_row is not None and single_row < self.rowCount() else []
