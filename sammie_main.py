@@ -834,7 +834,7 @@ class ObjectRemovalTab(QWidget):
         self.minimax_vae_tiling_checkbox.setChecked(vae_tiling)
         self.minimax_vae_tiling_checkbox.setToolTip("If you get an out of memory error during the VAE decode step, try enabling this option. The VAE steps will take longer but use less VRAM.")
         self.minimax_vae_tiling_checkbox.stateChanged.connect(
-            lambda state: settings_mgr.set_session_setting("minimax_vae_tiling", state == Qt.Checked)
+            lambda state: settings_mgr.set_session_setting("minimax_vae_tiling", self.minimax_vae_tiling_checkbox.isChecked())
         )
         params_layout.addWidget(self.minimax_vae_tiling_checkbox, row, 1, 1, 2)
         

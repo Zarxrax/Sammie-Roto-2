@@ -851,6 +851,7 @@ class RemovalManager:
         self.pipe.enable_vae_slicing()
         if minimax_vae_tiling:
             self.pipe.enable_vae_tiling()
+            print("VAE tiling enabled")
         
         return self.pipe
 
