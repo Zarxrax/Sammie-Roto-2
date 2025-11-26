@@ -3,10 +3,9 @@
 
 ![Sammie-Roto 2 screenshot](https://github.com/user-attachments/assets/bc2c99c8-4039-49f1-94ed-65f104a83e8d)
 
-![GitHub Downloads](https://img.shields.io/github/downloads/Zarxrax/Sammie-Roto-2/total)
+[![GitHub Downloads](https://img.shields.io/github/downloads/Zarxrax/Sammie-Roto-2/total)](https://github.com/Zarxrax/Sammie-Roto-2/releases)
 [![GitHub Code License](https://img.shields.io/github/license/Zarxrax/Sammie-Roto-2)](LICENSE)
-[![GitHub Repo stars](https://img.shields.io/github/stars/Zarxrax/Sammie-Roto-2)](https://github.com/Zarxrax/Sammie-Roto-2/stargazers)
-![Discord](https://img.shields.io/discord/1437589475369811970)
+[![Discord](https://img.shields.io/discord/1437589475369811970?label=Discord&color=blue)](https://discord.gg/HPV4y84X)
 
 
 Sammie-Roto 2 is a full-featured, cross-platform desktop application for AI assisted masking of video clips. It has 3 primary functions:
@@ -17,11 +16,12 @@ Sammie-Roto 2 is a full-featured, cross-platform desktop application for AI assi
 **Please add a Github Star if you find it useful!**
 
 ### Updates
-- [11/23/2025] First stable release. Includes several new features and bugfixes. New quick-start video tutorial and Discord server.
+- [11/23/2025] First stable release. Includes several new features and bugfixes. New quick-start video tutorial and [Discord server](https://discord.gg/HPV4y84X).
 - [10/31/2025] Release of Sammie-Roto 2 Beta.
 
 ### Documentation and Tutorials:
 [Documentation and usage guide](https://github.com/Zarxrax/Sammie-Roto-2/wiki)
+
 [![Quick Start Video](https://img.youtube.com/vi/m0iZpxsZJcE/0.jpg)](https://www.youtube.com/watch?v=m0iZpxsZJcE)
 
 ### Installation (Windows):
