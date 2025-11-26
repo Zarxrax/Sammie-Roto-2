@@ -82,7 +82,7 @@ class ImageExportDialog(QDialog):
         self.export_btn = QPushButton("Save As...")
         self.export_btn.clicked.connect(self._save_image)
         
-        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn = QPushButton("Close") # renamed from cancel to close
         self.cancel_btn.clicked.connect(self.reject)
         
         button_layout.addWidget(self.export_btn)
@@ -174,7 +174,7 @@ class ImageExportDialog(QDialog):
         try:
             self._export_image(output_path)
             QMessageBox.information(self, "Export Complete", f"Image saved successfully to:\n{output_path}")
-            self.accept()
+            # self.accept() # Close dialog on success
         except Exception as e:
             QMessageBox.critical(self, "Export Failed", f"Failed to save image:\n{str(e)}")
     

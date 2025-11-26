@@ -715,7 +715,7 @@ class ExportDialog(QDialog):
         self.export_btn = QPushButton("Export")
         self.export_btn.clicked.connect(self._start_export)
         
-        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn = QPushButton("Close") # renamed from cancel to close
         self.cancel_btn.clicked.connect(self.reject)
         button_layout.addWidget(self.export_btn)
         button_layout.addWidget(self.cancel_btn)
@@ -1350,7 +1350,7 @@ class ExportDialog(QDialog):
         # Show completion message
         if success:
             QMessageBox.information(self, "Export Complete", message)
-            self.accept()  # Close dialog on success
+            # self.accept()  # Close dialog on success
         else:
             QMessageBox.critical(self, "Export Failed", message)
         
