@@ -5,8 +5,7 @@
 
 [![GitHub Downloads](https://img.shields.io/github/downloads/Zarxrax/Sammie-Roto-2/total)](https://github.com/Zarxrax/Sammie-Roto-2/releases)
 [![GitHub Code License](https://img.shields.io/github/license/Zarxrax/Sammie-Roto-2)](LICENSE)
-[![Discord](https://img.shields.io/discord/1437589475369811970?label=Discord&color=blue)](https://discord.gg/HPV4y84X)
-
+[![Discord](https://img.shields.io/discord/1437589475369811970?label=Discord&color=blue)](https://discord.gg/jb5qrFyGFF)
 
 Sammie-Roto 2 is a full-featured, cross-platform desktop application for AI assisted masking of video clips. It has 3 primary functions:
 - Video Segmentation using [SAM2](https://github.com/facebookresearch/sam2)
@@ -16,7 +15,7 @@ Sammie-Roto 2 is a full-featured, cross-platform desktop application for AI assi
 **Please add a Github Star if you find it useful!**
 
 ### Updates
-- [11/23/2025] First stable release. Includes several new features and bugfixes. New quick-start video tutorial and [Discord server](https://discord.gg/HPV4y84X).
+- [11/23/2025] First stable release. Includes several new features and bugfixes. New quick-start video tutorial and [Discord server](https://discord.gg/jb5qrFyGFF).
 - [10/31/2025] Release of Sammie-Roto 2 Beta.
 
 ### Documentation and Tutorials:
