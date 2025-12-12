@@ -358,15 +358,16 @@ class MattingTab(QWidget):
         # Instructions
         self._create_instructions_section(layout)
         
-        # Run button
+        # Run/Clear button
+        matting_group = QGroupBox("Matting")
+        matting_layout = QVBoxLayout(matting_group)
         self.run_matting_btn = QPushButton(" Run Matting ")
         self.run_matting_btn.setLayoutDirection(Qt.RightToLeft)
-        layout.addWidget(self.run_matting_btn)
-
-        # Clear button
+        matting_layout.addWidget(self.run_matting_btn)
         self.clear_matting_btn = QPushButton("Clear Matting")
         self.clear_matting_btn.setToolTip("Remove all matting data")
-        layout.addWidget(self.clear_matting_btn)
+        matting_layout.addWidget(self.clear_matting_btn)
+        layout.addWidget(matting_group)
         
         # MatAnyone Internal Resolution selection
         res_group = QGroupBox("Resolution Settings")
@@ -571,15 +572,16 @@ class ObjectRemovalTab(QWidget):
         # Instructions
         self._create_instructions_section(layout)
         
-        # Run button
+        # Run/Clear button
+        removal_group = QGroupBox("Object Removal")
+        removal_layout = QVBoxLayout(removal_group)
         self.run_removal_btn = QPushButton(" Run Object Removal ")
         self.run_removal_btn.setLayoutDirection(Qt.RightToLeft)
-        layout.addWidget(self.run_removal_btn)
-
-        # Clear button
+        removal_layout.addWidget(self.run_removal_btn)
         self.clear_removal_btn = QPushButton("Clear Object Removal")
         self.clear_removal_btn.setToolTip("Remove all object removal data")
-        layout.addWidget(self.clear_removal_btn)
+        removal_layout.addWidget(self.clear_removal_btn)
+        layout.addWidget(removal_group)
 
         # Method selection (MiniMax-Remover vs OpenCV)
         self._create_method_selection(layout)
