@@ -345,6 +345,8 @@ class ExportWorker(QThread):
             "codec": base_params.get('codec', ''),
             "object_id": str(object_id),
             "object_name": sanitized_object_name,
+            "in_point": base_params.get('in_point', ''),
+            "out_point": base_params.get('out_point', ''),
             "date": now.strftime("%Y%m%d"),
             "time": now.strftime("%H%M%S"),
             "datetime": now.strftime("%Y%m%d_%H%M%S"),
@@ -598,8 +600,8 @@ class ExportDialog(QDialog):
         self.tag_dropdown.addItem("Insert tag...")  # placeholder
         self.tag_dropdown.addItems([
         "{input_name}", "{output_type}", "{object_id}", 
-        "{object_name}", "{codec}", "{date}", "{time}", 
-        "{datetime}"
+        "{object_name}", "{codec}", "{in_point}", "{out_point}", 
+        "{date}", "{time}", "{datetime}"
         ])
         self.tag_dropdown.currentIndexChanged.connect(self._insert_tag_into_template)
         template_layout.addWidget(self.tag_dropdown)
@@ -770,10 +772,17 @@ class ExportDialog(QDialog):
     def _resolve_filename_template(self, template, object_id=None):
         """Replace tags with actual values for preview/usage"""
         settings_mgr = self.parent_window.settings_mgr
+        total_frames = sammie.VideoInfo.total_frames
         input_file = settings_mgr.get_session_setting("video_file_path", "")
         base_name = os.path.splitext(os.path.basename(input_file))[0] if input_file else "video"
         input_ext = os.path.splitext(input_file)[1] if input_file else ""
         input_path = os.path.dirname(input_file) if input_file else ""
+        in_point = settings_mgr.get_session_setting("in_point")
+        out_point = settings_mgr.get_session_setting("out_point")
+        if in_point is None:
+            in_point = 0
+        if out_point is None:
+            out_point = total_frames - 1
         
         now = datetime.datetime.now()
 
@@ -802,6 +811,8 @@ class ExportDialog(QDialog):
             "codec": self.codec_combo.currentText() if self.codec_combo else "",
             "object_id": str(selected_object_id) if selected_object_id != -1 else "all",
             "object_name": sanitized_object_name,
+            "in_point": str(in_point),
+            "out_point": str(out_point),
             "date": now.strftime("%Y%m%d"),
             "time": now.strftime("%H%M%S"),
             "datetime": now.strftime("%Y%m%d_%H%M%S"),
