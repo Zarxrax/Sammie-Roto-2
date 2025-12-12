@@ -84,6 +84,8 @@ class SessionSettings:
     video_height: int = 0
     video_fps: float = 0.0
     total_frames: int = 0
+    in_point: int = None
+    out_point: int = None
     
     # Current state
     current_frame: int = 0

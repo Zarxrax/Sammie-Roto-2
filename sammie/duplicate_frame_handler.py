@@ -36,7 +36,7 @@ def generate_matted_frame(frame_path, mask_dir, frame_number):
     frame = cv2.imread(frame_path)
     frame_mask_dir = os.path.join(mask_dir, frame_number)
     if not os.path.exists(frame_mask_dir):
-        # Warning could not find masks
+        # Return None if masks are missing for this frame
         print(f"Missing masks folder for frame: {frame_number}")
         return None
     
@@ -59,10 +59,23 @@ def generate_matted_frame(frame_path, mask_dir, frame_number):
 # Replace the masks on disc with a specific "similar frames" list
 def replace_files_similar_mattes(mask_dir, similar_frames):
     last_mask_dir = os.path.join(mask_dir, similar_frames[-1])
+    
+    # Check if the source mask directory exists
+    if not os.path.exists(last_mask_dir):
+        print(f"Source mask folder missing for frame: {similar_frames[-1]}, skipping replacement")
+        return
+    
     file_list = os.listdir(last_mask_dir)
     for i, frame in enumerate(similar_frames):
         if i == len(similar_frames) - 1:  # Skip the last sourcing frame
             break
+        
+        # Check if the target mask directory exists before attempting to replace
+        target_mask_dir = os.path.join(mask_dir, frame)
+        if not os.path.exists(target_mask_dir):
+            print(f"Target mask folder missing for frame: {frame}, skipping")
+            continue
+            
         for file in file_list:
             file_path = os.path.join(last_mask_dir, file)
             replace_mask_dir = os.path.join(mask_dir, frame, file)
@@ -95,16 +108,15 @@ def replace_similar_matte_frames(parent_window, dedupe_min_threshold):
     if not os.path.exists(frames_dir):
         print("Could not find frames to dedupe.\nPlease load a video first.")
         return False
+    
     # Get the list of propagated frame numbers
     for filename in os.listdir(frames_dir):
         if filename.endswith(".png"):
             frame_numbers.append(os.path.splitext(filename)[0])
-            
-    # Check if the masks directory has the same amount of masks as the amount of frames in the video file
-    num_of_masks = len(os.listdir(mask_dir))
-    frames_amount = len(frame_numbers)
-    if num_of_masks != frames_amount:
-        print("Mismatch between frames and masks.\nPlease fully track objects first.")
+    
+    # Check if masks directory exists
+    if not os.path.exists(mask_dir):
+        print("No masks directory found.\nPlease track objects first.")
         return False
     
     # If a backup of the masks exists, it means deduplication has been executed before
@@ -115,10 +127,20 @@ def replace_similar_matte_frames(parent_window, dedupe_min_threshold):
 
     frame_index = 0 # Keeps track of the current "base" frame for comparisons
     deduped_frames_amount = 0 # Keep track of how many frames/masks have been replaced/deduped
+    frames_amount = len(frame_numbers)
 
-    # Initialize the base frame
-    start_base_frame_path = os.path.join(frames_dir, frame_numbers[frame_index] + ".png")
-    base_frame = generate_matted_frame(start_base_frame_path, mask_dir, frame_numbers[frame_index]) # Frame used for ORB comparison
+    # Find the first frame with valid masks to use as initial base frame
+    base_frame = None
+    while frame_index < frames_amount and base_frame is None:
+        start_base_frame_path = os.path.join(frames_dir, frame_numbers[frame_index] + ".png")
+        base_frame = generate_matted_frame(start_base_frame_path, mask_dir, frame_numbers[frame_index])
+        if base_frame is None:
+            frame_index += 1
+
+    # If no frames have masks at all, exit
+    if base_frame is None:
+        print("No valid masks found in any frames.")
+        return False
 
     progress = tqdm(total=frames_amount, desc="Deduplicating mask frames...")
     progress_dialog = QProgressDialog("Deduplicating...", "", 0, 100, parent_window)
@@ -136,9 +158,14 @@ def replace_similar_matte_frames(parent_window, dedupe_min_threshold):
             progress_dialog.setValue((next_index)*100/(frames_amount))
             QApplication.processEvents()
             progress.update(1)
+            
             # Load the next frame
             next_frame_path = os.path.join(frames_dir, frame_numbers[next_index] + ".png")
             next_frame = generate_matted_frame(next_frame_path, mask_dir, frame_numbers[next_index])
+            
+            # If the next frame has no masks, treat it as a break point
+            if next_frame is None:
+                break
             
             # Compare the current frame with the next frame
             similarity_score = orb_comparison(base_frame, next_frame)
@@ -169,6 +196,21 @@ def replace_similar_matte_frames(parent_window, dedupe_min_threshold):
             settings_mgr.set_session_setting("is_deduplicated", True)
             return True
         else:
-            # Load the next frame
-            new_base_frame_path = os.path.join(frames_dir, frame_numbers[frame_index] + ".png")
-            base_frame = generate_matted_frame(new_base_frame_path, mask_dir, frame_numbers[frame_index])
+            # Find the next frame with valid masks
+            base_frame = None
+            while frame_index < frames_amount and base_frame is None:
+                new_base_frame_path = os.path.join(frames_dir, frame_numbers[frame_index] + ".png")
+                base_frame = generate_matted_frame(new_base_frame_path, mask_dir, frame_numbers[frame_index])
+                if base_frame is None:
+                    # Skip frames without masks
+                    frame_index += 1
+            
+            # If we've run out of frames with masks, we're done
+            if base_frame is None:
+                progress_dialog.setValue(100)
+                progress.n = frames_amount
+                progress.refresh()
+                progress.close()
+                print(f"Deduplicated {deduped_frames_amount} mask frames")
+                settings_mgr.set_session_setting("is_deduplicated", True)
+                return True
