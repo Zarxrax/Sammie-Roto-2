@@ -1,4 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+# Always operate relative to this script's folder
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR" || { echo "Failed to cd to script directory"; exit 1; }
 
 # Function to check Python version
 check_python_version() {
