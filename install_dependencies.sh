@@ -39,6 +39,34 @@ check_python_version
 # Detect OS
 OS_TYPE="$(uname)"
 
+# Ask user what they want to do
+echo
+echo "❓ What would you like to do?"
+select ACTION in "Full installation" "Download models only (Only needed if the models fail to download)" "Exit"; do
+    case $ACTION in
+        "Full installation")
+            echo "Proceeding with full installation..."
+            break
+            ;;
+        "Download models only (Only needed if the models fail to download)")
+            echo "Downloading models..."
+            if [ -d "venv" ]; then
+                source venv/bin/activate
+            fi
+            python3 sammie/download_models.py
+            echo "✅ Model download complete!"
+            exit 0
+            ;;
+        "Exit")
+            echo "Exiting..."
+            exit 0
+            ;;
+        *)
+            echo "Invalid option. Please choose 1, 2, or 3."
+            ;;
+    esac
+done
+
 # Create and activate virtual environment
 echo "Creating Python virtual environment..."
 python3 -m venv venv

@@ -137,6 +137,18 @@ class SamManager:
             print("Loaded SAM2 Base model")
             checkpoint = "./checkpoints/sam2.1_hiera_base_plus.pt"
             model_cfg = "../configs/sam2.1_hiera_b+.yaml"
+        elif sam_model == "Efficient":
+            print("Loaded EfficientTAM 512x512 model")
+            checkpoint = "./checkpoints/efficienttam_s_512x512.pt"
+            model_cfg = "../configs/efficienttam_s_512x512.yaml"
+
+        # Check if files exist
+        if not os.path.exists(checkpoint):
+            raise FileNotFoundError(
+                f"Model checkpoint not found: {checkpoint}\n"
+                f"Please run 'install_dependencies' and select the option to download models."
+            )
+        
         self.predictor = build_sam2_video_predictor(model_cfg, checkpoint, device=device)
 
     def offload_model_to_cpu(self):

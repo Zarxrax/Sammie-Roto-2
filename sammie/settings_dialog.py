@@ -198,8 +198,8 @@ class SettingsDialog(QDialog):
         
         # SAM model selection
         self.sam_model_combo = QComboBox()
-        self.sam_model_combo.addItems(["Base", "Large"])
-        self.sam_model_combo.setToolTip("Base model is faster but less accurate.")
+        self.sam_model_combo.addItems(["Base", "Large", "Efficient"])
+        self.sam_model_combo.setToolTip("Large model is slower but slightly more accurate. Efficient model is faster but less accurate.")
         model_layout.addRow("SAM Model:", self.sam_model_combo)
         
         # Force CPU checkbox

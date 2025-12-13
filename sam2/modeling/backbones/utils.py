@@ -6,11 +6,46 @@
 
 """Some utilities for backbones, in particular for windowing"""
 
+import math
 from typing import Tuple
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+
+def get_abs_pos(abs_pos, has_cls_token, hw):
+    """
+    Calculate absolute positional embeddings. If needed, resize embeddings and remove cls_token
+        dimension for the original embeddings.
+    Args:
+        abs_pos (Tensor): absolute positional embeddings with (1, num_position, C).
+        has_cls_token (bool): If true, has 1 embedding in abs_pos for cls token.
+        hw (Tuple): size of input image tokens.
+    Returns:
+        Absolute positional embeddings after processing with shape (1, H, W, C)
+    """
+    h, w = hw
+    if has_cls_token:
+        abs_pos = abs_pos[:, 1:]
+    xy_num = abs_pos.shape[1]
+    size = int(math.sqrt(xy_num))
+    assert size * size == xy_num
+
+    if size != h or size != w:
+        interpolate_mode = "bicubic"
+        if not torch.cuda.is_available() and torch.mps.is_available():
+            # bicubic is not supported on torch mps
+            interpolate_mode = "bilinear"
+        new_abs_pos = F.interpolate(
+            abs_pos.reshape(1, size, size, -1).permute(0, 3, 1, 2),
+            size=(h, w),
+            mode=interpolate_mode,
+            align_corners=False,
+        )
+        return new_abs_pos.permute(0, 2, 3, 1)
+    else:
+        return abs_pos.reshape(1, h, w, -1)
 
 
 def window_partition(x, window_size):

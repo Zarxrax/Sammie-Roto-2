@@ -2724,6 +2724,10 @@ class MainWindow(QMainWindow):
             # Prompt to restart if needed
             if (cpu != self.settings_mgr.get_app_setting("force_cpu", 0)
                 or segmentation != self.settings_mgr.get_app_setting("sam_model", "None")):
+                # Check if efficient model is missing
+                if self.settings_mgr.get_app_setting("sam_model", "None") == "Efficient":
+                    if not os.path.exists("./checkpoints/efficienttam_s_512x512.pt"):
+                        QMessageBox.information(self, "Model not found", "The Efficient model was not found. Please run 'install_dependencies' and select the option to download models.")
                 QMessageBox.information(self, "Restart Required", "You must restart the application for model or device changes to take effect.")
 
     # ==================== UPDATE CHECKER ====================
