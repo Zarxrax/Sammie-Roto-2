@@ -9,8 +9,11 @@ This module contains reusable UI components including:
 - HotkeysHelpDialog: Displays keyboard shortcuts
 - PointTable: Table widget for displaying segmentation points
 - ImageViewer: Custom graphics view for image display with zoom/pan
+- FrameSlider: Custom QSlider with visual in/out point indicators and range highlighting
 """
 
+import os
+import shutil
 import threading
 import requests
 from packaging import version
@@ -19,12 +22,15 @@ from PySide6.QtWidgets import (
     QLabel, QTableWidget, QTableWidgetItem, QAbstractItemView, 
     QHeaderView, QPushButton, QWidget, QHBoxLayout, QVBoxLayout,
     QDialog, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
-    QColorDialog
+    QColorDialog, QSlider, QStyleOptionSlider, QStyle
 )
 from PySide6.QtGui import (
-    QPixmap, QMouseEvent, QWheelEvent, QPainter, QColor, QIcon
+    QPixmap, QMouseEvent, QWheelEvent, QPainter, QColor, QIcon,
+    QPen, QPolygon, QPalette
 )
-from PySide6.QtCore import Qt, QPointF, QObject, Signal, QUrl
+from PySide6.QtCore import (
+    Qt, QPointF, QObject, Signal, QRect, QPoint
+)
 
 from sammie import sammie
 from sammie.settings_manager import get_settings_manager
@@ -385,6 +391,7 @@ class PointTable(QTableWidget):
 
         # Batch remove all points first
         removed_points = []
+        affected_frames = set()  # Track which frames need mask regeneration
         for row in rows:
             if row >= self.rowCount():
                 continue
@@ -395,6 +402,7 @@ class PointTable(QTableWidget):
                 continue
             
             frame = int(frame_item.text())
+            affected_frames.add(frame) # This frame will be regenerated
             
             # Get object ID from the colored widget
             object_id = 0
@@ -434,10 +442,18 @@ class PointTable(QTableWidget):
         # Unblock signals after deletion is complete
         self.blockSignals(False)
         
-        # Replay points and rebuild masks after all points have been deleted
+        # Delete masks only for affected frames, then replay points to regenerate them
         if removed_points and hasattr(self, 'parent_window'):
+            # Delete mask directories for affected frames only
+            for frame in affected_frames:
+                frame_mask_dir = os.path.join(sammie.mask_dir, f"{frame:05d}")
+                if os.path.exists(frame_mask_dir):
+                    shutil.rmtree(frame_mask_dir)
+
+            # Replay points to regenerate masks for affected frames 
             points = self.parent_window.point_manager.get_all_points()
-            self.parent_window.sam_manager.clear_tracking()
+            self.parent_window.sam_manager.propagated = False
+            self.parent_window.matany_manager.propagated = False
             self.parent_window.update_tracking_status()
             self.parent_window.sam_manager.replay_points(points)
 
@@ -828,3 +844,206 @@ class ImageViewer(QGraphicsView):
                 self.status_callback(f"Pos: ({x}, {y})   {zoom_text}")
             else:
                 self.status_callback(f"{zoom_text}")
+
+
+class FrameSlider(QSlider):
+    """
+    Custom slider with visual feedback for in/out points.
+    
+    Features:
+    - Triangular markers for in/out points
+    - Highlighted range between in/out points
+    - Gray/unhighlighted areas outside the range
+    """
+    
+    def __init__(self, orientation=Qt.Horizontal, parent=None):
+        super().__init__(orientation, parent)
+        self._in_point = None
+        self._out_point = None
+        
+        # Colors for the range highlight
+        self._highlight_color = None  # Will use palette highlight color
+        self._background_color = None  # Will use palette mid color
+        
+    def set_in_point(self, frame):
+        """Set the in point to the specified frame"""
+        if frame is not None and (frame < self.minimum() or frame > self.maximum()):
+            return
+        self._in_point = frame
+        if self.isVisible():  # Only update if widget is visible and ready
+            self.update()
+    
+    def set_out_point(self, frame):
+        """Set the out point to the specified frame"""
+        if frame is not None and (frame < self.minimum() or frame > self.maximum()):
+            return
+        self._out_point = frame
+        if self.isVisible():  # Only update if widget is visible and ready
+            self.update()
+    
+    def get_in_point(self):
+        """Get the current in point"""
+        return self._in_point
+    
+    def get_out_point(self):
+        """Get the current out point"""
+        return self._out_point
+    
+    def clear_in_out_points(self):
+        """Clear both in and out points"""
+        self._in_point = None
+        self._out_point = None
+        self.update()
+    
+    def _frame_to_pixel(self, frame):
+        """Convert a frame number to pixel position in the groove"""
+        if self.maximum() == self.minimum():
+            return 0
+
+        opt = QStyleOptionSlider()
+        self.initStyleOption(opt)
+
+        # Get groove rect
+        groove = self.style().subControlRect(
+            QStyle.CC_Slider, opt, QStyle.SC_SliderGroove, self
+        )
+
+        # Get handle rect for width calculation
+        handle = self.style().subControlRect(
+            QStyle.CC_Slider, opt, QStyle.SC_SliderHandle, self
+        )
+
+        # Use Qt's built-in position calculation for consistency
+        # This matches exactly how Qt calculates the handle position
+        slider_pos = QStyle.sliderPositionFromValue(
+            self.minimum(),
+            self.maximum(),
+            frame,
+            groove.width() - handle.width(),  # Available span
+            opt.upsideDown
+        )
+        
+        # The position is relative to the start of the usable range
+        # Add groove left and half handle width to get absolute pixel position
+        pixel = groove.left() + handle.width() // 2 + slider_pos
+        
+        return pixel
+    
+    def paintEvent(self, event):
+        """Custom paint event to draw range highlight and markers"""
+        try:
+            # Safety check - ensure widget is properly initialized
+            if not self.isVisible() or self.width() <= 0 or self.height() <= 0:
+                super().paintEvent(event)
+                return
+                
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.Antialiasing)
+            
+            # Get style option for the slider
+            opt = QStyleOptionSlider()
+            self.initStyleOption(opt)
+            
+            # Get the groove rectangle
+            groove_rect = self.style().subControlRect(
+                QStyle.CC_Slider, opt, QStyle.SC_SliderGroove, self
+            )
+            
+            # Draw the highlighted range if both in and out points are set
+            if self._in_point is not None and self._out_point is not None:
+                try:
+                    self._draw_range_highlight(painter, groove_rect)
+                except Exception as e:
+                    print(f"Error drawing range highlight: {e}")
+            
+            # Let the default slider draw itself
+            painter.end()
+            super().paintEvent(event)
+            
+            # Draw the in/out point markers on top
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.Antialiasing)
+            
+            if self._in_point is not None:
+                try:
+                    self._draw_marker(painter, self._in_point, is_in_point=True)
+                except Exception as e:
+                    print(f"Error drawing in point marker: {e}")
+            
+            if self._out_point is not None:
+                try:
+                    self._draw_marker(painter, self._out_point, is_in_point=False)
+                except Exception as e:
+                    print(f"Error drawing out point marker: {e}")
+                    
+            painter.end()
+            
+        except Exception as e:
+            print(f"Error in paintEvent: {e}")
+            import traceback
+            traceback.print_exc()
+            super().paintEvent(event)
+    
+    def _draw_range_highlight(self, painter, groove_rect):
+        """Draw the highlighted range between in and out points"""
+        start_frame = min(self._in_point, self._out_point)
+        end_frame = max(self._in_point, self._out_point)
+        
+        start_pixel = self._frame_to_pixel(start_frame)
+        end_pixel = self._frame_to_pixel(end_frame)
+        
+        # Get colors from palette
+        palette = self.palette()
+        highlight_color = palette.color(QPalette.Highlight)
+        highlight_color.setAlpha(60)  # Semi-transparent
+        
+        # Draw the highlighted rectangle over the groove
+        if self.orientation() == Qt.Horizontal:
+            highlight_rect = QRect(
+                start_pixel,
+                groove_rect.top(),
+                end_pixel - start_pixel,
+                groove_rect.height()
+            )
+        else:
+            highlight_rect = QRect(
+                groove_rect.left(),
+                start_pixel,
+                groove_rect.width(),
+                end_pixel - start_pixel
+            )
+        
+        painter.fillRect(highlight_rect, highlight_color)
+    
+    def _draw_marker(self, painter, frame, is_in_point):
+        """Draw a bracket marker for an in or out point"""
+        pixel_pos = self._frame_to_pixel(frame)
+        
+        # Get groove rectangle for positioning
+        opt = QStyleOptionSlider()
+        self.initStyleOption(opt)
+        groove_rect = self.style().subControlRect(
+            QStyle.CC_Slider, opt, QStyle.SC_SliderGroove, self
+        )
+        
+        # Use solid black for both markers
+        pen_color = QColor(0, 0, 0)
+        painter.setPen(QPen(pen_color, 2))  # 2px line thickness
+        
+        # Bracket centered vertically on the groove
+        bracket_height = 15
+        bracket_width = 4
+        y_center = groove_rect.top() + groove_rect.height() // 2
+        y_top = y_center - bracket_height // 2
+        y_bottom = y_center + bracket_height // 2
+        
+        if is_in_point:
+            # In point: left bracket [
+            painter.drawLine(pixel_pos, y_top, pixel_pos, y_bottom)  # Vertical line
+            painter.drawLine(pixel_pos, y_top, pixel_pos + bracket_width, y_top)  # Top horizontal
+            painter.drawLine(pixel_pos, y_bottom, pixel_pos + bracket_width, y_bottom)  # Bottom horizontal
+        else:
+            # Out point: right bracket ]
+            painter.drawLine(pixel_pos, y_top, pixel_pos, y_bottom)  # Vertical line
+            painter.drawLine(pixel_pos - bracket_width, y_top, pixel_pos, y_top)  # Top horizontal
+            painter.drawLine(pixel_pos - bracket_width, y_bottom, pixel_pos, y_bottom)  # Bottom horizontal

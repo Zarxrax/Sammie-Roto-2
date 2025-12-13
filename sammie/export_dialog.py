@@ -33,6 +33,21 @@ class ExportWorker(QThread):
         self.parent_window = parent_window
         self.object_names = export_params.get('object_names', {})
         
+        # Handle in/out points
+        self.use_inout = export_params.get('use_inout', False)
+        self.in_point = export_params.get('in_point', 0)
+        self.out_point = export_params.get('out_point', total_frames - 1)
+        
+        # Calculate actual frame range to export
+        if self.use_inout and self.in_point is not None and self.out_point is not None:
+            self.start_frame = max(0, self.in_point)
+            self.end_frame = min(total_frames - 1, self.out_point)
+            self.export_frame_count = self.end_frame - self.start_frame + 1
+        else:
+            self.start_frame = 0
+            self.end_frame = total_frames - 1
+            self.export_frame_count = total_frames
+        
     def cancel(self):
         self.should_cancel = True
         
@@ -69,7 +84,7 @@ class ExportWorker(QThread):
         
         exported_files = []
         
-        for frame_num in range(self.total_frames):
+        for i, frame_num in enumerate(range(self.start_frame, self.end_frame + 1)):
             if self.should_cancel:
                 self.status_updated.emit("Export cancelled")
                 # Clean up any partially created files
@@ -79,9 +94,9 @@ class ExportWorker(QThread):
                 self.finished.emit(False, "Export was cancelled")
                 return
             
-            self.status_updated.emit(f"Exporting frame {frame_num + 1}/{self.total_frames}...")
+            self.status_updated.emit(f"Exporting frame {frame_num + 1}/{self.end_frame + 1}...")
             
-            # Generate filename for this frame
+            # Generate filename for this frame using actual frame number
             frame_filename = f"{base_filename}.{frame_num:04d}.exr"
             frame_path = os.path.join(output_dir, frame_filename)
             
@@ -156,8 +171,8 @@ class ExportWorker(QThread):
                     self._write_exr_file(frame_path, exr_data)
                     exported_files.append(frame_path)
                 
-                # Update progress
-                progress = int((frame_num + 1) / self.total_frames * 100)
+                # Update progress based on frames exported
+                progress = int((i + 1) / self.export_frame_count * 100)
                 self.progress_updated.emit(progress)
                 
             except Exception as e:
@@ -170,7 +185,8 @@ class ExportWorker(QThread):
         
         if not self.should_cancel:
             self.status_updated.emit("EXR sequence export completed")
-            self.finished.emit(True, f"Successfully exported {len(exported_files)} EXR frames to {output_dir}")
+            frame_range_msg = f" (frames {self.start_frame}-{self.end_frame})" if self.use_inout else ""
+            self.finished.emit(True, f"Successfully exported {len(exported_files)} EXR frames{frame_range_msg} to {output_dir}")
 
     def _sanitize_layer_name(self, name):
         """Sanitize object name for use in EXR layer naming"""
@@ -237,7 +253,7 @@ class ExportWorker(QThread):
     def _export_multiple_videos(self):
         """Export individual videos for each object ID"""
         total_exports = len(self.object_ids)
-        total_progress_steps = total_exports * self.total_frames
+        total_progress_steps = total_exports * self.export_frame_count
         current_step = 0
         
         exported_files = []
@@ -265,7 +281,7 @@ class ExportWorker(QThread):
             try:
                 self._export_single_video(current_params, current_step, total_progress_steps)
                 exported_files.append(output_path)
-                current_step += self.total_frames
+                current_step += self.export_frame_count
             except Exception as e:
                 # Clean up any partially created files
                 for file_path in exported_files:
@@ -276,7 +292,8 @@ class ExportWorker(QThread):
         if not self.should_cancel:
             self.status_updated.emit("All exports completed successfully")
             files_text = "\n".join([os.path.basename(f) for f in exported_files])
-            self.finished.emit(True, f"Successfully exported {len(exported_files)} videos:\n{files_text}")
+            frame_range_msg = f" (frames {self.start_frame}-{self.end_frame})" if self.use_inout else ""
+            self.finished.emit(True, f"Successfully exported {len(exported_files)} videos{frame_range_msg}:\n{files_text}")
     
     def _generate_object_output_path(self, object_id):
         """Generate output path for a specific object ID using the filename template"""
@@ -328,6 +345,8 @@ class ExportWorker(QThread):
             "codec": base_params.get('codec', ''),
             "object_id": str(object_id),
             "object_name": sanitized_object_name,
+            "in_point": base_params.get('in_point', ''),
+            "out_point": base_params.get('out_point', ''),
             "date": now.strftime("%Y%m%d"),
             "time": now.strftime("%H%M%S"),
             "datetime": now.strftime("%Y%m%d_%H%M%S"),
@@ -340,11 +359,12 @@ class ExportWorker(QThread):
     
     def _export_video(self):
         """Main export logic for single video"""
-        self._export_single_video(self.export_params, 0, self.total_frames)
+        self._export_single_video(self.export_params, 0, self.export_frame_count)
         
         if not self.should_cancel:
             self.status_updated.emit("Export completed successfully")
-            self.finished.emit(True, f"Video exported successfully to {self.export_params['output_path']}")
+            frame_range_msg = f" (frames {self.start_frame}-{self.end_frame})" if self.use_inout else ""
+            self.finished.emit(True, f"Video exported successfully{frame_range_msg} to {self.export_params['output_path']}")
     
     def _export_single_video(self, params, progress_offset, total_progress_steps):
         """Export a single video with given parameters"""
@@ -417,8 +437,9 @@ class ExportWorker(QThread):
             stream.options[key] = value
         
         try:
-            # Process each frame
-            for frame_num in range(self.total_frames):
+            # Process each frame in the range
+            pts_counter = 0  # Start PTS from 0 for the exported video
+            for i, frame_num in enumerate(range(self.start_frame, self.end_frame + 1)):
                 if self.should_cancel:
                     self.status_updated.emit("Export cancelled")
                     container.close()
@@ -452,14 +473,16 @@ class ExportWorker(QThread):
                     # RGB format for standard video
                     av_frame = av.VideoFrame.from_ndarray(frame_array, format='rgb24')
                     
-                av_frame.pts = frame_num
+                # Use renumbered PTS starting from 0
+                av_frame.pts = pts_counter
+                pts_counter += 1
                 
                 # Encode and write frame
                 for packet in stream.encode(av_frame):
                     container.mux(packet)
                 
-                # Update progress
-                current_progress_step = progress_offset + frame_num + 1
+                # Update progress based on frames exported
+                current_progress_step = progress_offset + i + 1
                 progress = int(current_progress_step / total_progress_steps * 100)
                 self.progress_updated.emit(progress)
             
@@ -577,8 +600,8 @@ class ExportDialog(QDialog):
         self.tag_dropdown.addItem("Insert tag...")  # placeholder
         self.tag_dropdown.addItems([
         "{input_name}", "{output_type}", "{object_id}", 
-        "{object_name}", "{codec}", "{date}", "{time}", 
-        "{datetime}"
+        "{object_name}", "{codec}", "{in_point}", "{out_point}", 
+        "{date}", "{time}", "{datetime}"
         ])
         self.tag_dropdown.currentIndexChanged.connect(self._insert_tag_into_template)
         template_layout.addWidget(self.tag_dropdown)
@@ -655,7 +678,7 @@ class ExportDialog(QDialog):
         self.include_original_checkbox.setVisible(False)
         settings_layout.addRow("", self.include_original_checkbox)
         
-        # Quantizer setting (for x264/x265)
+        # Quantizer setting (for x264/x265/vp9)
         self.quantizer_spin = QSpinBox()
         self.quantizer_spin.setRange(0, 51)
         self.quantizer_spin.setValue(14)
@@ -664,11 +687,15 @@ class ExportDialog(QDialog):
         self.quantizer_label = settings_layout.labelForField(self.quantizer_spin)
         
         # Antialiasing checkbox
-        self.antialias_checkbox = QCheckBox()
+        self.antialias_checkbox = QCheckBox("Antialiasing")
         self.antialias_checkbox.setChecked(False)
-        self.antialias_label = QLabel("Antialiasing:")
-        settings_layout.addRow(self.antialias_label, self.antialias_checkbox)
+        settings_layout.addRow("", self.antialias_checkbox)
         
+        # In/Out points checkbox
+        self.use_inout_checkbox = QCheckBox("Export only between in/out markers")
+        self.use_inout_checkbox.setChecked(True)
+        settings_layout.addRow("", self.use_inout_checkbox)
+
         layout.addWidget(settings_group)
         
         # Initialize UI state based on default selection
@@ -682,7 +709,6 @@ class ExportDialog(QDialog):
         # Show/hide antialiasing based on whether it's a Segmentation mode
         is_segmentation = output_type.startswith('Segmentation-')
         self.antialias_checkbox.setVisible(is_segmentation)
-        self.antialias_label.setVisible(is_segmentation)
 
         # Show/hide object selection for ObjectRemoval mode
         is_object_removal = output_type.startswith('ObjectRemoval')
@@ -715,7 +741,7 @@ class ExportDialog(QDialog):
         self.export_btn = QPushButton("Export")
         self.export_btn.clicked.connect(self._start_export)
         
-        self.cancel_btn = QPushButton("Close") # renamed from cancel to close
+        self.cancel_btn = QPushButton("Close")
         self.cancel_btn.clicked.connect(self.reject)
         button_layout.addWidget(self.export_btn)
         button_layout.addWidget(self.cancel_btn)
@@ -746,10 +772,17 @@ class ExportDialog(QDialog):
     def _resolve_filename_template(self, template, object_id=None):
         """Replace tags with actual values for preview/usage"""
         settings_mgr = self.parent_window.settings_mgr
+        total_frames = sammie.VideoInfo.total_frames
         input_file = settings_mgr.get_session_setting("video_file_path", "")
         base_name = os.path.splitext(os.path.basename(input_file))[0] if input_file else "video"
         input_ext = os.path.splitext(input_file)[1] if input_file else ""
         input_path = os.path.dirname(input_file) if input_file else ""
+        in_point = settings_mgr.get_session_setting("in_point")
+        out_point = settings_mgr.get_session_setting("out_point")
+        if in_point is None:
+            in_point = 0
+        if out_point is None:
+            out_point = total_frames - 1
         
         now = datetime.datetime.now()
 
@@ -778,6 +811,8 @@ class ExportDialog(QDialog):
             "codec": self.codec_combo.currentText() if self.codec_combo else "",
             "object_id": str(selected_object_id) if selected_object_id != -1 else "all",
             "object_name": sanitized_object_name,
+            "in_point": str(in_point),
+            "out_point": str(out_point),
             "date": now.strftime("%Y%m%d"),
             "time": now.strftime("%H%M%S"),
             "datetime": now.strftime("%Y%m%d_%H%M%S"),
@@ -1170,44 +1205,36 @@ class ExportDialog(QDialog):
         """Start the export process"""
         if not self._validate_settings():
             return
+
+        # Get in/out points from session settings
+        settings_mgr = self.parent_window.settings_mgr if self.parent_window else None
+        in_point = None
+        out_point = None
+        use_inout = self.use_inout_checkbox.isChecked()
         
-        # Check if tracking or matting has been completed
-        codec = self.codec_combo.currentText()
-        output_type = self.output_type_combo.currentText()
-        if output_type.startswith('Segmentation'):
-            if not self.parent_window.sam_manager.propagated:
-                reply = QMessageBox.question(
-                    self, "No Tracking Data",
-                    "Objects have not been tracked yet. Only frames with manually added points will have masks. Continue?",
-                    QMessageBox.Yes | QMessageBox.No
-                )
-                if reply != QMessageBox.Yes:
-                    return
-        elif output_type.startswith('Matting'):
-            if not self.parent_window.matany_manager.propagated:
-                reply = QMessageBox.question(
-                    self, "No Matting Data",
-                    "Matting data may not exist or may be outdated. Continue?",
-                    QMessageBox.Yes | QMessageBox.No
-                )
-                if reply != QMessageBox.Yes:
-                    return
-        elif output_type.startswith('ObjectRemoval'):
-            if not self.parent_window.sam_manager.propagated:
-                reply = QMessageBox.question(
-                    self, "No Tracking Data",
-                    "Objects have not been tracked yet. Object removal data may not exist or may be outdated. Continue?",
-                    QMessageBox.Yes | QMessageBox.No
-                )
-                if reply != QMessageBox.Yes:
-                    return
+        if use_inout and settings_mgr:
+            in_point = settings_mgr.get_session_setting("in_point", None)
+            out_point = settings_mgr.get_session_setting("out_point", None)
         
-        # Get points and total frames
-        points = self.parent_window.point_manager.get_all_points()
+        # Calculate actual frame range
         total_frames = sammie.VideoInfo.total_frames
+        if use_inout and in_point is not None and out_point is not None:
+            start_frame = max(0, in_point)
+            end_frame = min(total_frames - 1, out_point)
+            export_frame_count = end_frame - start_frame + 1
+        else:
+            start_frame = 0
+            end_frame = total_frames - 1
+            export_frame_count = total_frames
         
-        if total_frames == 0:
-            QMessageBox.warning(self, "Export Error", "No video data available for export.")
+        # Get codec
+        codec = self.codec_combo.currentText()
+        
+        # Get points
+        points = self.parent_window.point_manager.get_all_points()
+
+        if export_frame_count == 0:
+            QMessageBox.warning(self, "Export Error", "No frames in export range.")
             return
         
         # Determine export mode and parameters
@@ -1219,7 +1246,6 @@ class ExportDialog(QDialog):
             resolved_name = self._resolve_filename_template(template)
             
             if self.use_input_folder_checkbox.isChecked():
-                settings_mgr = self.parent_window.settings_mgr
                 input_file = settings_mgr.get_session_setting("video_file_path", "")
                 folder = os.path.dirname(input_file) if input_file else os.getcwd()
             else:
@@ -1232,7 +1258,10 @@ class ExportDialog(QDialog):
                 'output_type': self.output_type_combo.currentText(),
                 'antialias': self.antialias_checkbox.isChecked(),
                 'include_original': self.include_original_checkbox.isChecked(),
-                'object_id': -1  # Always all objects for EXR
+                'object_id': -1,  # Always all objects for EXR
+                'use_inout': use_inout,
+                'in_point': in_point,
+                'out_point': out_point
             }
             
             # Create worker for EXR export
@@ -1247,13 +1276,11 @@ class ExportDialog(QDialog):
             
             # Get folder path
             if self.use_input_folder_checkbox.isChecked():
-                settings_mgr = self.parent_window.settings_mgr
                 input_file = settings_mgr.get_session_setting("video_file_path", "")
                 folder = os.path.dirname(input_file) if input_file else os.getcwd()
                 input_name = os.path.splitext(os.path.basename(input_file))[0] if input_file else "video"
             else:
                 folder = self.folder_edit.text() or os.getcwd()
-                settings_mgr = self.parent_window.settings_mgr
                 input_file = settings_mgr.get_session_setting("video_file_path", "")
                 input_name = os.path.splitext(os.path.basename(input_file))[0] if input_file else "video"
             
@@ -1273,7 +1300,10 @@ class ExportDialog(QDialog):
                 'quantizer': self.quantizer_spin.value(),
                 'object_id': -1,  # Will be set per object by worker
                 'object_names': object_names,
-                'input_name': input_name
+                'input_name': input_name,
+                'use_inout': use_inout,
+                'in_point': in_point,
+                'out_point': out_point
             }
             
             # Create worker for multiple export
@@ -1289,7 +1319,10 @@ class ExportDialog(QDialog):
                 'output_type': self.output_type_combo.currentText(),
                 'antialias': self.antialias_checkbox.isChecked(),
                 'quantizer': self.quantizer_spin.value(),
-                'object_id': selected_object_data  # -1 for all objects, specific ID for single object
+                'object_id': selected_object_data,  # -1 for all objects, specific ID for single object
+                'use_inout': use_inout,
+                'in_point': in_point,
+                'out_point': out_point
             }
             
             # Create worker for single export
@@ -1302,7 +1335,7 @@ class ExportDialog(QDialog):
         
         # Create progress dialog
         if codec == 'exr':
-            initial_text = f"Exporting {total_frames} EXR frames..."
+            initial_text = f"Exporting {export_frame_count} EXR frames..."
         elif export_multiple:
             object_ids = self._get_available_object_ids()
             initial_text = f"Exporting {len(object_ids)} videos..."
@@ -1350,7 +1383,6 @@ class ExportDialog(QDialog):
         # Show completion message
         if success:
             QMessageBox.information(self, "Export Complete", message)
-            # self.accept()  # Close dialog on success
         else:
             QMessageBox.critical(self, "Export Failed", message)
         
@@ -1377,6 +1409,7 @@ class ExportDialog(QDialog):
         settings_mgr.set_app_setting('export_include_original', self.include_original_checkbox.isChecked())
         settings_mgr.set_app_setting('export_multiple', self.export_multiple_checkbox.isChecked())
         settings_mgr.set_app_setting('export_folder_path', self.folder_edit.text())
+        settings_mgr.set_app_setting('export_use_inout', self.use_inout_checkbox.isChecked())
         
         # Save to disk
         settings_mgr.save_app_settings()
@@ -1408,6 +1441,7 @@ class ExportDialog(QDialog):
         self.quantizer_spin.setValue(settings_mgr.get_app_setting('export_quantizer', 14))
         self.include_original_checkbox.setChecked(settings_mgr.get_app_setting('export_include_original', False))
         self.export_multiple_checkbox.setChecked(settings_mgr.get_app_setting('export_multiple', False))
+        self.use_inout_checkbox.setChecked(settings_mgr.get_app_setting('export_use_inout', True))
         
         folder_path = settings_mgr.get_app_setting('export_folder_path', '')
         if folder_path and os.path.exists(folder_path):

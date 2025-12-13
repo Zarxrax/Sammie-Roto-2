@@ -27,7 +27,8 @@ from sammie.settings_manager import get_settings_manager, initialize_settings, A
 # Import GUI widgets
 from sammie.gui_widgets import (
     ConsoleRedirect, ColorDisplayWidget, UpdateChecker, ClickableLabel,
-    HotkeysHelpDialog, PointTable, ImageViewer, ColorPickerWidget
+    HotkeysHelpDialog, PointTable, ImageViewer, ColorPickerWidget,
+    FrameSlider
 )
 
 # ==================== VERSION ====================
@@ -308,23 +309,16 @@ class SegmentationTab(QWidget):
         """Update the Track Objects button icon based on propagation state"""
         if propagated:
             self.track_objects_btn.setIcon(QIcon(":/icons/check-small.png"))
-            #self.track_objects_btn.setText("Track Objects ✅")
-            self.deduplicate_masks_btn.setEnabled(True)
         else:
-            #self.track_objects_btn.setText("Track Objects")
             self.track_objects_btn.setIcon(QIcon())
-            self.deduplicate_masks_btn.setEnabled(False)
             self.deduplicate_masks_btn.setIcon(QIcon())
-            #self.deduplicate_masks_btn.setText("Deduplicate Similar Masks")
 
     def update_deduplicate_status_helper(self, deduplicated):
         """Update the Deduplicate button text based on deduplication status"""
         if deduplicated:
             self.deduplicate_masks_btn.setIcon(QIcon(":/icons/check-small.png"))
-            #self.deduplicate_masks_btn.setText("Deduplicate Similar Masks ✅")
         else:
             self.deduplicate_masks_btn.setIcon(QIcon())
-            #self.deduplicate_masks_btn.setText("Deduplicate Similar Masks")
 
     def load_values_from_settings(self):
         """Load all values from settings (useful when loading a session)"""
@@ -364,10 +358,16 @@ class MattingTab(QWidget):
         # Instructions
         self._create_instructions_section(layout)
         
-        # Run button
+        # Run/Clear button
+        matting_group = QGroupBox("Matting")
+        matting_layout = QVBoxLayout(matting_group)
         self.run_matting_btn = QPushButton(" Run Matting ")
         self.run_matting_btn.setLayoutDirection(Qt.RightToLeft)
-        layout.addWidget(self.run_matting_btn)
+        matting_layout.addWidget(self.run_matting_btn)
+        self.clear_matting_btn = QPushButton("Clear Matting")
+        self.clear_matting_btn.setToolTip("Remove all matting data")
+        matting_layout.addWidget(self.clear_matting_btn)
+        layout.addWidget(matting_group)
         
         # MatAnyone Internal Resolution selection
         res_group = QGroupBox("Resolution Settings")
@@ -555,10 +555,8 @@ class MattingTab(QWidget):
         """Update the Run Matting button text based on propagation state"""
         if is_propagated:
             self.run_matting_btn.setIcon(QIcon(":/icons/check-small.png"))
-            #self.run_matting_btn.setText("Run Matting ✅")
         else:
             self.run_matting_btn.setIcon(QIcon())
-            #self.run_matting_btn.setText("Run Matting")
 
 class ObjectRemovalTab(QWidget):
     """Tab containing object removal controls and parameters"""
@@ -574,10 +572,16 @@ class ObjectRemovalTab(QWidget):
         # Instructions
         self._create_instructions_section(layout)
         
-        # Run button
+        # Run/Clear button
+        removal_group = QGroupBox("Object Removal")
+        removal_layout = QVBoxLayout(removal_group)
         self.run_removal_btn = QPushButton(" Run Object Removal ")
         self.run_removal_btn.setLayoutDirection(Qt.RightToLeft)
-        layout.addWidget(self.run_removal_btn)
+        removal_layout.addWidget(self.run_removal_btn)
+        self.clear_removal_btn = QPushButton("Clear Object Removal")
+        self.clear_removal_btn.setToolTip("Remove all object removal data")
+        removal_layout.addWidget(self.clear_removal_btn)
+        layout.addWidget(removal_group)
 
         # Method selection (MiniMax-Remover vs OpenCV)
         self._create_method_selection(layout)
@@ -1115,6 +1119,7 @@ class MainWindow(QMainWindow):
             matting_tab.parent_window = self
             # Connect matting tab buttons
             matting_tab.run_matting_btn.clicked.connect(self.run_matting)
+            matting_tab.clear_matting_btn.clicked.connect(self.clear_matting)
 
             # Connect postprocessing tab sliders
             matting_tab.shrink_grow_slider.valueChanged.connect(self._update_current_frame_display)
@@ -1131,6 +1136,7 @@ class MainWindow(QMainWindow):
             removal_tab.parent_window = self
             # Connect removal tab buttons
             removal_tab.run_removal_btn.clicked.connect(self.run_object_removal)
+            removal_tab.clear_removal_btn.clicked.connect(self.clear_object_removal)
             
             # Connect method selection to update display
             removal_tab.method_combo.currentTextChanged.connect(self._update_current_frame_display)
@@ -1150,7 +1156,7 @@ class MainWindow(QMainWindow):
             # Store reference to removal tab for status updates
             self.removal_tab = removal_tab
             # Initialize the button status
-            self.removal_tab.update_removal_status(self.removal_manager.completed)
+            self.removal_tab.update_removal_status(self.removal_manager.propagated)
 
     # ==================== UI CREATION ====================
 
@@ -1386,10 +1392,9 @@ class MainWindow(QMainWindow):
     def _create_frame_controls(self, layout):
         """Create frame navigation controls"""
         slider_layout = QHBoxLayout()
-        
         slider_layout.addWidget(QLabel("Frame:"))
         
-        self.frame_slider = QSlider(Qt.Horizontal)
+        self.frame_slider = FrameSlider(Qt.Horizontal)
         self.frame_slider.setRange(0, 0)
         self.frame_slider.setValue(0)
         slider_layout.addWidget(self.frame_slider)
@@ -1405,6 +1410,7 @@ class MainWindow(QMainWindow):
     def _create_playback_controls(self, layout):
         """Create playback control buttons"""
         controls_layout = QHBoxLayout()
+        controls_layout.setSpacing(0) # reduce space between buttons, there is still some space from padding
         
         # Button Icons
         self.icon_play = QIcon(":/icons/control-play.png")
@@ -1433,6 +1439,22 @@ class MainWindow(QMainWindow):
             
             if button_id == "play_pause":
                 self.play_pause_btn = btn
+
+        # Add spacing between playback controls and marker buttons
+        controls_layout.addSpacing(15)
+        
+        # In/Out marker buttons
+        marker_button_configs = [
+            ("[", self.set_in_marker, "Set In Point"),
+            ("]", self.set_out_marker, "Set Out Point")
+        ]
+        
+        for text, handler, tooltip in marker_button_configs:
+            btn = QPushButton(text)
+            btn.setMaximumWidth(30)
+            btn.setToolTip(tooltip)
+            btn.clicked.connect(handler)
+            controls_layout.addWidget(btn)
         
         controls_layout.addStretch()
         
@@ -1668,6 +1690,11 @@ class MainWindow(QMainWindow):
             # Ensure current_frame is up to date before adding point
             self.point_table.set_current_frame(self.frame_slider.value())
             self.point_table.add_point(point['frame'], point['object_id'], point['positive'], point['x'], point['y'])
+            # Mark tracking as stale (remove checkmarks) but don't clear data
+            self.sam_manager.propagated = False
+            self.sam_manager.deduplicated = False
+            self.matany_manager.propagated = False
+            self.removal_manager.propagated = False
             # No image update here - wait for segmentation to complete
             
         elif action == 'remove_last':
@@ -1675,22 +1702,32 @@ class MainWindow(QMainWindow):
             if point:
                 self.point_table.remove_last_point()
                 points = self.point_manager.get_all_points()
-                self.sam_manager.clear_tracking()
-                self.matany_manager.propagated = False
+                # Don't clear tracking - just replay points
                 self.sam_manager.replay_points(points)
+                # Mark tracking as stale (remove checkmarks) but don't clear data
+                self.sam_manager.propagated = False
+                self.sam_manager.deduplicated = False
+                self.matany_manager.propagated = False
+                self.removal_manager.propagated = False
                 # No image update here - wait for segmentation to complete
         
         elif action == 'clear_frame':
             points = self.point_manager.get_all_points()
-            self.sam_manager.clear_tracking()
-            self.matany_manager.propagated = False
+            # Don't clear tracking - just replay points
             self.sam_manager.replay_points(points)
+            # Mark tracking as stale (remove checkmarks) but don't clear data
+            self.sam_manager.propagated = False
+            self.sam_manager.deduplicated = False
+            self.matany_manager.propagated = False
+            self.removal_manager.propagated = False
             # No image update here - wait for segmentation to complete
             self._refresh_table()
             
         elif action == 'clear_all':
             self.sam_manager.clear_tracking()
+            self.sam_manager.deduplicated = False
             self.matany_manager.propagated = False
+            self.removal_manager.propagated = False
             # Rebuild the entire table and update display
             self._refresh_table()
             self._update_current_frame_display()
@@ -1705,6 +1742,7 @@ class MainWindow(QMainWindow):
                 self.sam_manager.predictor.reset_state(self.sam_manager.inference_state)
                 self.sam_manager.propagated = False
                 self.matany_manager.propagated = False
+                self.removal_manager.propagated = False
             # Rebuild the entire table and update display
             self._refresh_table()
             self._update_current_frame_display()
@@ -1818,11 +1856,7 @@ class MainWindow(QMainWindow):
         point_type = "positive" if is_positive else "negative"
         
         # Add point to table
-        if self.sam_manager.propagated or self.matany_manager.propagated:
-            self.clear_tracking_data() #clear tracking and replay points
-            self._add_point_and_segment(current_frame, object_id, is_positive, x, y, point_type)
-        else:
-            self._add_point_and_segment(current_frame, object_id, is_positive, x, y, point_type)
+        self._add_point_and_segment(current_frame, object_id, is_positive, x, y, point_type)
 
     def _add_point_and_segment(self, frame, object_id, is_positive, x, y, point_type):
         """Helper method to add point and trigger segmentation"""
@@ -1947,10 +1981,8 @@ class MainWindow(QMainWindow):
         self.settings_mgr.save_session_settings()
         count = len(self.point_manager.points)
         if count > 0:            
-            self.sam_manager.clear_tracking()
             self.sam_manager.replay_points(self.point_manager.get_all_points())
             if self.sam_manager.track_objects(parent_window=self) == 0: # if cancelled
-                self.sam_manager.clear_tracking() 
                 self.sam_manager.replay_points(self.point_manager.get_all_points())
             else: # completed
                 pass
@@ -1979,12 +2011,25 @@ class MainWindow(QMainWindow):
             # If no points, just update display
             self._update_current_frame_display()
     
+    def clear_matting(self):
+        """Clear matting data"""
+        self.matany_manager.clear_matting()
+        self.matany_manager.propagated = False
+        self.update_matting_status()
+        self._update_current_frame_display()
+
+    def clear_object_removal(self):
+        """Clear object removal data"""
+        self.removal_manager.clear_removal()
+        self.removal_manager.propagated = False
+        self.update_removal_status()
+        self._update_current_frame_display()
+
     def deduplicate_similar_masks(self):
         """Deduplicate similar masks"""
-        if not self.sam_manager.propagated:
-            print("Run Track Objects before Deduplication")
-            return
         #print("Running deduplication...")
+        if not self.sam_manager.deduplicated:
+            sammie.remove_backup_mattes() # If the deduplicated flag is not present, remove any existing mattes backup folder so it doesnt get restored
         self.sam_manager.deduplicated = sammie.deduplicate_masks(parent_window=self)
         
         # Update display after deduping finished
@@ -2010,13 +2055,10 @@ class MainWindow(QMainWindow):
             success = self.matany_manager.run_matting(self.point_manager.points, parent_window=self)
         
             if success:
-                self.matany_manager.propagated = True
-                self.frame_slider.setValue(0)
                 self.update_matting_status()
                 self._update_current_frame_display()
                 
             else:
-                self.matany_manager.propagated = False
                 self.update_matting_status()
                 self._update_current_frame_display()
             # self.matany_manager.offload_model_to_cpu()
@@ -2035,38 +2077,32 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Error", "MiniMax-Remover is not supported on CPU. Please use OpenCV instead.", QMessageBox.Ok)
             return
         self.settings_mgr.save_session_settings()
-        if self.sam_manager.propagated:
-            # offload sam model
-            self.sam_manager.offload_model_to_cpu()
+        # offload sam model
+        self.sam_manager.offload_model_to_cpu()
 
-            if self.removal_tab.method_combo.currentText() == 'MiniMax-Remover':
-                success = False
-                try:
-                    success = self.removal_manager.run_object_removal_minimax(self.point_manager.points, parent_window=self)
-                except Exception as e:
-                    if "out of memory" in str(e):
-                        print(e)
-                        QMessageBox.warning(self, "Error", "An out of memory error occurred. Please restart the application to fully release GPU memory, and try again with lower settings.", QMessageBox.Ok)
-                    else: 
-                        print(f"Error running MiniMax-Remover: {e}")
-            else:
-                success = self.removal_manager.run_object_removal_cv(self.point_manager.points, parent_window=self)
-            if success:
-                self.removal_manager.propagated = True
-                self.frame_slider.setValue(0)
-                self.update_removal_status()
-                self._update_current_frame_display()
-            else:
-                self.removal_manager.propagated = False
-                self.update_removal_status()
-                self._update_current_frame_display()
-
-            self.settings_mgr.save_session_settings()
-            # unload minimax model and load sam model
-            self.removal_manager.unload_minimax_model()    
-            self.sam_manager.load_model_to_device()
+        if self.removal_tab.method_combo.currentText() == 'MiniMax-Remover':
+            success = False
+            try:
+                success = self.removal_manager.run_object_removal_minimax(self.point_manager.points, parent_window=self)
+            except Exception as e:
+                if "out of memory" in str(e):
+                    print(e)
+                    QMessageBox.warning(self, "Error", "An out of memory error occurred. Please restart the application to fully release GPU memory, and try again with lower settings.", QMessageBox.Ok)
+                else: 
+                    print(f"Error running MiniMax-Remover: {e}")
         else:
-            print("You must track objects on the Segmentation tab before object removal")
+            success = self.removal_manager.run_object_removal_cv(self.point_manager.points, parent_window=self)
+        if success:
+            self.update_removal_status()
+            self._update_current_frame_display()
+        else:
+            self.update_removal_status()
+            self._update_current_frame_display()
+
+        self.settings_mgr.save_session_settings()
+        # unload minimax model and load sam model
+        self.removal_manager.unload_minimax_model()    
+        self.sam_manager.load_model_to_device()
 
     def update_tracking_status(self):
         """Update the tracking status display"""
@@ -2140,10 +2176,21 @@ class MainWindow(QMainWindow):
     def prev_keyframe(self):
         """Go to previous frame that contains points"""
         current_frame = self.frame_slider.value()
+        in_point = self.frame_slider.get_in_point()
+        out_point = self.frame_slider.get_out_point()
         
         # Get all frames that have points, sorted in descending order
-        frames_with_points = sorted(set(point['frame'] for point in self.point_manager.points), reverse=True)
+        frames_with_points = set(point['frame'] for point in self.point_manager.points)
         
+        # Add in/out points if present
+        if in_point is not None:
+            frames_with_points.add(in_point)
+        if out_point is not None:
+            frames_with_points.add(out_point)
+        
+        # Sort frames
+        frames_with_points = sorted(frames_with_points, reverse=True)
+
         # Find the previous frame with points
         prev_frame = None
         for frame in frames_with_points:
@@ -2153,17 +2200,28 @@ class MainWindow(QMainWindow):
         
         if prev_frame is not None:
             self.frame_slider.setValue(prev_frame)
-            print(f"Previous point frame: {prev_frame}")
+            # print(f"Previous point frame: {prev_frame}")
         else:
             self.goto_first_frame()
     
     def next_keyframe(self):
         """Go to next frame that contains points"""
         current_frame = self.frame_slider.value()
-        
+        in_point = self.frame_slider.get_in_point()
+        out_point = self.frame_slider.get_out_point()
+
         # Get all frames that have points, sorted in ascending order
-        frames_with_points = sorted(set(point['frame'] for point in self.point_manager.points))
+        frames_with_points = set(point['frame'] for point in self.point_manager.points)
         
+        # Add in/out points if present
+        if in_point is not None:
+            frames_with_points.add(in_point)
+        if out_point is not None:
+            frames_with_points.add(out_point)
+        
+        # Sort frames
+        frames_with_points = sorted(frames_with_points)
+
         # Find the next frame with points
         next_frame = None
         for frame in frames_with_points:
@@ -2173,10 +2231,36 @@ class MainWindow(QMainWindow):
         
         if next_frame is not None:
             self.frame_slider.setValue(next_frame)
-            print(f"Next point frame: {next_frame}")
+            #print(f"Next point frame: {next_frame}")
         else:
             self.goto_last_frame()
+
     
+    def set_in_marker(self):
+        """Set the in marker to the current frame"""
+        out_point = self.frame_slider.get_out_point()
+        if out_point is None or out_point < self.frame_slider.value():
+            self.frame_slider.set_out_point(self.frame_slider.maximum())
+            self.settings_mgr.set_session_setting("out_point", self.frame_slider.maximum())
+        self.frame_slider.set_in_point(self.frame_slider.value())
+        self.settings_mgr.set_session_setting("in_point", self.frame_slider.value())
+        self.settings_mgr.save_session_settings()
+    
+    def set_out_marker(self):
+        """Set the out marker to the current frame"""
+        in_point = self.frame_slider.get_in_point()
+        if in_point is None or in_point > self.frame_slider.value():
+            self.frame_slider.set_in_point(0)
+            self.settings_mgr.set_session_setting("in_point", 0)
+        self.frame_slider.set_out_point(self.frame_slider.value())
+        self.settings_mgr.set_session_setting("out_point", self.frame_slider.value())
+        self.settings_mgr.save_session_settings()
+
+    def clear_markers(self):
+        """Clear the in and out markers"""
+        self.frame_slider.clear_in_out_points()
+        self.settings_mgr.save_session_settings()
+
     def goto_first_frame(self):
         """Go to the first frame"""
         self.frame_slider.setValue(0)
@@ -2289,6 +2373,9 @@ class MainWindow(QMainWindow):
         self._create_shortcut("Home", self.goto_first_frame, "Go to First Frame")
         self._create_shortcut("End", self.goto_last_frame, "Go to Last Frame")
         self._create_shortcut("Space", self.toggle_play_pause, "Play/Pause")
+        self._create_shortcut("[", self.set_in_marker, "Set In Marker")
+        self._create_shortcut("]", self.set_out_marker, "Set Out Marker")
+        self._create_shortcut("Ctrl+Shift+X", self.clear_markers, "Clear In/Out Markers")
         
         # Point operations
         self._create_shortcut("Ctrl+Z", self.undo_last_point, "Remove Last Point")
@@ -2397,6 +2484,7 @@ class MainWindow(QMainWindow):
         self.viewer.clear_image()
         self.sidebar.load_values_from_settings()
         self.sidebar.tab_widget.setCurrentIndex(0)
+        self.clear_markers()
         self._update_dynamic_widgets()
         
         file_ext = os.path.splitext(file_path)[1].lower()
@@ -2469,6 +2557,12 @@ class MainWindow(QMainWindow):
                 
                 # Load UI state from session
                 self._load_session_ui_state()
+
+                # Load markers
+                in_point = self.settings_mgr.get_session_setting("in_point")
+                out_point = self.settings_mgr.get_session_setting("out_point")
+                self.frame_slider.set_in_point(in_point)
+                self.frame_slider.set_out_point(out_point)
 
             # Load and display the first frame - reset zoom for resumed session
             current_frame = 0

@@ -137,7 +137,7 @@ class SamManager:
             print("Loaded SAM2 Base model")
             checkpoint = "./checkpoints/sam2.1_hiera_base_plus.pt"
             model_cfg = "../configs/sam2.1_hiera_b+.yaml"
-        self.predictor = build_sam2_video_predictor(model_cfg, checkpoint, device=device)  
+        self.predictor = build_sam2_video_predictor(model_cfg, checkpoint, device=device)
 
     def offload_model_to_cpu(self):
         """Offload SAM2 model to CPU to free VRAM"""
@@ -192,10 +192,6 @@ class SamManager:
         """Replay all points incrementally to rebuild masks"""
         frame_count = VideoInfo.total_frames
         
-        # Clear existing masks
-        if os.path.exists(mask_dir):
-            shutil.rmtree(mask_dir)
-            os.makedirs(mask_dir)
         
         for frame_number in range(frame_count):
             # Filter points for the current frame
@@ -246,6 +242,7 @@ class SamManager:
         # Notify that replay is complete
         self._notify('replay_complete')
 
+
     def track_objects(self, parent_window):
         frame_count = VideoInfo.total_frames
         progress_dialog = QProgressDialog("Tracking...", "Cancel", 0, 100, parent_window)
@@ -257,8 +254,20 @@ class SamManager:
         # Get display update frequency from settings
         settings_mgr = get_settings_manager()
         display_update_frequency = settings_mgr.get_app_setting("display_update_frequency", 5)
+
+        # Figure out the frame range to track
+        in_point = settings_mgr.get_session_setting("in_point", None)
+        out_point = settings_mgr.get_session_setting("out_point", None)
+        if in_point is None:
+            in_point = 0
+        frames_to_track = None
+        total_frames = frame_count
+        if out_point is not None:
+            frames_to_track = out_point - in_point
+        if frames_to_track is not None:
+            total_frames = frames_to_track + 1
     
-        for out_frame_idx, out_obj_ids, out_mask_logits in self.predictor.propagate_in_video(self.inference_state, start_frame_idx=0):
+        for out_frame_idx, out_obj_ids, out_mask_logits in self.predictor.propagate_in_video(self.inference_state, start_frame_idx=in_point, max_frame_num_to_track=frames_to_track):
             for i, out_obj_id in enumerate(out_obj_ids):
                 mask_filename = os.path.join(mask_dir, f"{out_frame_idx:05d}", f"{out_obj_id}.png")
                 mask = (out_mask_logits[i] > 0.0).cpu().numpy().squeeze()
@@ -268,7 +277,7 @@ class SamManager:
             
         
             # Update progress dialog
-            progress_dialog.setValue((out_frame_idx+1)*100/frame_count)
+            progress_dialog.setValue((out_frame_idx+1)*100/total_frames)
             
             # Update display at the specified frequency
             if out_frame_idx % display_update_frequency == 0:
@@ -284,7 +293,10 @@ class SamManager:
         
         if not progress_dialog.wasCanceled():
             progress_dialog.setValue(100)
-            self.propagated = True
+            if total_frames == frame_count: # only set propagated if we're tracking the whole video
+                self.propagated = True
+            else:
+                self.propagated = False
             print("Tracking completed")
             return 1
         else:
@@ -411,23 +423,38 @@ class MatAnyManager:
         device = DeviceManager.get_device()
         frame_count = VideoInfo.total_frames
         
+        # Get in/out points from settings
+        settings_mgr = get_settings_manager()
+        in_point = settings_mgr.get_session_setting("in_point", None)
+        out_point = settings_mgr.get_session_setting("out_point", None)
+        
+        # Determine frame range to process
+        start_frame = in_point if in_point is not None else 0
+        end_frame = out_point if out_point is not None else frame_count - 1
+        frames_to_process = end_frame - start_frame + 1
+        
+        print(f"Processing matting from frame {start_frame} to {end_frame} ({frames_to_process} frames)")
+        
         # Get unique object IDs from points list
         object_ids = sorted(list(set(point['object_id'] for point in points_list if 'object_id' in point)))
         if not object_ids:
             print("No objects found for matting")
             return 0
             
-        # Find all keyframes for each object
+        # Find all keyframes for each object (within processing range)
         object_keyframes = {}
         for object_id in object_ids:
-            keyframes = sorted(list(set(point['frame'] for point in points_list if point.get('object_id') == object_id)))
+            keyframes = sorted(list(set(
+                point['frame'] for point in points_list 
+                if point.get('object_id') == object_id and start_frame <= point['frame'] <= end_frame
+            )))
             if keyframes:
                 object_keyframes[object_id] = keyframes
             else:
-                print(f"No frames found for object {object_id}")
+                print(f"No frames found for object {object_id} in range {start_frame}-{end_frame}")
                 
         if not object_keyframes:
-            print("No valid keyframes found for any objects")
+            print("No valid keyframes found for any objects in the specified range")
             return 0
             
         # Calculate total operations for progress tracking
@@ -436,14 +463,14 @@ class MatAnyManager:
             first_keyframe = keyframes[0]
             last_keyframe = keyframes[-1]
             
-            # Operations before first keyframe (backward propagation)
-            total_operations += first_keyframe
+            # Operations before first keyframe (backward propagation to start_frame)
+            total_operations += first_keyframe - start_frame
             
-            # Operations between keyframes and after last keyframe
+            # Operations between keyframes and after last keyframe to end_frame
             for i in range(len(keyframes)):
                 if i == len(keyframes) - 1:
-                    # Last keyframe to end of video
-                    total_operations += frame_count - keyframes[i]
+                    # Last keyframe to end_frame
+                    total_operations += end_frame - keyframes[i] + 1
                 else:
                     # Between consecutive keyframes
                     total_operations += keyframes[i + 1] - keyframes[i]
@@ -458,15 +485,13 @@ class MatAnyManager:
         # Create tqdm progress bar
         pbar = tqdm(total=total_operations, desc="Matting Progress", unit="frame")
 
-        # Clear existing matting directory
-        if os.path.exists(matting_dir):
-            shutil.rmtree(matting_dir)
-        os.makedirs(matting_dir)
+        # Create matting directory if it doesn't exist (don't clear existing data)
+        os.makedirs(matting_dir, exist_ok=True)
 
         # Get list of image paths
         extension = get_frame_extension()
         images = []
-        for frame_number in range(frame_count):
+        for frame_number in range(start_frame, end_frame + 1):
             image_filename = os.path.join(frames_dir, f"{frame_number:05d}.{extension}")
             if os.path.exists(image_filename):
                 images.append(image_filename)
@@ -483,8 +508,9 @@ class MatAnyManager:
             
             # Process segments for this object
             success = self._process_object_with_keyframes(
-                images, object_id, keyframes, frame_count, device,
-                progress_dialog, operations_completed, total_operations, pbar, parent_window
+                images, object_id, keyframes, end_frame + 1, device,
+                progress_dialog, operations_completed, total_operations, pbar, parent_window,
+                start_frame=start_frame
             )
             
             if not success:
@@ -492,11 +518,11 @@ class MatAnyManager:
                 
             # Update operations completed for this object
             first_keyframe = keyframes[0]
-            operations_completed += first_keyframe  # backward from first keyframe
+            operations_completed += first_keyframe - start_frame  # backward from first keyframe
             
             for i in range(len(keyframes)):
                 if i == len(keyframes) - 1:
-                    operations_completed += frame_count - keyframes[i]  # last keyframe to end
+                    operations_completed += end_frame - keyframes[i] + 1  # last keyframe to end
                 else:
                     operations_completed += keyframes[i + 1] - keyframes[i]  # between keyframes
 
@@ -508,20 +534,21 @@ class MatAnyManager:
         
         if progress_dialog.wasCanceled():
             print("Matting cancelled")
-            if os.path.exists(matting_dir):
-                shutil.rmtree(matting_dir)
-            os.makedirs(matting_dir)
+            self.propagated = False
             progress_dialog.close()
             return 0
         else:
             progress_dialog.setValue(100)
-            self.propagated = True
+            if frame_count == frames_to_process:
+                self.propagated = True # only set propagated to True if the entire video was processed
+            else:
+                self.propagated = False
             print("Matting completed")
             self._notify('matting_complete')
             return 1
 
-    def _process_object_with_keyframes(self, images, object_id, keyframes, frame_count, device,
-                                  progress_dialog, operations_completed, total_operations, pbar, parent_window):
+    def _process_object_with_keyframes(self, images, object_id, keyframes, frame_count, device, progress_dialog, 
+                                       operations_completed, total_operations, pbar, parent_window, start_frame=0):
         """
         Process a single object using multiple keyframes.
         
@@ -536,6 +563,7 @@ class MatAnyManager:
             total_operations: Total operations for all objects
             pbar: tqdm progress bar
             parent_window: Parent window
+            start_frame: Starting frame for the processing range
             
         Returns:
             bool: True if successful, False if cancelled or failed
@@ -548,19 +576,19 @@ class MatAnyManager:
             return False
         
         # Special case for single frame
-        if frame_count == 1:
+        if len(images) == 1:
             return self._process_single_frame(images[0], mask, object_id, original_size, device)
         
         current_operations = operations_completed
         
-        # 1. Process backward from first keyframe to beginning
-        if first_keyframe > 0:
+        # 1. Process backward from first keyframe to start_frame
+        if first_keyframe > start_frame:
             success = self._process_backward(images, mask, object_id, first_keyframe,
-                                        original_size, device, progress_dialog,
-                                        current_operations, total_operations, parent_window, pbar)
+                                        original_size, device, progress_dialog, current_operations, 
+                                        total_operations, parent_window, pbar, start_frame_offset=start_frame)
             if not success:
                 return False
-            current_operations += first_keyframe
+            current_operations += first_keyframe - start_frame
         
         # 2. Process forward segments between keyframes
         for i in range(len(keyframes)):
@@ -577,7 +605,7 @@ class MatAnyManager:
             
             # Determine end frame for this segment
             if i == len(keyframes) - 1:
-                # Last keyframe - process to end of video
+                # Last keyframe - process to end of range
                 end_frame = frame_count
             else:
                 # Process to next keyframe (exclusive)
@@ -585,9 +613,9 @@ class MatAnyManager:
             
             # Process this forward segment
             if end_frame > current_keyframe:
-                success = self._process_forward(images, mask, object_id, 
-                                            current_keyframe, original_size, device, progress_dialog,
-                                            current_operations, total_operations, parent_window, end_frame, pbar)
+                success = self._process_forward(images, mask, object_id, current_keyframe, original_size,
+                                                 device, progress_dialog, current_operations, total_operations, 
+                                                 parent_window, end_frame, pbar, start_frame_offset=start_frame)
                 if not success:
                     return False
                 current_operations += end_frame - current_keyframe
@@ -621,8 +649,8 @@ class MatAnyManager:
             print(f"Error processing single frame: {e}")
             return False
     
-    def _process_forward(self, images, mask, object_id, start_frame, original_size, device, 
-                       progress_dialog, operations_completed, total_operations, parent_window, end_frame=None, pbar=None):
+    def _process_forward(self, images, mask, object_id, start_frame, original_size, device, progress_dialog, operations_completed, 
+                         total_operations, parent_window, end_frame=None, pbar=None, start_frame_offset=0):
         """
         Process frames forward from start_frame.
         
@@ -639,12 +667,13 @@ class MatAnyManager:
             parent_window: Parent window
             end_frame: Ending frame (exclusive). If None, process to end of images.
             pbar: tqdm progress bar
+            start_frame_offset: Offset for mapping array indices to absolute frame numbers
             
         Returns:
             bool: True if successful, False if cancelled or failed
         """
         if end_frame is None:
-            end_frame = len(images)
+            end_frame = start_frame + len(images)
         
         # Get display update frequency from settings
         settings_mgr = get_settings_manager()
@@ -654,8 +683,13 @@ class MatAnyManager:
             for frame_number in range(start_frame, end_frame):
                 if progress_dialog.wasCanceled():
                     return False
-                    
-                frame_path = images[frame_number]
+                # Map absolute frame number to array index
+                array_idx = frame_number - start_frame_offset
+                if array_idx < 0 or array_idx >= len(images):
+                    print(f"Warning: Frame {frame_number} out of range for images array")
+                    continue
+
+                frame_path = images[array_idx]
                 img = cv2.imread(frame_path)
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                 img = self._resize_image(img)
@@ -704,19 +738,26 @@ class MatAnyManager:
             return False
     
     
-    def _process_backward(self, images, mask, object_id, start_frame, original_size,
-                         device, progress_dialog, operations_completed, total_operations, parent_window, pbar=None):
+    def _process_backward(self, images, mask, object_id, start_frame, original_size, device, progress_dialog, 
+                          operations_completed, total_operations, parent_window, pbar=None, start_frame_offset=0):
         """Process frames backward from start_frame"""
+
         # Get display update frequency from settings
         settings_mgr = get_settings_manager()
         display_update_frequency = settings_mgr.get_app_setting("display_update_frequency", 5)
 
         try:
-            for frame_number in range(start_frame, -1, -1):
+            for frame_number in range(start_frame, start_frame_offset - 1, -1):
                 if progress_dialog.wasCanceled():
                     return False
-                    
-                frame_path = images[frame_number]
+                
+                # Map absolute frame number to array index
+                array_idx = frame_number - start_frame_offset
+                if array_idx < 0 or array_idx >= len(images):
+                    print(f"Warning: Frame {frame_number} out of range for images array")
+                    continue
+
+                frame_path = images[array_idx]
                 img = cv2.imread(frame_path)
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                 img = self._resize_image(img)
@@ -804,7 +845,7 @@ class RemovalManager:
     
     def __init__(self):
         self.pipe = None
-        self.completed = False  # whether removal has been completed
+        self.propagated = False  # whether removal has been completed
         self.callbacks = []
         
     def add_callback(self, callback):
@@ -878,6 +919,19 @@ class RemovalManager:
         frame_count = VideoInfo.total_frames
         settings_mgr = get_settings_manager()
         device = DeviceManager.get_device()
+        self.propagated = False
+
+        # Get in/out points from settings
+        in_point = settings_mgr.get_session_setting("in_point", None)
+        out_point = settings_mgr.get_session_setting("out_point", None)
+        
+        # Determine frame range to process
+        start_frame = in_point if in_point is not None else 0
+        end_frame = out_point if out_point is not None else frame_count - 1
+        frames_to_process = end_frame - start_frame + 1
+        
+        print(f"Processing removal from frame {start_frame} to {end_frame} ({frames_to_process} frames)")
+
 
         # Get settings
         minimax_steps = settings_mgr.get_session_setting("minimax_steps", 6)
@@ -905,18 +959,16 @@ class RemovalManager:
         # Link progress dialog to pipeline
         self.pipe.progress_dialog = progress_dialog
 
-        # Clear output directory
-        if os.path.exists(removal_dir):
-            shutil.rmtree(removal_dir)
+        # Create output directory if it doesn't exist (don't clear existing frames)
         os.makedirs(removal_dir, exist_ok=True)
 
         # Load and prepare data
         print("Loading frames and masks...")
         QApplication.processEvents()
-        frames, masks = self._load_all_frames_and_masks(points, inpaint_grow=inpaint_grow)
+        frames, masks = self._load_all_frames_and_masks(points, inpaint_grow=inpaint_grow, start_frame=start_frame, end_frame=end_frame)
         
         # Pad frames
-        pad_frames = (4 - (frame_count % 4)) % 4 + 1
+        pad_frames = (4 - (frames_to_process % 4)) % 4 + 1
         if pad_frames > 0:
             for _ in range(pad_frames):
                 frames.append(frames[-1].copy())
@@ -943,6 +995,7 @@ class RemovalManager:
                     generator=torch.Generator(device=device).manual_seed(42),
                 ).frames[0]
         except RuntimeError as e:
+            self.propagated = False
             if "cancelled" in str(e).lower():
                 print("User cancelled MiniMax processing.")
                 progress_dialog.close()
@@ -953,7 +1006,7 @@ class RemovalManager:
         
         # Remove padding and convert
         if pad_frames > 0:
-            output = output[:frame_count]
+            output = output[:frames_to_process]
         output = np.uint8(output * 255)
         
         # Save frames
@@ -961,19 +1014,25 @@ class RemovalManager:
         progress_dialog.setLabelText("Saving frames...")
         QApplication.processEvents()
         extension = get_frame_extension()
-        for frame_number, frame in enumerate(output):
+
+        # Save processed frames   
+        for i, frame in enumerate(output):
+            frame_number = start_frame + i
             composited = self.composite_removal_over_original(frame, frame_number, points)
-            #composited = cv2.resize(frame, (VideoInfo.width, VideoInfo.height), interpolation=cv2.INTER_LINEAR) # just resize, no compositing
             output_path = os.path.join(removal_dir, f"{frame_number:05d}.{extension}")
             frame_bgr = cv2.cvtColor(composited, cv2.COLOR_RGB2BGR)
             cv2.imwrite(output_path, frame_bgr)
         
+        if frame_count == frames_to_process: # only set propagated if the whole video was processed
+            self.propagated = True
+        else:
+            self.propagated = False
         print("Processing complete!")
         progress_dialog.close()
         return True
 
     
-    def _load_all_frames_and_masks(self, points_list, inpaint_grow=5):
+    def _load_all_frames_and_masks(self, points_list, inpaint_grow=5, start_frame=0, end_frame=None):
         """
         Load all frames and corresponding combined masks into memory, while resizing and processing.
         Used for MiniMax-Remover object removal.
@@ -981,6 +1040,8 @@ class RemovalManager:
         Args:
             points_list (list): List of point dictionaries containing object_id and frame info.
             inpaint_grow (int): Optional grow/shrink parameter for masks.
+            start_frame (int): Starting frame (inclusive)
+            end_frame (int): Ending frame (inclusive). If None, process to end of video.
 
         Returns:
             tuple: (frames, masks)
@@ -988,6 +1049,8 @@ class RemovalManager:
                 - masks: list of np.ndarray (uint8, single-channel)
         """
         frame_count = VideoInfo.total_frames
+        if end_frame is None:
+            end_frame = frame_count - 1
         extension = get_frame_extension()
 
         # Get all unique object IDs
@@ -999,7 +1062,7 @@ class RemovalManager:
         frames = []
         masks = []
 
-        for frame_number in range(frame_count):
+        for frame_number in range(start_frame, end_frame + 1):
             frame_path = os.path.join(frames_dir, f"{frame_number:05d}.{extension}")
 
             # Load frame
@@ -1142,6 +1205,17 @@ class RemovalManager:
         frame_count = VideoInfo.total_frames
         settings_mgr = get_settings_manager()
 
+        # Get in/out points from settings
+        in_point = settings_mgr.get_session_setting("in_point", None)
+        out_point = settings_mgr.get_session_setting("out_point", None)
+        
+        # Determine frame range to process
+        start_frame = in_point if in_point is not None else 0
+        end_frame = out_point if out_point is not None else frame_count - 1
+        frames_to_process = end_frame - start_frame + 1
+        
+        print(f"Processing removal from frame {start_frame} to {end_frame} ({frames_to_process} frames)")
+
         # Get settings
         inpaint_method = settings_mgr.get_session_setting("inpaint_method", "Telea")
         inpaint_radius = settings_mgr.get_session_setting("inpaint_radius", 3)
@@ -1166,7 +1240,7 @@ class RemovalManager:
             return 0
 
         # Create progress dialog
-        progress_dialog = QProgressDialog("Running object removal...", "Cancel", 0, frame_count, parent_window)
+        progress_dialog = QProgressDialog("Running object removal...", "Cancel", 0, frames_to_process, parent_window)
         progress_dialog.setWindowTitle("Object Removal Progress")
         progress_dialog.setWindowModality(Qt.WindowModal)
         progress_dialog.setAutoClose(True)
@@ -1175,16 +1249,14 @@ class RemovalManager:
         # Terminal progress bar
         tqdm_bar = tqdm(total=frame_count, desc="Object Removal", unit="frame", ncols=80)
 
-        # Clear output directory
-        if os.path.exists(removal_dir):
-            shutil.rmtree(removal_dir)
+        # Create output directory if it doesn't exist (don't clear existing frames)
         os.makedirs(removal_dir, exist_ok=True)
 
         extension = get_frame_extension()
         operations_completed = 0
 
-        # Process each frame once
-        for frame_number in range(frame_count):
+        # Process each frame in the range
+        for frame_number in range(start_frame, end_frame + 1):
             if progress_dialog.wasCanceled():
                 break
 
@@ -1254,7 +1326,7 @@ class RemovalManager:
 
             # UI updates
             if frame_number % display_update_frequency == 0:
-                progress_dialog.setValue(frame_number)
+                progress_dialog.setValue(operations_completed)
                 try:
                     parent_window.frame_slider.setValue(frame_number)
                 except Exception as e:
@@ -1265,12 +1337,15 @@ class RemovalManager:
         tqdm_bar.close()
         if progress_dialog.wasCanceled():
             print("Object removal cancelled — partial results kept.")
-            self.completed = False
+            self.propagated = False
             progress_dialog.close()
             return 0
         else:
-            progress_dialog.setValue(frame_count)
-            self.completed = True
+            progress_dialog.setValue(frames_to_process)
+            if frame_count == frames_to_process: # only set propagated if entire video was processed
+                self.propagated = True
+            else:
+                self.propagated = False
             print("Object removal completed successfully.")
             self._notify('removal_complete')
             return 1
@@ -1280,7 +1355,7 @@ class RemovalManager:
         if os.path.exists(removal_dir):
             shutil.rmtree(removal_dir)
         os.makedirs(removal_dir)
-        self.completed = False
+        self.propagated = False
         print("Object removal data cleared")
 
 class PointManager:
@@ -1325,9 +1400,9 @@ class PointManager:
         
         if point_to_remove:
             # Remove the corresponding mask file
-            mask_filename = os.path.join(mask_dir, f'{frame:05d}', f'{object_id}.png')
-            if os.path.exists(mask_filename):
-                os.remove(mask_filename)
+            #mask_filename = os.path.join(mask_dir, f'{frame:05d}', f'{object_id}.png')
+            #if os.path.exists(mask_filename):
+            #    os.remove(mask_filename)
             
             settings_mgr = get_settings_manager()
             settings_mgr.save_points(self.points)
@@ -1903,21 +1978,6 @@ def draw_points(image, frame_number, points, highlighted_points=None):
                     highlighted_points.remove(point_in_highlighted_list)
                     break
 
-        # Check if this is the highlighted point
-        # is_highlighted = (
-        #     highlighted_point is not None and
-        #     point['frame'] == highlighted_point.get('frame') and
-            # point['object_id'] == highlighted_point.get('object_id') and
-        #     point['x'] == highlighted_point.get('x') and
-        #     point['y'] == highlighted_point.get('y')
-        # )
-
-        # Check if this point belongs to a different object than the highlighted one
-        # is_different_object = (
-        #     highlighted_object_id is not None and
-        #     point['object_id'] != highlighted_object_id
-        # )
-
         if is_highlighted:
             # Draw highlighted point with different colors/sizes
             center = (point['x'], point['y'])
@@ -1934,17 +1994,6 @@ def draw_points(image, frame_number, points, highlighted_points=None):
 
             # Draw filled circle (radius 4, filled)
             cv2.circle(image, center, 4, point_color, -1)
-        
-        # elif is_different_object:
-        #     # Apply different processing for points from different objects
-        #     point_color = (0, 255, 0) if point['positive'] else (255, 0, 0)
-        #     center = (point['x'], point['y'])
-
-        #     # Example: Draw with gray outline instead of yellow
-        #     cv2.circle(image, center, 5, (128, 128, 128), 2)  # Gray outline
-
-        #     # Draw filled circle (radius 4, filled)
-        #     cv2.circle(image, center, 4, point_color, -1)
 
         else:
             # Draw regular points
