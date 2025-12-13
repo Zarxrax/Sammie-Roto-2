@@ -80,9 +80,16 @@ class DeviceManager:
 
         if cls._device.type == "cuda":
             print("CUDA Compute Capability: ", torch.cuda.get_device_capability())
+            # Enable bfloat16 for Ampere and newer
             if torch.cuda.get_device_properties(0).major >= 8:
+                torch.autocast("cuda", dtype=torch.bfloat16).__enter__()
                 torch.backends.cuda.matmul.allow_tf32 = True
                 torch.backends.cudnn.allow_tf32 = True
+            else:
+                torch.autocast("cuda", dtype=torch.float16).__enter__()
+
+        elif cls._device.type == "mps":
+            torch.autocast("mps", dtype=torch.float16).__enter__()
 
         return cls._device
 
