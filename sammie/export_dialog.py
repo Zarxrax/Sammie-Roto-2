@@ -380,15 +380,14 @@ class ExportWorker(QThread):
         
         # Convert float framerates to fraction
         fps = sammie.VideoInfo.fps
-        if fps == 29.97:
+        if abs(fps - 29.97) < 0.01:
             fps_rational = Fraction(30000, 1001)
-        elif fps == 23.976:
+        elif abs(fps - 23.976) < 0.01:
             fps_rational = Fraction(24000, 1001)
-        elif fps == 59.94:
+        elif abs(fps - 59.94) < 0.01:
             fps_rational = Fraction(60000, 1001)
         else:
-            fps_rational = Fraction(fps)
-            fps_rational = fps_rational.limit_denominator(0x7fffffff)
+            fps_rational = Fraction(fps).limit_denominator()
         
         # Configure codec options
         codec_options = {}
