@@ -23,13 +23,12 @@ from sammie.export_image_dialog import ImageExportDialog
 from sammie.export_dialog import ExportDialog
 from sammie.settings_dialog import SettingsDialog
 from sammie.settings_manager import get_settings_manager, initialize_settings, ApplicationSettings
-from sammie.gui_widgets import show_message_dialog
 
 # Import GUI widgets
 from sammie.gui_widgets import (
     ConsoleRedirect, ColorDisplayWidget, UpdateChecker, ClickableLabel,
     HotkeysHelpDialog, PointTable, ImageViewer, ColorPickerWidget,
-    FrameSlider
+    FrameSlider, show_message_dialog
 )
 
 # ==================== VERSION ====================
@@ -2722,8 +2721,8 @@ class MainWindow(QMainWindow):
                 # Check if efficient model is missing
                 if self.settings_mgr.get_app_setting("sam_model", "None") == "Efficient":
                     if not os.path.exists("./checkpoints/efficienttam_s_512x512.pt"):
-                        QMessageBox.information(self, "Model not found", "The Efficient model was not found. Please run 'install_dependencies' and select the option to download models.")
-                QMessageBox.information(self, "Restart Required", "You must restart the application for model or device changes to take effect.")
+                        show_message_dialog(self, title="Model not found", message="The Efficient model was not found. Please run 'install_dependencies' and select the option to download models.", type="warning")
+                show_message_dialog(self, title="Restart Required", message="You must restart the application for model or device changes to take effect.", type="info")
 
     # ==================== UPDATE CHECKER ====================
     
