@@ -191,7 +191,7 @@ class SamManager:
         extension = get_frame_extension()
         frame_filename = os.path.join(frames_dir, f"{frame_number:05d}.{extension}")
         if os.path.exists(frame_filename):
-
+            self.predictor.reset_state(self.inference_state)
             _, out_obj_ids, out_mask_logits = self.predictor.add_new_points_or_box( # returns a list of masks which includes all objects
                 inference_state=self.inference_state,
                 frame_idx=frame_number,
@@ -213,7 +213,7 @@ class SamManager:
     def replay_points(self, points_list):
         """Replay all points incrementally to rebuild masks"""
         frame_count = VideoInfo.total_frames
-        
+        self.predictor.reset_state(self.inference_state)
         
         for frame_number in range(frame_count):
             # Filter points for the current frame
@@ -228,38 +228,35 @@ class SamManager:
                 filtered_points = [(point['x'], point['y'], point['positive']) 
                                    for point in frame_points if point['object_id'] == object_id]
 
-                # Process points incrementally
-                for i in range(1, len(filtered_points) + 1):
-                    # Use only the first `i` points
-                    subset_points = filtered_points[:i]
-                    input_points = np.array([(x, y) for x, y, _ in subset_points], dtype=np.float32)
-                    input_labels = np.array([1 if positive else 0 for _, _, positive in subset_points], dtype=np.int32)
+                # Process points
+                input_points = np.array([(x, y) for x, y, _ in filtered_points], dtype=np.float32)
+                input_labels = np.array([1 if positive else 0 for _, _, positive in filtered_points], dtype=np.int32)
 
+                try:
+                    # Process the points with the segmentation model
+                    _, out_obj_ids, out_mask_logits = self.predictor.add_new_points_or_box(
+                        inference_state=self.inference_state,
+                        frame_idx=frame_number,
+                        obj_id=object_id,
+                        points=input_points,
+                        labels=input_labels
+                    )
+
+                except Exception as e:
+                    print(f"Error during prediction for frame {frame_number}, object {object_id}, points {i}: {e}")
+                    continue
+
+                # Save masks (only on the final iteration for this object)
+                #if i == len(filtered_points):
+                for j, out_obj_id in enumerate(out_obj_ids):
+                    mask_filename = os.path.join(mask_dir, f"{frame_number:05d}", f"{out_obj_id}.png")
+                    mask = (out_mask_logits[j] > 0.0).cpu().numpy().squeeze()
+                    mask = (mask * 255).astype(np.uint8)
                     try:
-                        # Process the points with the segmentation model
-                        _, out_obj_ids, out_mask_logits = self.predictor.add_new_points_or_box(
-                            inference_state=self.inference_state,
-                            frame_idx=frame_number,
-                            obj_id=object_id,
-                            points=input_points,
-                            labels=input_labels
-                        )
-
+                        os.makedirs(os.path.dirname(mask_filename), exist_ok=True)
+                        cv2.imwrite(mask_filename, mask)
                     except Exception as e:
-                        print(f"Error during prediction for frame {frame_number}, object {object_id}, points {i}: {e}")
-                        continue
-
-                    # Save masks (only on the final iteration for this object)
-                    if i == len(filtered_points):
-                        for j, out_obj_id in enumerate(out_obj_ids):
-                            mask_filename = os.path.join(mask_dir, f"{frame_number:05d}", f"{out_obj_id}.png")
-                            mask = (out_mask_logits[j] > 0.0).cpu().numpy().squeeze()
-                            mask = (mask * 255).astype(np.uint8)
-                            try:
-                                os.makedirs(os.path.dirname(mask_filename), exist_ok=True)
-                                cv2.imwrite(mask_filename, mask)
-                            except Exception as e:
-                                print(f"Error saving mask for frame {frame_number}, object {out_obj_id}: {e}")
+                        print(f"Error saving mask for frame {frame_number}, object {out_obj_id}: {e}")
         
         # Notify that replay is complete
         self._notify('replay_complete')
@@ -288,7 +285,7 @@ class SamManager:
             frames_to_track = out_point - in_point
         if frames_to_track is not None:
             total_frames = frames_to_track + 1
-    
+
         for out_frame_idx, out_obj_ids, out_mask_logits in self.predictor.propagate_in_video(self.inference_state, start_frame_idx=in_point, max_frame_num_to_track=frames_to_track):
             for i, out_obj_id in enumerate(out_obj_ids):
                 mask_filename = os.path.join(mask_dir, f"{out_frame_idx:05d}", f"{out_obj_id}.png")
