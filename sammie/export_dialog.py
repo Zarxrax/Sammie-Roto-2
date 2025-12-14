@@ -1377,7 +1377,7 @@ class ExportDialog(QDialog):
         
         # Show completion message
         if success:
-            show_message_dialog(self, title="Export Complete", message=message, type="information")
+            show_message_dialog(self, title="Export Complete", message=message, type="info")
         else:
             show_message_dialog(self, title="Export Failed", message=message, type="critical")
         
