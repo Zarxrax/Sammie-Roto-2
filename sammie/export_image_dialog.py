@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from sammie import sammie
+from sammie.gui_widgets import show_message_dialog
 
 
 class ImageExportDialog(QDialog):
@@ -173,20 +174,10 @@ class ImageExportDialog(QDialog):
 # Export the image
         try:
             self._export_image(output_path)
-            msg_box = QMessageBox(self)
-            msg_box.setIcon(QMessageBox.Information)
-            msg_box.setWindowTitle("Export Complete")
-            msg_box.setText(f"Image saved successfully to:\n{output_path}")
-            msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            msg_box.exec()
+            show_message_dialog(self, title="Export Complete", message=f"Image saved successfully to:\n{output_path}", type='information')
             # self.accept() # Close dialog on success
         except Exception as e:
-            msg_box = QMessageBox(self)
-            msg_box.setIcon(QMessageBox.Critical)
-            msg_box.setWindowTitle("Export Failed")
-            msg_box.setText(f"Failed to save image:\n{str(e)}")
-            msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            msg_box.exec()
+            show_message_dialog(self, title="Export Failed", message=f"Failed to save image:\n{str(e)}", type='critical')
     
     def _export_image(self, output_path):
         """Export the actual image data"""
