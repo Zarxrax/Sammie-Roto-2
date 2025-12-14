@@ -35,6 +35,7 @@ def show_error_dialog(app, error_message, detailed_error=""):
     msg_box = QMessageBox()
     msg_box.setIcon(QMessageBox.Critical)
     msg_box.setWindowTitle("Sammie-Roto Startup Error")
+    msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
     msg_box.setText("Sammie-Roto encountered an error during startup and cannot continue.")
     msg_box.setInformativeText(error_message)
     
@@ -56,6 +57,7 @@ def show_error_dialog(app, error_message, detailed_error=""):
         perm_msg_box = QMessageBox()
         perm_msg_box.setIcon(QMessageBox.Critical)
         perm_msg_box.setWindowTitle("Permission Error")
+        perm_msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         perm_msg_box.setText("Sammie-Roto does not have write permission in its installation directory.")
         perm_msg_box.setInformativeText(
             f"Current location:\n{app_dir}\n\n"
@@ -128,11 +130,12 @@ if __name__ == "__main__":
     # Check for single instance
     lock_file, is_first = check_single_instance()
     if not is_first:
-        QMessageBox.warning(
-            None,
-            "Already Running",
-            "Sammie-Roto is already running.\nOnly one instance can run at a time."
-        )
+        msg_box = QMessageBox()
+        msg_box.setIcon(QMessageBox.Warning)
+        msg_box.setWindowTitle("Already Running")
+        msg_box.setText("Sammie-Roto is already running.\nOnly one instance can run at a time.")
+        msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        msg_box.exec()
         sys.exit(0)
 
     splash = show_splash(app)

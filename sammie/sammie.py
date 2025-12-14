@@ -2439,7 +2439,12 @@ def load_image_sequence(image_path, parent_window):
     first_image = cv2.imread(files_to_load[0])
     if first_image is None:
         progress_dialog.close()
-        QMessageBox.critical(parent_window, "Error", f"Could not load image: {files_to_load[0]}")
+        msg_box = QMessageBox(parent_window)
+        msg_box.setIcon(QMessageBox.Critical)
+        msg_box.setWindowTitle("Error")
+        msg_box.setText(f"Could not load image: {files_to_load[0]}")
+        msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        msg_box.exec()
         return 0
     
     VideoInfo.height, VideoInfo.width = first_image.shape[:2]

@@ -2074,7 +2074,13 @@ class MainWindow(QMainWindow):
 
         # Don't allow minimax-remover on CPU
         if sammie.DeviceManager.get_device().type == 'cpu' and self.removal_tab.method_combo.currentText() == 'MiniMax-Remover':
-            QMessageBox.warning(self, "Error", "MiniMax-Remover is not supported on CPU. Please use OpenCV instead.", QMessageBox.Ok)
+            msg_box = QMessageBox(self)
+            msg_box.setIcon(QMessageBox.Warning)
+            msg_box.setWindowTitle("Error")
+            msg_box.setText("MiniMax-Remover is not supported on CPU. Please use OpenCV instead.")
+            msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg_box.setStandardButtons(QMessageBox.Ok)
+            msg_box.exec()
             return
         self.settings_mgr.save_session_settings()
         # offload sam model
@@ -2087,7 +2093,13 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 if "out of memory" in str(e):
                     print(e)
-                    QMessageBox.warning(self, "Error", "An out of memory error occurred. Please restart the application to fully release GPU memory, and try again with lower settings.", QMessageBox.Ok)
+                    msg_box = QMessageBox(self)
+                    msg_box.setIcon(QMessageBox.Warning)
+                    msg_box.setWindowTitle("Error")
+                    msg_box.setText("An out of memory error occurred. Please restart the application to fully release GPU memory, and try again with lower settings.")
+                    msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                    msg_box.setStandardButtons(QMessageBox.Ok)
+                    msg_box.exec()
                 else: 
                     print(f"Error running MiniMax-Remover: {e}")
         else:
@@ -2457,12 +2469,13 @@ class MainWindow(QMainWindow):
         file_ext = os.path.splitext(file_path)[1].lower()
         if file_ext not in supported_extensions:
             print(f"Unsupported file type: {file_ext}")
-            QMessageBox.warning(
-                self,
-                "Unsupported File",
-                f"File type '{file_ext}' is not supported.\n\n"
-                f"Supported formats: {', '.join(supported_extensions)}"
-            )
+            msg_box = QMessageBox(self)
+            msg_box.setIcon(QMessageBox.Warning)
+            msg_box.setWindowTitle("Unsupported File")
+            msg_box.setText(f"File type '{file_ext}' is not supported.\n\n"
+                          f"Supported formats: {', '.join(supported_extensions)}")
+            msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg_box.exec()
             return
         
         self.load_file(file_path)
@@ -2643,8 +2656,12 @@ class MainWindow(QMainWindow):
         self.settings_mgr.save_session_settings()
         self.settings_mgr.save_points(self.point_manager.get_all_points())
         if sammie.VideoInfo.total_frames == 0:
-            QMessageBox.warning(self, "Export Error", 
-                              "No video data available. Please load a video first.")
+            msg_box = QMessageBox(self)
+            msg_box.setIcon(QMessageBox.Warning)
+            msg_box.setWindowTitle("Export Error")
+            msg_box.setText("No video data available. Please load a video first.")
+            msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg_box.exec()
             return
         
         dialog = ExportDialog(self)
@@ -2655,8 +2672,12 @@ class MainWindow(QMainWindow):
         self.settings_mgr.save_session_settings()
         self.settings_mgr.save_points(self.point_manager.get_all_points())
         if sammie.VideoInfo.total_frames == 0:
-            QMessageBox.warning(self, "Export Error", 
-                              "No video data available. Please load a video first.")
+            msg_box = QMessageBox(self)
+            msg_box.setIcon(QMessageBox.Warning)
+            msg_box.setWindowTitle("Export Error")
+            msg_box.setText("No video data available. Please load a video first.")
+            msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            msg_box.exec()
             return
         frame = self.frame_slider.value()
         dialog = ImageExportDialog(self, frame)
@@ -2799,6 +2820,7 @@ class MainWindow(QMainWindow):
         msg.setInformativeText(info_text)
         msg.setTextFormat(Qt.RichText)
         msg.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         
         msg.setStandardButtons(QMessageBox.Ok)
         msg.exec()
