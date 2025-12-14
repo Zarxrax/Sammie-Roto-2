@@ -1080,5 +1080,4 @@ def show_message_dialog(parent_widget, title: str, message: str, type: str):
     dialog_config = config.get(type.lower(), config['info'])
 
     msg_box.setIcon(dialog_config['icon'])
-    msg_box.setWindowTitle(title)
     msg_box.exec()
