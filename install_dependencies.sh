@@ -81,7 +81,7 @@ pip3 install wheel
 # Install PyTorch
 if [[ "$OS_TYPE" == "Darwin" ]]; then
     echo "Detected macOS. Installing PyTorch..."
-    pip3 install torch==2.9.0 torchvision
+    pip3 install torch==2.9.1 torchvision
 elif [[ "$OS_TYPE" == "Linux" ]]; then
     echo "Detected Linux."
 	echo
@@ -90,22 +90,22 @@ elif [[ "$OS_TYPE" == "Linux" ]]; then
         case $PT_VERSION in
             "CUDA 12.8 (For modern NVIDIA GPUs, RTX)")
                 echo "Installing PyTorch with CUDA 12.8..."
-                pip3 install torch==2.9.0 torchvision --index-url https://download.pytorch.org/whl/cu128
+                pip3 install torch==2.9.1 torchvision --index-url https://download.pytorch.org/whl/cu128
                 break
                 ;;
             "CUDA 12.6 (For old NVIDIA GPUs, GXT)")
                 echo "Installing PyTorch with CUDA 12.6..."
-                pip3 install torch==2.9.0 torchvision --index-url https://download.pytorch.org/whl/cu126
+                pip3 install torch==2.9.1 torchvision --index-url https://download.pytorch.org/whl/cu126
                 break
                 ;;
             "ROCm (Radeon)")
                 echo "Installing PyTorch with ROCm 6.4..."
-                pip3 install torch==2.9.0 torchvision --index-url https://download.pytorch.org/whl/rocm6.4
+                pip3 install torch==2.9.1 torchvision --index-url https://download.pytorch.org/whl/rocm6.4
                 break
                 ;;
             CPU)
                 echo "Installing CPU-only version of PyTorch..."
-                pip3 install torch==2.9.0 torchvision --index-url https://download.pytorch.org/whl/cpu
+                pip3 install torch==2.9.1 torchvision --index-url https://download.pytorch.org/whl/cpu
                 break
                 ;;
             *)

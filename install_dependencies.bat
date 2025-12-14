@@ -21,7 +21,7 @@ if errorlevel 5 (
     echo Uninstalling existing Pytorch if found
     .\python-3.12.8-embed-amd64\python.exe -m pip uninstall -y torch torchvision
     echo Installing CPU version of PyTorch
-    .\python-3.12.8-embed-amd64\python.exe -m pip install torch==2.9.0 torchvision --index-url https://download.pytorch.org/whl/cpu --no-warn-script-location
+    .\python-3.12.8-embed-amd64\python.exe -m pip install torch==2.9.1 torchvision --index-url https://download.pytorch.org/whl/cpu --no-warn-script-location
     .\python-3.12.8-embed-amd64\python.exe -m pip install -r .\requirements.txt --no-warn-script-location
     .\python-3.12.8-embed-amd64\python.exe .\sammie\download_models.py
 ) else if errorlevel 2 (
@@ -30,7 +30,7 @@ if errorlevel 5 (
     echo Uninstalling existing Pytorch if found
     .\python-3.12.8-embed-amd64\python.exe -m pip uninstall -y torch torchvision
     echo Installing CUDA 12.6 version of PyTorch
-    .\python-3.12.8-embed-amd64\python.exe -m pip install torch==2.9.0 torchvision --index-url https://download.pytorch.org/whl/cu126 --no-warn-script-location
+    .\python-3.12.8-embed-amd64\python.exe -m pip install torch==2.9.1 torchvision --index-url https://download.pytorch.org/whl/cu126 --no-warn-script-location
     .\python-3.12.8-embed-amd64\python.exe -m pip install -r .\requirements.txt --no-warn-script-location
     .\python-3.12.8-embed-amd64\python.exe .\sammie\download_models.py
 ) else (
@@ -39,7 +39,7 @@ if errorlevel 5 (
     echo Uninstalling existing Pytorch if found
     .\python-3.12.8-embed-amd64\python.exe -m pip uninstall -y torch torchvision
     echo Installing CUDA 12.8 version of PyTorch
-    .\python-3.12.8-embed-amd64\python.exe -m pip install torch==2.9.0 torchvision --index-url https://download.pytorch.org/whl/cu128 --no-warn-script-location
+    .\python-3.12.8-embed-amd64\python.exe -m pip install torch==2.9.1 torchvision --index-url https://download.pytorch.org/whl/cu128 --no-warn-script-location
     .\python-3.12.8-embed-amd64\python.exe -m pip install -r .\requirements.txt --no-warn-script-location
     .\python-3.12.8-embed-amd64\python.exe .\sammie\download_models.py
 )
