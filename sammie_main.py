@@ -1419,6 +1419,8 @@ class MainWindow(QMainWindow):
         icon_next = QIcon(":/icons/control-step-right.png")
         icon_prev_keyframe = QIcon(":/icons/key-arrow-left.png")
         icon_next_keyframe = QIcon(":/icons/key-arrow-right.png")
+        icon_marker_in = QIcon(":/icons/marker-in.png")
+        icon_marker_out = QIcon(":/icons/marker-out.png")
 
         # Playback buttons
         button_configs = [
@@ -1445,12 +1447,13 @@ class MainWindow(QMainWindow):
         
         # In/Out marker buttons
         marker_button_configs = [
-            ("[", self.set_in_marker, "Set In Point"),
-            ("]", self.set_out_marker, "Set Out Point")
+            (icon_marker_in, self.set_in_marker, "Set In Point"),
+            (icon_marker_out, self.set_out_marker, "Set Out Point")
         ]
         
-        for text, handler, tooltip in marker_button_configs:
-            btn = QPushButton(text)
+        for icon, handler, tooltip in marker_button_configs:
+            btn = QPushButton()
+            btn.setIcon(icon)
             btn.setMaximumWidth(30)
             btn.setToolTip(tooltip)
             btn.clicked.connect(handler)
