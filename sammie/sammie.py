@@ -295,9 +295,9 @@ class SamManager:
                 os.makedirs(os.path.dirname(mask_filename), exist_ok=True)
                 cv2.imwrite(mask_filename, mask)
             
-        
-            # Update progress dialog
-            progress_dialog.setValue((out_frame_idx+1)*100/total_frames)
+            # Update progress dialog - calculate based on frames processed, not absolute frame index
+            frames_processed = out_frame_idx - in_point + 1
+            progress_dialog.setValue(int(frames_processed * 100 / total_frames))
             
             # Update display at the specified frequency
             if out_frame_idx % display_update_frequency == 0:
