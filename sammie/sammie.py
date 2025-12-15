@@ -22,6 +22,7 @@ from matanyone.utils.get_default_model import get_matanyone_model
 from sammie.smooth import run_smoothing_model, prepare_smoothing_model
 from sammie.duplicate_frame_handler import replace_similar_matte_frames
 from sammie.settings_manager import get_settings_manager
+from sammie.gui_widgets import show_message_dialog
 from diffusers.models import AutoencoderKLWan
 from diffusers.schedulers import UniPCMultistepScheduler
 from minimax_remover.pipeline_minimax_remover import Minimax_Remover_Pipeline
@@ -2439,7 +2440,7 @@ def load_image_sequence(image_path, parent_window):
     first_image = cv2.imread(files_to_load[0])
     if first_image is None:
         progress_dialog.close()
-        QMessageBox.critical(parent_window, "Error", f"Could not load image: {files_to_load[0]}")
+        show_message_dialog(parent_window, title="Error", message=f"Could not load image: {files_to_load[0]}", type="critical")
         return 0
     
     VideoInfo.height, VideoInfo.width = first_image.shape[:2]

@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QLabel, QTableWidget, QTableWidgetItem, QAbstractItemView, 
     QHeaderView, QPushButton, QWidget, QHBoxLayout, QVBoxLayout,
     QDialog, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
-    QColorDialog, QSlider, QStyleOptionSlider, QStyle
+    QColorDialog, QSlider, QStyleOptionSlider, QStyle, QMessageBox
 )
 from PySide6.QtGui import (
     QPixmap, QMouseEvent, QWheelEvent, QPainter, QColor, QIcon,
@@ -1047,3 +1047,37 @@ class FrameSlider(QSlider):
             painter.drawLine(pixel_pos, y_top, pixel_pos, y_bottom)  # Vertical line
             painter.drawLine(pixel_pos - bracket_width, y_top, pixel_pos, y_top)  # Top horizontal
             painter.drawLine(pixel_pos - bracket_width, y_bottom, pixel_pos, y_bottom)  # Bottom horizontal
+
+def show_message_dialog(parent_widget, title: str, message: str, type: str):
+    """Shows a configurable information/error dialog."""
+    # parent_widget: The parent QWidget (usually 'self').
+    # title: The title of the message box
+    # message: The text to display in the message box.
+    # type: A string indicating the dialog type ('info', 'error', 'warning', etc.).
+    
+    msg_box = QMessageBox(parent_widget)
+    msg_box.setWindowTitle(title)
+    msg_box.setText(message)
+    # Allows users to copy the message text
+    msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+
+    # Dictionary mapping type strings to QMessageBox constants and window titles
+    config = {
+        'info': {
+            'icon': QMessageBox.Icon.Information
+        },
+        'error': {
+            'icon': QMessageBox.Icon.Critical
+        },
+        'warning': { # Example for future expansion
+            'icon': QMessageBox.Icon.Warning
+        },
+        'question': {
+            'icon': QMessageBox.Icon.Question
+        }
+    }
+    # Get configuration, defaulting to 'info' if an unknown type is passed
+    dialog_config = config.get(type.lower(), config['info'])
+
+    msg_box.setIcon(dialog_config['icon'])
+    msg_box.exec()

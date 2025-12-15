@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QThread, Signal
 from sammie import sammie
+from sammie.gui_widgets import show_message_dialog
 
 
 class ExportWorker(QThread):
@@ -1031,17 +1032,16 @@ class ExportDialog(QDialog):
                 input_file = settings_mgr.get_session_setting("video_file_path", "")
                 folder = os.path.dirname(input_file) if input_file else ""
                 if not folder or not os.path.exists(folder):
-                    QMessageBox.warning(self, "Invalid Settings", 
-                                      "Input file directory is not available. Please select an output folder manually.")
+                    show_message_dialog(self, title="Invalid Settings" , message="Input file directory is not available. Please select an output folder manually.", type="warning")
                     return False
             else:
-                QMessageBox.warning(self, "Invalid Settings", 
-                                  "Cannot determine input file location. Please select an output folder manually.")
+                msg_box = QMessageBox(self)
+                show_message_dialog(self, title="Invalid Settings" , message="Cannot determine input file location. Please select an output folder manually.", type="warning")
                 return False
         else:
             folder = self.folder_edit.text().strip()
             if not folder:
-                QMessageBox.warning(self, "Invalid Settings", "Please select an output folder.")
+                show_message_dialog(self, title="Invalid Settings" , message="Please select an output folder.", type="warning")
                 return False
             # Prompt to create folder if it doesn't exist
             if not os.path.exists(folder):
@@ -1057,8 +1057,7 @@ class ExportDialog(QDialog):
                 try:
                     os.makedirs(folder, exist_ok=True)
                 except OSError as e:
-                    QMessageBox.warning(self, "Invalid Settings", 
-                                    f"Could not create output directory:\n{e}")
+                    show_message_dialog(self, title="Invalid Settings" , message=f"Could not create output directory:\n{e}", type="warning")
                     return False
         
         template = self.filename_template_edit.text().strip() or "{input_name}-{output_type}"
@@ -1083,7 +1082,7 @@ class ExportDialog(QDialog):
             # Check for objects
             object_ids = self._get_available_object_ids()
             if not object_ids:
-                QMessageBox.warning(self, "No Objects", "No objects found to export.")
+                show_message_dialog(self, title="No Objects", message="No objects found to export.", type='warning')
                 return False
             
             # Check for existing files
@@ -1131,16 +1130,13 @@ class ExportDialog(QDialog):
             has_object_name = "{object_name}" in template
             
             if not has_object_id and not has_object_name:
-                QMessageBox.warning(
-                    self, "Invalid Settings", 
-                    "When exporting videos for each object, the filename must include either {object_id} or {object_name} tag to avoid overwriting files."
-                )
+                show_message_dialog(self, title="Invalid Settings", message="When exporting videos for each object, filename must include either {object_id} or {object_name} tag to avoid overwriting files.", type='warning')
                 return False
             
             # Check for existing files and confirm overwrite
             object_ids = self._get_available_object_ids()
             if not object_ids:
-                QMessageBox.warning(self, "No Objects", "No objects found to export.")
+                show_message_dialog(self, title="No Objects", message="No objects found to export.", type='warning')
                 return False
             
             existing_files = []
@@ -1233,7 +1229,7 @@ class ExportDialog(QDialog):
         points = self.parent_window.point_manager.get_all_points()
 
         if export_frame_count == 0:
-            QMessageBox.warning(self, "Export Error", "No frames in export range.")
+            show_message_dialog(self, title="Export Error", message="No frames in export range.", type='warning')
             return
         
         # Determine export mode and parameters
@@ -1270,7 +1266,7 @@ class ExportDialog(QDialog):
             # Multiple object export
             object_ids = self._get_available_object_ids()
             if not object_ids:
-                QMessageBox.warning(self, "No Objects", "No objects found to export.")
+                show_message_dialog(self, title="No Objects", message="No objects found to export", type="warning")
                 return
             
             # Get folder path
@@ -1381,9 +1377,9 @@ class ExportDialog(QDialog):
         
         # Show completion message
         if success:
-            QMessageBox.information(self, "Export Complete", message)
+            show_message_dialog(self, title="Export Complete", message=message, type="info")
         else:
-            QMessageBox.critical(self, "Export Failed", message)
+            show_message_dialog(self, title="Export Failed", message=message, type="critical")
         
         # Clean up worker
         if self.export_worker:
