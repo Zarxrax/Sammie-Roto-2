@@ -2262,6 +2262,8 @@ class MainWindow(QMainWindow):
     def clear_markers(self):
         """Clear the in and out markers"""
         self.frame_slider.clear_in_out_points()
+        self.settings_mgr.set_session_setting("in_point", None)
+        self.settings_mgr.set_session_setting("out_point", None)
         self.settings_mgr.save_session_settings()
 
     def goto_first_frame(self):
