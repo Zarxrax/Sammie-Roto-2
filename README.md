@@ -15,7 +15,9 @@ Sammie-Roto 2 is a full-featured, cross-platform desktop application for AI assi
 **Please add a Github Star if you find it useful!**
 
 ### Updates
-- [11/23/2025] First stable release. Includes several new features and bugfixes. New quick-start video tutorial and [Discord server](https://discord.gg/jb5qrFyGFF).
+**Full Changelog can be seen under [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)**
+- [12/16/2025] 2.1.0 - Added In/Out markers. Modifying points no longer deletes tracking data. Enabled half-precision for much faster segmentation. Added EfficientTAM model.
+- [11/23/2025] 2.0.0 - First stable release. Includes several new features and bugfixes. New quick-start video tutorial and [Discord server](https://discord.gg/jb5qrFyGFF).
 - [10/31/2025] Release of Sammie-Roto 2 Beta.
 
 ### Documentation and Tutorials:
@@ -42,6 +44,7 @@ Everything is self-contained in the Sammie-Roto folder. If you want to remove th
 
 ### Acknowledgements
 * [SAM 2](https://github.com/facebookresearch/sam2)
+* [EfficientTAM](https://github.com/yformer/EfficientTAM)
 * [MatAnyone](https://github.com/pq-yang/MatAnyone)
 * [MiniMax-Remover](https://github.com/zibojia/MiniMax-Remover)
 * [Wan2GP](https://github.com/deepbeepmeep/Wan2GP) (for optimized MatAnyone)
