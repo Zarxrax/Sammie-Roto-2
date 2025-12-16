@@ -68,8 +68,12 @@ select ACTION in "Full installation" "Download models only (Only needed if the m
 done
 
 # Create and activate virtual environment
-echo "Creating Python virtual environment..."
-python3 -m venv venv
+if [ -d "venv" ]; then
+    echo "Virtual environment already exists. Skipping creation..."
+else
+    echo "Creating Python virtual environment..."
+    python3 -m venv venv
+fi
 source venv/bin/activate
 
 # Upgrade pip and install wheel
