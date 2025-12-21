@@ -346,8 +346,8 @@ class ExportWorker(QThread):
             "codec": base_params.get('codec', ''),
             "object_id": str(object_id),
             "object_name": sanitized_object_name,
-            "in_point": base_params.get('in_point', ''),
-            "out_point": base_params.get('out_point', ''),
+            "in_point": str(base_params.get('in_point', '')),
+            "out_point": str(base_params.get('out_point', '')),
             "date": now.strftime("%Y%m%d"),
             "time": now.strftime("%H%M%S"),
             "datetime": now.strftime("%Y%m%d_%H%M%S"),
@@ -1222,6 +1222,12 @@ class ExportDialog(QDialog):
             end_frame = total_frames - 1
             export_frame_count = total_frames
         
+        # ensure in/out points are valid for use later on
+        if in_point is None:
+            in_point = 0
+        if out_point is None:
+            out_point = total_frames - 1
+            
         # Get codec
         codec = self.codec_combo.currentText()
         
