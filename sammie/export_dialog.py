@@ -1222,6 +1222,12 @@ class ExportDialog(QDialog):
             end_frame = total_frames - 1
             export_frame_count = total_frames
         
+        # ensure in/out points are valid for use later on
+        if in_point is None:
+            in_point = 0
+        if out_point is None:
+            out_point = total_frames - 1
+            
         # Get codec
         codec = self.codec_combo.currentText()
         
