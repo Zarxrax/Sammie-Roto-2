@@ -69,6 +69,7 @@ class ApplicationSettings:
     export_use_input_folder: bool = True
     export_filename_template: str = "{input_name}-{output_type}"
     export_antialias: bool = False
+    export_use_inout: bool = True
     export_quantizer: int = 14
     export_include_original: bool = False
     export_multiple: bool = False
