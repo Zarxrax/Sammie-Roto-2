@@ -17,16 +17,10 @@ from PySide6.QtGui import QPixmap, QImage
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QProgressDialog, QApplication, QMessageBox
 from sam2.build_sam import build_sam2_video_predictor
-from matanyone.inference.inference_core import InferenceCore
-from matanyone.utils.get_default_model import get_matanyone_model
 from sammie.smooth import run_smoothing_model, prepare_smoothing_model
 from sammie.duplicate_frame_handler import replace_similar_matte_frames
 from sammie.settings_manager import get_settings_manager
 from sammie.gui_widgets import show_message_dialog
-from diffusers.models import AutoencoderKLWan
-from diffusers.schedulers import UniPCMultistepScheduler
-from minimax_remover.pipeline_minimax_remover import Minimax_Remover_Pipeline
-from minimax_remover.transformer_minimax_remover import Transformer3DModel
 
 # .........................................................................................
 # Global variables
@@ -358,6 +352,9 @@ class MatAnyManager:
                 
     def load_matting_model(self, load_to_cpu=False):
         """Load the MatAnyone model and return processor"""
+        from matanyone.inference.inference_core import InferenceCore
+        from matanyone.utils.get_default_model import get_matanyone_model
+
         DeviceManager.clear_cache()
         settings_mgr = get_settings_manager()
         max_size = settings_mgr.get_session_setting("matany_res", 0)
@@ -881,6 +878,11 @@ class RemovalManager:
                 print(f"Callback error: {e}")
     
     def load_minimax_model(self):
+        from diffusers.models import AutoencoderKLWan
+        from diffusers.schedulers import UniPCMultistepScheduler
+        from minimax_remover.pipeline_minimax_remover import Minimax_Remover_Pipeline
+        from minimax_remover.transformer_minimax_remover import Transformer3DModel
+
         settings_mgr = get_settings_manager()
         minimax_vae_tiling = settings_mgr.get_session_setting("minimax_vae_tiling", False)
         DeviceManager.clear_cache()
