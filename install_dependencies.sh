@@ -90,14 +90,14 @@ elif [[ "$OS_TYPE" == "Linux" ]]; then
     echo "Detected Linux."
 	echo
     echo "❓ Which PyTorch build do you want to install?"
-    select PT_VERSION in "CUDA 12.8 (For modern NVIDIA GPUs, RTX)" "CUDA 12.6 (For old NVIDIA GPUs, GXT)" "ROCm (Radeon)" "CPU"; do
+    select PT_VERSION in "CUDA 12.8 (For modern NVIDIA GPUs, RTX)" "CUDA 12.6 (For old NVIDIA GPUs, GTX)" "ROCm (Radeon)" "CPU"; do
         case $PT_VERSION in
             "CUDA 12.8 (For modern NVIDIA GPUs, RTX)")
                 echo "Installing PyTorch with CUDA 12.8..."
                 pip3 install torch==2.9.1 torchvision --index-url https://download.pytorch.org/whl/cu128
                 break
                 ;;
-            "CUDA 12.6 (For old NVIDIA GPUs, GXT)")
+            "CUDA 12.6 (For old NVIDIA GPUs, GTX)")
                 echo "Installing PyTorch with CUDA 12.6..."
                 pip3 install torch==2.9.1 torchvision --index-url https://download.pytorch.org/whl/cu126
                 break

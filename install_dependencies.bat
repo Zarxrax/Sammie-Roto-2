@@ -3,7 +3,7 @@ pushd %~dp0
 
 echo Select version to install:
 echo 1. CUDA 12.8 (For modern NVIDIA GPUs, RTX)
-echo 2. CUDA 12.6 (For old NVIDIA GPUs, GXT)
+echo 2. CUDA 12.6 (For old NVIDIA GPUs, GTX)
 echo 3. CPU (Smaller download)
 echo 4. Download models only (Only needed if the models fail to download)
 echo 5. Exit
