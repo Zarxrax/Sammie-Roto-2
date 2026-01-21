@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QApplication, QSplashScreen, QMessageBox
 from PySide6.QtGui import QPixmap, QIcon
-from PySide6.QtCore import Qt, QLockFile, QDir
+from PySide6.QtCore import Qt, QLockFile, QDir, QTimer
 import sys
 import argparse
 import os
@@ -141,14 +141,15 @@ if __name__ == "__main__":
     splash = show_splash(app)
 
     try:
-        # Import heavy stuff after splash
-        from sammie_main import MainWindow
+        def load():
+            # Import heavy stuff after splash
+            from sammie_main import MainWindow
+            # Create window and pass file path if provided
+            window = MainWindow(initial_file=file_to_load)
+            window.show()
+            splash.finish(window)
 
-        # Create window and pass file path if provided
-        window = MainWindow(initial_file=file_to_load)
-        window.show()
-        splash.finish(window)
-
+        QTimer.singleShot(100,load)
         sys.exit(app.exec())
     
     except ImportError as e:
