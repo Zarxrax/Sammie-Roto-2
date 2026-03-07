@@ -137,35 +137,28 @@ if __name__ == "__main__":
         msg_box.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         msg_box.exec()
         sys.exit(0)
-
+    # Keep lock_file alive so it isn't garbage collected
+    app.lock_file = lock_file
     splash = show_splash(app)
 
-    try:
-        def load():
-            # Import heavy stuff after splash
+    def load():
+        try:
             from sammie_main import MainWindow
-            # Create window and pass file path if provided
             window = MainWindow(initial_file=file_to_load)
             window.show()
             splash.finish(window)
+        except ImportError as e:
+            splash.close()
+            error_msg = f"Failed to import required modules: {str(e)}"
+            detailed_error = traceback.format_exc()
+            show_error_dialog(app, error_msg, detailed_error)
+            sys.exit(1)
+        except Exception as e:
+            splash.close()
+            error_msg = f"Unexpected error during startup: {str(e)}"
+            detailed_error = traceback.format_exc()
+            show_error_dialog(app, error_msg, detailed_error)
+            sys.exit(1)
 
-        QTimer.singleShot(100,load)
-        sys.exit(app.exec())
-    
-    except ImportError as e:
-        splash.close()
-        error_msg = f"Failed to import required modules: {str(e)}"
-        detailed_error = traceback.format_exc()
-        show_error_dialog(app, error_msg, detailed_error)
-        print(f"Import Error: {error_msg}")
-        print(detailed_error)
-        sys.exit(1)
-        
-    except Exception as e:
-        splash.close()
-        error_msg = f"Unexpected error during startup: {str(e)}"
-        detailed_error = traceback.format_exc()
-        show_error_dialog(app, error_msg, detailed_error)
-        print(f"Startup Error: {error_msg}")
-        print(detailed_error)
-        sys.exit(1)
+    QTimer.singleShot(100, load)
+    sys.exit(app.exec())
