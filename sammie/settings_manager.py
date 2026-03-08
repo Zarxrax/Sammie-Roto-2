@@ -40,6 +40,7 @@ class ApplicationSettings:
     # MatAnyone Processing defaults
     default_matany_grow: int = 0
     default_matany_gamma: float = 1.0
+    default_matany_model: str = "MatAnyone2"
     default_matany_res: int = 720
 
     # Object Removal Processing defaults
@@ -109,7 +110,8 @@ class SessionSettings:
     # MatAnyone parameters
     matany_grow: int = 0
     matany_gamma: float = 1.0
-    matany_res: int = 720
+    matany_model: str = "MatAnyone2"
+    matany_res: int = 1080
 
     # Object removal parameters
     inpaint_method: str = "Telea"
@@ -269,6 +271,7 @@ class SettingsManager:
             grow=self.app_settings.default_grow,
             matany_grow=self.app_settings.default_matany_grow,
             matany_gamma=self.app_settings.default_matany_gamma,
+            matany_model=self.app_settings.default_matany_model,
             matany_res = self.app_settings.default_matany_res,
             inpaint_method=self.app_settings.default_inpaint_method,
             inpaint_radius=self.app_settings.default_inpaint_radius,
@@ -343,6 +346,7 @@ class SettingsManager:
         return {
             'matany_gamma': self.session_settings.matany_gamma,
             'matany_grow': self.session_settings.matany_grow,
+            'matany_model': self.session_settings.matany_model,
             'matany_res': self.session_settings.matany_res
         }
     

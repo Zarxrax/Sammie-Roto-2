@@ -21,6 +21,7 @@ from sammie.smooth import run_smoothing_model, prepare_smoothing_model
 from sammie.duplicate_frame_handler import replace_similar_matte_frames
 from sammie.settings_manager import get_settings_manager
 from sammie.gui_widgets import show_message_dialog
+from sammie.model_downloader import ensure_models
 
 # .........................................................................................
 # Global variables
@@ -350,22 +351,30 @@ class MatAnyManager:
             except Exception as e:
                 print(f"Callback error: {e}")
                 
-    def load_matting_model(self, load_to_cpu=False):
+    def load_matting_model(self, load_to_cpu=False, parent_window=None):
         """Load the MatAnyone model and return processor"""
         from matanyone.inference.inference_core import InferenceCore
         from matanyone.utils.get_default_model import get_matanyone_model
 
         DeviceManager.clear_cache()
         settings_mgr = get_settings_manager()
+        matting_model = settings_mgr.get_session_setting("matany_model", "MatAnyone2")
         max_size = settings_mgr.get_session_setting("matany_res", 0)
         # Choose device based on parameter
         if load_to_cpu:
             device = torch.device('cpu')
         else:
             device = DeviceManager.get_device()
-        checkpoint = "./checkpoints/matanyone.pth"
+        if matting_model == "MatAnyone2":
+            checkpoint = "./checkpoints/matanyone2.pth"
+            if not ensure_models("matanyone2", parent=parent_window):
+                return False # user cancelled or download failed
+        else:
+            checkpoint = "./checkpoints/matanyone.pth"
+            if not ensure_models("matanyone", parent=parent_window):
+                return False # user cancelled or download failed
         matanyone = get_matanyone_model(checkpoint, device=device)
-        print(f"Loaded MatAnyone model to {device} with max size {max_size}")
+        print(f"Loaded {matting_model} model to {device} with max size {max_size}")
         
         # Initialize inference processor
         self.processor = InferenceCore(matanyone, cfg=matanyone.cfg, device=device)
@@ -375,30 +384,7 @@ class MatAnyManager:
         """Unload the MatAnyone model and clear cache"""
         self.processor = None
         DeviceManager.clear_cache()
-        print("Unloaded MatAnyone model")
-        
-    def offload_model_to_cpu(self):
-        """Offload MatAnyone model to CPU to free VRAM"""
-        device = DeviceManager.get_device()
-        if device.type == 'cpu':
-            return  # Already on CPU, nothing to do
-        
-        if self.processor is not None and hasattr(self.processor, 'network'):
-            self.processor.clear_memory()
-            self.processor.network.to('cpu')
-            DeviceManager.clear_cache()
-            #print(f"MatAnyone model offloaded to CPU")
-    
-    def load_model_to_device(self):
-        """Load MatAnyone model back to the active device"""
-        device = DeviceManager.get_device()
-        if device.type == 'cpu':
-            return  # Already on CPU, nothing to do
-        
-        if self.processor is not None and hasattr(self.processor, 'network'):
-            self.processor.clear_memory()
-            self.processor.network.to(device)
-            #print(f"MatAnyone model loaded to {device}")
+        print("Unloaded Matting model")
 
     def _resize_image(self, image):
         """Resize image based on matting quality setting"""

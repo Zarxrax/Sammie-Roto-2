@@ -9,13 +9,14 @@
 
 Sammie-Roto 2 is a full-featured, cross-platform desktop application for AI assisted masking of video clips. It has 3 primary functions:
 - Video Segmentation using [SAM2](https://github.com/facebookresearch/sam2)
-- Video Matting using [MatAnyone](https://github.com/pq-yang/MatAnyone)
+- Video Matting using [MatAnyone](https://github.com/pq-yang/MatAnyone) & [MatAnyone 2](https://github.com/pq-yang/MatAnyone2)
 - Video Object Removal using [MiniMax-Remover](https://github.com/zibojia/MiniMax-Remover)
 
 **Please add a Github Star if you find it useful!**
 
 ### Updates
 **Full Changelog can be seen under [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)**
+- [03/08/2026] 2.2.0 - Added MatAnyone2 model.
 - [01/18/2026] 2.1.1 - Rebuilt the export dialog, slightly faster application startup, bug fixes.
 - [12/16/2025] 2.1.0 - Added In/Out markers. Modifying points no longer deletes tracking data. Enabled half-precision for much faster segmentation. Added EfficientTAM model.
 - [11/23/2025] 2.0.0 - First stable release. Includes several new features and bugfixes. New quick-start video tutorial and [Discord server](https://discord.gg/jb5qrFyGFF).

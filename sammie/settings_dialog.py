@@ -122,6 +122,12 @@ class SettingsDialog(QDialog):
         mat_group = QGroupBox("Matting Defaults")
         mat_layout = QFormLayout(mat_group)
 
+        # Matting model selection
+        self.default_matting_model_combo = QComboBox()
+        self.default_matting_model_combo.addItems(["MatAnyone", "MatAnyone2"])
+        self.default_matting_model_combo.setToolTip("MatAnyone2 is generally more accurate. Both models are the same speed.")
+        mat_layout.addRow("Matting Model:", self.default_matting_model_combo)
+
         # MatAnyone Internal Resolution selection
         self.default_matany_res_combo = QComboBox()
         self.default_matany_res_combo.addItems(["480", "720", "1080", "1440", "2160", "Full"])
@@ -278,6 +284,7 @@ class SettingsDialog(QDialog):
         
         self.default_matany_gamma_spin.setValue(app_settings.default_matany_gamma)
         self.default_matany_grow_spin.setValue(app_settings.default_matany_grow)
+        self.default_matting_model_combo.setCurrentText(app_settings.default_matany_model)
 
         # Set MatAnyone resolution combo box
         if app_settings.default_matany_res == 0:
@@ -322,6 +329,7 @@ class SettingsDialog(QDialog):
         app_settings.default_grow = self.default_grow_spin.value()
         app_settings.default_matany_gamma = self.default_matany_gamma_spin.value()
         app_settings.default_matany_grow = self.default_matany_grow_spin.value()
+        app_settings.default_matany_model = self.default_matting_model_combo.currentText()
 
         # Handle MatAnyone resolution setting
         matany_text = self.default_matany_res_combo.currentText()

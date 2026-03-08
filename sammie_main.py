@@ -33,7 +33,7 @@ from sammie.gui_widgets import (
 
 # ==================== VERSION ====================
 
-__version__ = "2.1.1"
+__version__ = "2.2.0"
 
 # ==================== LOGGING HELPER ====================
 
@@ -369,23 +369,36 @@ class MattingTab(QWidget):
         matting_layout.addWidget(self.clear_matting_btn)
         layout.addWidget(matting_group)
         
-        # MatAnyone Internal Resolution selection
-        res_group = QGroupBox("Resolution Settings")
-        res_layout = QHBoxLayout(res_group)
+        # MatAnyone Processing settings
+        processing_group = QGroupBox("Processing Settings")
+        processing_layout = QVBoxLayout(processing_group)
+        model_layout = QHBoxLayout()
+        res_layout = QHBoxLayout()
         
+        model_label = QLabel("Model:")
+        self.matany_model_combo = QComboBox()
+        self.matany_model_combo.addItems(["MatAnyone", "MatAnyone2"])
+        self.matany_model_combo.setToolTip("The MatAnyone2 model is generally more accurate.\nProcessing speed and resource usage are the same for both.")
+
         res_label = QLabel("Internal Resolution:")
         self.matany_res_combo = QComboBox()
         self.matany_res_combo.addItems(["480", "720", "1080", "1440", "2160", "Full"])
         self.matany_res_combo.setToolTip("If your video's resolution is higher than this, it will be\ndownsampled to this resolution before running matting.\nThis reduces VRAM requirements and increases processing speed.")
         
         # Connect to save settings when changed
+        self.matany_model_combo.currentTextChanged.connect(self._save_model_setting)
         self.matany_res_combo.currentTextChanged.connect(self._save_resolution_setting)
-        
+
+        model_layout.addWidget(model_label)
+        model_layout.addWidget(self.matany_model_combo)
+        model_layout.addStretch()
         res_layout.addWidget(res_label)
         res_layout.addWidget(self.matany_res_combo)
         res_layout.addStretch()
         
-        layout.addWidget(res_group)
+        processing_layout.addLayout(model_layout)
+        processing_layout.addLayout(res_layout)
+        layout.addWidget(processing_group)
 
         # Parameters
         self._create_parameter_sliders(layout)
@@ -513,6 +526,11 @@ class MattingTab(QWidget):
         gamma_val = value / 100.0
         self.gamma_value.setText(f"{gamma_val:.1f}")
     
+    def _save_model_setting(self, value):
+        """Save model combo box value to session settings"""
+        settings_mgr = get_settings_manager()
+        settings_mgr.set_session_setting("matany_model", value)
+
     def _save_resolution_setting(self, value):
         """Save resolution combo box value to session settings"""
         if value == "Full":
@@ -531,8 +549,15 @@ class MattingTab(QWidget):
         """Load all values from settings"""
         settings_mgr = get_settings_manager()
         
+        # Load model selection
+        model = settings_mgr.get_session_setting("matany_model", "MatAnyone2")
+        if model == "MatAnyone2":
+            self.matany_model_combo.setCurrentIndex(1)
+        else:
+            self.matany_model_combo.setCurrentIndex(0)
+
         # Load resolution
-        resolution = settings_mgr.get_session_setting("matany_res", 720)
+        resolution = settings_mgr.get_session_setting("matany_res", 1080)
 
         if resolution == 0:
             self.matany_res_combo.setCurrentText("Full")
@@ -2049,11 +2074,12 @@ class MainWindow(QMainWindow):
         count = len(self.point_manager.points)
         if count > 0:  
             #load models
-            print("Loading MatAnyone model...")
+            print("Loading Matting model...")
             QApplication.processEvents()
             self.sam_manager.offload_model_to_cpu()
-            #self.matany_manager.load_model_to_device()
-            self.matany_manager.load_matting_model() # load matting model for first time
+            if not self.matany_manager.load_matting_model(parent_window=self): # load matting model for first time
+                print("Failed to load matting model")
+                return
             QApplication.processEvents()
             success = self.matany_manager.run_matting(self.point_manager.points, parent_window=self)
         
@@ -2064,7 +2090,6 @@ class MainWindow(QMainWindow):
             else:
                 self.update_matting_status()
                 self._update_current_frame_display()
-            # self.matany_manager.offload_model_to_cpu()
             QApplication.processEvents()
             self.settings_mgr.save_session_settings()
             self.matany_manager.unload_matting_model() # unload matting model since its not needed in memory
