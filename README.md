@@ -9,13 +9,15 @@
 
 Sammie-Roto 2 is a full-featured, cross-platform desktop application for AI assisted masking of video clips. It has 3 primary functions:
 - Video Segmentation using [SAM2](https://github.com/facebookresearch/sam2)
-- Video Matting using [MatAnyone](https://github.com/pq-yang/MatAnyone) & [MatAnyone 2](https://github.com/pq-yang/MatAnyone2)
+- Video Matting using [MatAnyone](https://github.com/pq-yang/MatAnyone), [MatAnyone 2](https://github.com/pq-yang/MatAnyone2), and [VideoMaMa](https://github.com/cvlab-kaist/VideoMaMa)
 - Video Object Removal using [MiniMax-Remover](https://github.com/zibojia/MiniMax-Remover)
+- AI green screen keying using [CorridorKey](https://github.com/edenaion/EZ-CorridorKey) (refine mattes, despill, export alpha/FG/comp)
 
 **Please add a Github Star if you find it useful!**
 
 ### Updates
 **Full Changelog can be seen under [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)**
+- [03/12/2026] Added **VideoMaMa** matting (mask-guided video matting via generative prior) and **CorridorKey** (AI green screen keying: refined alpha, despill, despeckle, 16-bit PNG/EXR export). See [EZ-CorridorKey](https://github.com/edenaion/EZ-CorridorKey) and [VideoMaMa](https://github.com/cvlab-kaist/VideoMaMa).
 - [03/08/2026] 2.2.0 - Added MatAnyone2 model.
 - [01/18/2026] 2.1.1 - Rebuilt the export dialog, slightly faster application startup, bug fixes.
 - [12/16/2025] 2.1.0 - Added In/Out markers. Modifying points no longer deletes tracking data. Enabled half-precision for much faster segmentation. Added EfficientTAM model.
@@ -50,4 +52,6 @@ Everything is self-contained in the Sammie-Roto folder. If you want to remove th
 * [MatAnyone](https://github.com/pq-yang/MatAnyone)
 * [MiniMax-Remover](https://github.com/zibojia/MiniMax-Remover)
 * [Wan2GP](https://github.com/deepbeepmeep/Wan2GP) (for optimized MatAnyone)
+* [EZ-CorridorKey](https://github.com/edenaion/EZ-CorridorKey) — CorridorKey AI green screen keyer (GUI by Ed Zisk; upstream [CorridorKey](https://github.com/nikopueringer/CorridorKey) by Niko Pueringer / Corridor Digital)
+* [VideoMaMa](https://github.com/cvlab-kaist/VideoMaMa) — Mask-guided video matting via generative prior (KAIST/Adobe Research, CVPR 2026)
 * Some icons by [Yusuke Kamiyamane](http://p.yusukekamiyamane.com/)

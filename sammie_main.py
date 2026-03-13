@@ -4,12 +4,14 @@ import argparse
 import json
 import traceback
 import webbrowser
+import torch
 from datetime import datetime
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QVBoxLayout, QHBoxLayout, 
     QGridLayout, QWidget, QPushButton, QLabel, QStatusBar, QSlider, 
     QTabWidget, QSpinBox, QComboBox, QSplitter, QGroupBox, QTextEdit,
-    QCheckBox, QLineEdit, QMessageBox, QProgressDialog, QDialog
+    QCheckBox, QLineEdit, QMessageBox, QProgressDialog, QDialog,
+    QScrollArea, QFrame
 )
 from PySide6.QtGui import (
     QPixmap, QAction, QShortcut, QKeySequence, QTextCursor, QIcon, QFont
@@ -369,12 +371,76 @@ class MattingTab(QWidget):
         matting_layout.addWidget(self.clear_matting_btn)
         layout.addWidget(matting_group)
         
-        # MatAnyone Processing settings
+        # Engine selection (MatAnyone vs VideoMaMa)
+        self._create_engine_selection(layout)
+
+        # MatAnyone processing settings (visibility toggled)
+        self._create_matanyone_parameters(layout)
+
+        # VideoMaMa processing settings (visibility toggled)
+        self._create_videomama_parameters(layout)
+
+        # Shared postprocessing parameters (Gamma, Shrink/Grow)
+        self._create_parameter_sliders(layout)
+
+        # Set initial visibility
+        self._update_parameters_visibility()
+        
+        layout.addStretch()
+    
+    def _create_engine_selection(self, layout):
+        """Create engine selection combo (MatAnyone vs VideoMaMa)"""
+        engine_group = QGroupBox("Engine")
+        engine_layout = QHBoxLayout(engine_group)
+
+        engine_layout.addWidget(QLabel("Engine:"))
+
+        self.engine_combo = QComboBox()
+        self.engine_combo.addItems(["MatAnyone", "VideoMaMa"])
+        self.engine_combo.setToolTip(
+            "MatAnyone: Frame-by-frame temporal propagation. Fast, ~4GB VRAM.\n"
+            "VideoMaMa: Diffusion-based, 16-frame batches. Better quality on complex edges, ~12GB VRAM."
+        )
+
+        settings_mgr = get_settings_manager()
+        current_engine = settings_mgr.get_session_setting("matting_engine", "MatAnyone")
+        index = self.engine_combo.findText(current_engine)
+        if index >= 0:
+            self.engine_combo.setCurrentIndex(index)
+
+        self.engine_combo.currentTextChanged.connect(self._on_engine_changed)
+
+        engine_layout.addWidget(self.engine_combo)
+        engine_layout.addStretch()
+        layout.addWidget(engine_group)
+
+    def _on_engine_changed(self, engine):
+        """Handle engine selection change"""
+        settings_mgr = get_settings_manager()
+        settings_mgr.set_session_setting("matting_engine", engine)
+        self._update_parameters_visibility()
+
+    def _update_parameters_visibility(self):
+        """Show/hide parameter groups based on selected engine"""
+        current_engine = self.engine_combo.currentText()
+        if current_engine == "VideoMaMa":
+            self.matanyone_params_group.setVisible(False)
+            self.videomama_params_group.setVisible(True)
+        else:
+            self.matanyone_params_group.setVisible(True)
+            self.videomama_params_group.setVisible(False)
+
+    def _create_matanyone_parameters(self, layout):
+        """Create MatAnyone-specific processing settings (visibility toggled)"""
+        self.matanyone_params_group = QWidget()
+        matanyone_layout = QVBoxLayout(self.matanyone_params_group)
+        matanyone_layout.setContentsMargins(0, 0, 0, 0)
+
         processing_group = QGroupBox("Processing Settings")
         processing_layout = QVBoxLayout(processing_group)
         model_layout = QHBoxLayout()
         res_layout = QHBoxLayout()
-        
+
         model_label = QLabel("Model:")
         self.matany_model_combo = QComboBox()
         self.matany_model_combo.addItems(["MatAnyone", "MatAnyone2"])
@@ -384,7 +450,7 @@ class MattingTab(QWidget):
         self.matany_res_combo = QComboBox()
         self.matany_res_combo.addItems(["480", "720", "1080", "1440", "2160", "Full"])
         self.matany_res_combo.setToolTip("If your video's resolution is higher than this, it will be\ndownsampled to this resolution before running matting.\nThis reduces VRAM requirements and increases processing speed.")
-        
+
         # Connect to save settings when changed
         self.matany_model_combo.currentTextChanged.connect(self._save_model_setting)
         self.matany_res_combo.currentTextChanged.connect(self._save_resolution_setting)
@@ -395,16 +461,130 @@ class MattingTab(QWidget):
         res_layout.addWidget(res_label)
         res_layout.addWidget(self.matany_res_combo)
         res_layout.addStretch()
-        
+
         processing_layout.addLayout(model_layout)
         processing_layout.addLayout(res_layout)
-        layout.addWidget(processing_group)
+        matanyone_layout.addWidget(processing_group)
+        layout.addWidget(self.matanyone_params_group)
 
-        # Parameters
-        self._create_parameter_sliders(layout)
-        
-        layout.addStretch()
-    
+    def _create_videomama_parameters(self, layout):
+        """Create VideoMaMa-specific processing settings (visibility toggled)"""
+        self.videomama_params_group = QWidget()
+        videomama_layout = QVBoxLayout(self.videomama_params_group)
+        videomama_layout.setContentsMargins(0, 0, 0, 0)
+
+        params_group = QGroupBox("VideoMaMa Settings")
+        params_layout = QGridLayout(params_group)
+
+        settings_mgr = get_settings_manager()
+
+        # Internal Resolution
+        row = 0
+        params_layout.addWidget(QLabel("Internal Resolution:"), row, 0)
+        self.videomama_res_combo = QComboBox()
+        self.videomama_res_combo.addItems(["512x288", "768x448", "1024x576"])
+        current_res = settings_mgr.get_session_setting("videomama_resolution", "1024x576")
+        index = self.videomama_res_combo.findText(current_res)
+        if index >= 0:
+            self.videomama_res_combo.setCurrentIndex(index)
+        self.videomama_res_combo.setToolTip(
+            "Internal processing resolution for VideoMaMa.\n"
+            "With CPU offload, 1024x576 fits in 24GB GPUs.\n\n"
+            "512x288: Fastest, lowest quality\n"
+            "768x448: Balanced quality/speed\n"
+            "1024x576: Native model resolution, best quality (recommended)"
+        )
+        self.videomama_res_combo.currentTextChanged.connect(
+            lambda v: settings_mgr.set_session_setting("videomama_resolution", v)
+        )
+        params_layout.addWidget(self.videomama_res_combo, row, 1, 1, 2)
+
+        # Overlap frames
+        row += 1
+        params_layout.addWidget(QLabel("Overlap Frames:"), row, 0)
+        self.videomama_overlap_combo = QComboBox()
+        self.videomama_overlap_combo.addItems(["0", "2", "4"])
+        current_overlap = str(settings_mgr.get_session_setting("videomama_overlap", 2))
+        index = self.videomama_overlap_combo.findText(current_overlap)
+        if index >= 0:
+            self.videomama_overlap_combo.setCurrentIndex(index)
+        self.videomama_overlap_combo.setToolTip(
+            "Number of overlapping frames between 16-frame batches.\n"
+            "More overlap = smoother transitions, but slower processing."
+        )
+        self.videomama_overlap_combo.currentTextChanged.connect(
+            lambda v: settings_mgr.set_session_setting("videomama_overlap", int(v))
+        )
+        params_layout.addWidget(self.videomama_overlap_combo, row, 1, 1, 2)
+
+        # VAE Tiling checkbox
+        row += 1
+        params_layout.addWidget(QLabel("Use VAE Tiling:"), row, 0)
+        self.videomama_vae_tiling_checkbox = QCheckBox()
+        vae_tiling = settings_mgr.get_session_setting("videomama_vae_tiling", False)
+        self.videomama_vae_tiling_checkbox.setChecked(vae_tiling)
+        self.videomama_vae_tiling_checkbox.setToolTip(
+            "If you get an out of memory error during the VAE step,\n"
+            "try enabling this option. The VAE steps will take longer\n"
+            "but use less VRAM."
+        )
+        self.videomama_vae_tiling_checkbox.stateChanged.connect(
+            lambda state: settings_mgr.set_session_setting(
+                "videomama_vae_tiling", self.videomama_vae_tiling_checkbox.isChecked()
+            )
+        )
+        params_layout.addWidget(self.videomama_vae_tiling_checkbox, row, 1, 1, 2)
+
+        # VRAM info label
+        row += 1
+        self.vram_info_label = QLabel()
+        self.vram_info_label.setWordWrap(True)
+        self.vram_info_label.setStyleSheet("""
+            QLabel {
+                background-color: palette(alternate-base);
+                padding: 8px;
+                border: 1px solid palette(mid);
+                border-radius: 4px;
+                font-size: 11px;
+            }
+        """)
+        self._update_vram_info()
+        params_layout.addWidget(self.vram_info_label, row, 0, 1, 3)
+
+        videomama_layout.addWidget(params_group)
+        layout.addWidget(self.videomama_params_group)
+
+    def _update_vram_info(self):
+        """Detect GPU VRAM and display an informational label"""
+        try:
+            import torch
+            if torch.cuda.is_available():
+                vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+                gpu_name = torch.cuda.get_device_name(0)
+                if vram_gb >= 16:
+                    self.vram_info_label.setText(
+                        f"GPU: {gpu_name} ({vram_gb:.0f}GB)\n"
+                        f"VRAM is sufficient for VideoMaMa."
+                    )
+                elif vram_gb >= 12:
+                    self.vram_info_label.setText(
+                        f"GPU: {gpu_name} ({vram_gb:.0f}GB)\n"
+                        f"VRAM is tight — may work with reduced settings."
+                    )
+                else:
+                    self.vram_info_label.setText(
+                        f"GPU: {gpu_name} ({vram_gb:.0f}GB)\n"
+                        f"VRAM may be insufficient — MatAnyone is recommended."
+                    )
+            else:
+                self.vram_info_label.setText(
+                    "No CUDA GPU detected.\nVideoMaMa requires a GPU with 12+ GB VRAM."
+                )
+        except Exception:
+            self.vram_info_label.setText(
+                "VideoMaMa requires a CUDA GPU with 12+ GB VRAM."
+            )
+
     def _create_instructions_section(self, layout):
         """Create the instructions section for the matting tab"""
         instructions_group = QGroupBox("Instructions")
@@ -548,6 +728,13 @@ class MattingTab(QWidget):
     def load_values_from_settings(self):
         """Load all values from settings"""
         settings_mgr = get_settings_manager()
+
+        # Load engine selection
+        engine = settings_mgr.get_session_setting("matting_engine", "MatAnyone")
+        index = self.engine_combo.findText(engine)
+        if index >= 0:
+            self.engine_combo.setCurrentIndex(index)
+        self._update_parameters_visibility()
         
         # Load model selection
         model = settings_mgr.get_session_setting("matany_model", "MatAnyone2")
@@ -565,6 +752,22 @@ class MattingTab(QWidget):
             index = self.matany_res_combo.findText(str(resolution))
             if index >= 0:
                 self.matany_res_combo.setCurrentIndex(index)
+
+        # Load VideoMaMa overlap
+        overlap = str(settings_mgr.get_session_setting("videomama_overlap", 2))
+        index = self.videomama_overlap_combo.findText(overlap)
+        if index >= 0:
+            self.videomama_overlap_combo.setCurrentIndex(index)
+
+        # Load VideoMaMa resolution
+        res = settings_mgr.get_session_setting("videomama_resolution", "1024x576")
+        index = self.videomama_res_combo.findText(res)
+        if index >= 0:
+            self.videomama_res_combo.setCurrentIndex(index)
+
+        # Load VideoMaMa VAE tiling
+        vae_tiling = settings_mgr.get_session_setting("videomama_vae_tiling", False)
+        self.videomama_vae_tiling_checkbox.setChecked(vae_tiling)
 
         # Update gamma slider
         gamma = settings_mgr.get_session_setting("matany_gamma", 1.0)
@@ -966,14 +1169,262 @@ class ObjectRemovalTab(QWidget):
             self.run_removal_btn.setIcon(QIcon())
             #self.run_removal_btn.setText("Run Object Removal")
 
+
+# ==================== CORRIDOR KEY TAB ====================
+
+class CorridorKeyTab(QWidget):
+    """Tab for AI-powered green screen keying using CorridorKey"""
+
+    def __init__(self):
+        super().__init__()
+        self._init_ui()
+
+    def _init_ui(self):
+        layout = QVBoxLayout(self)
+
+        # Instructions
+        instructions_group = QGroupBox("Instructions")
+        instructions_layout = QVBoxLayout(instructions_group)
+        instructions_text = QLabel()
+        instructions_text.setWordWrap(True)
+        instructions_text.setTextFormat(Qt.RichText)
+        instructions_text.setText(
+            "• CorridorKey refines green screen mattes using AI.<br>"
+            "• Run segmentation first in the Segmentation tab.<br>"
+            "• Optionally run matting first for a better coarse mask.<br>"
+            "• Use <b>Mask Source</b> to choose which mask guides the keyer.<br>"
+            "• Outputs: refined alpha, despilled FG, composite preview."
+        )
+        instructions_text.setStyleSheet("""
+            QLabel {
+                background-color: palette(alternate-base);
+                padding: 8px;
+                border: 1px solid palette(mid);
+                border-radius: 4px;
+            }
+        """)
+        instructions_layout.addWidget(instructions_text)
+        layout.addWidget(instructions_group)
+
+        # Run / Clear buttons
+        action_group = QGroupBox("Corridor Key")
+        action_layout = QVBoxLayout(action_group)
+        self.run_corridorkey_btn = QPushButton(" Run CorridorKey ")
+        self.run_corridorkey_btn.setLayoutDirection(Qt.RightToLeft)
+        action_layout.addWidget(self.run_corridorkey_btn)
+        self.clear_corridorkey_btn = QPushButton("Clear CorridorKey")
+        self.clear_corridorkey_btn.setToolTip("Remove all CorridorKey data")
+        action_layout.addWidget(self.clear_corridorkey_btn)
+        layout.addWidget(action_group)
+
+        # Settings
+        settings_mgr = get_settings_manager()
+        params_group = QGroupBox("CorridorKey Settings")
+        params_layout = QGridLayout(params_group)
+
+        # Mask Source
+        row = 0
+        params_layout.addWidget(QLabel("Mask Source:"), row, 0)
+        self.mask_source_combo = QComboBox()
+        self.mask_source_combo.addItems(["Segmentation", "Matting"])
+        current_source = settings_mgr.get_session_setting("corridorkey_mask_source", "Segmentation")
+        idx = self.mask_source_combo.findText(current_source)
+        if idx >= 0:
+            self.mask_source_combo.setCurrentIndex(idx)
+        self.mask_source_combo.setToolTip(
+            "Segmentation: Use SAM2 binary masks (faster pipeline).\n"
+            "Matting: Use MatAnyone/VideoMaMa matte as guide (potentially better edges)."
+        )
+        self.mask_source_combo.currentTextChanged.connect(
+            lambda v: settings_mgr.set_session_setting("corridorkey_mask_source", v)
+        )
+        params_layout.addWidget(self.mask_source_combo, row, 1, 1, 2)
+
+        # Quality (controls internal resolution / img_size)
+        row += 1
+        params_layout.addWidget(QLabel("Quality:"), row, 0)
+        self.quality_combo = QComboBox()
+        self.quality_combo.addItems(["Low (1024)", "Medium (1536)", "High (2048)"])
+        current_quality = settings_mgr.get_session_setting("corridorkey_quality", "auto")
+        quality_map = {"low": 0, "medium": 1, "high": 2}
+        quality_idx = quality_map.get(current_quality)
+        if quality_idx is None:
+            quality_idx = self._auto_quality_index()
+        self.quality_combo.setCurrentIndex(quality_idx)
+        self.quality_combo.setToolTip(
+            "Internal processing resolution.\n"
+            "Low (1024): ~4 GB VRAM, fastest, good for 1080p.\n"
+            "Medium (1536): ~8 GB VRAM, balanced quality/speed.\n"
+            "High (2048): ~12+ GB VRAM, native model resolution, best quality."
+        )
+        self.quality_combo.currentIndexChanged.connect(self._on_quality_changed)
+        params_layout.addWidget(self.quality_combo, row, 1, 1, 2)
+
+        # Refiner Scale
+        row += 1
+        params_layout.addWidget(QLabel("Refiner Scale:"), row, 0)
+        self.refiner_slider = QSlider(Qt.Horizontal)
+        self.refiner_slider.setRange(0, 200)
+        refiner_val = settings_mgr.get_session_setting("corridorkey_refiner_scale", 1.0)
+        self.refiner_slider.setValue(int(refiner_val * 100))
+        self.refiner_slider.setToolTip(
+            "Edge refinement intensity.\n"
+            "0.0 = coarse only (no refiner)\n"
+            "1.0 = normal (recommended)\n"
+            ">1.0 = aggressive refinement"
+        )
+        params_layout.addWidget(self.refiner_slider, row, 1)
+        self.refiner_value = QLabel(f"{refiner_val:.2f}")
+        params_layout.addWidget(self.refiner_value, row, 2)
+        self.refiner_slider.valueChanged.connect(self._on_refiner_changed)
+
+        # Despill Strength
+        row += 1
+        params_layout.addWidget(QLabel("Despill:"), row, 0)
+        self.despill_slider = QSlider(Qt.Horizontal)
+        self.despill_slider.setRange(0, 100)
+        despill_val = settings_mgr.get_session_setting("corridorkey_despill", 1.0)
+        self.despill_slider.setValue(int(despill_val * 100))
+        self.despill_slider.setToolTip(
+            "Green spill removal strength.\n"
+            "0.0 = no despill\n"
+            "1.0 = full despill (recommended)"
+        )
+        params_layout.addWidget(self.despill_slider, row, 1)
+        self.despill_value = QLabel(f"{despill_val:.2f}")
+        params_layout.addWidget(self.despill_value, row, 2)
+        self.despill_slider.valueChanged.connect(self._on_despill_changed)
+
+        # Auto Despeckle
+        row += 1
+        params_layout.addWidget(QLabel("Auto Despeckle:"), row, 0)
+        self.despeckle_checkbox = QCheckBox()
+        despeckle = settings_mgr.get_session_setting("corridorkey_despeckle", True)
+        self.despeckle_checkbox.setChecked(despeckle)
+        self.despeckle_checkbox.setToolTip("Clean up small disconnected alpha islands.")
+        self.despeckle_checkbox.stateChanged.connect(
+            lambda state: settings_mgr.set_session_setting(
+                "corridorkey_despeckle", self.despeckle_checkbox.isChecked()
+            )
+        )
+        params_layout.addWidget(self.despeckle_checkbox, row, 1, 1, 2)
+
+        # Despeckle Size
+        row += 1
+        params_layout.addWidget(QLabel("Despeckle Size:"), row, 0)
+        self.despeckle_slider = QSlider(Qt.Horizontal)
+        self.despeckle_slider.setRange(50, 2000)
+        despeckle_size = settings_mgr.get_session_setting("corridorkey_despeckle_size", 400)
+        self.despeckle_slider.setValue(despeckle_size)
+        self.despeckle_slider.setToolTip(
+            "Minimum pixel count to keep an alpha island.\n"
+            "Smaller = keep more detail. Larger = cleaner matte."
+        )
+        params_layout.addWidget(self.despeckle_slider, row, 1)
+        self.despeckle_size_value = QLabel(str(despeckle_size))
+        params_layout.addWidget(self.despeckle_size_value, row, 2)
+        self.despeckle_slider.valueChanged.connect(self._on_despeckle_size_changed)
+
+        # Tiling (refiner processes in tiles instead of full frame)
+        row += 1
+        params_layout.addWidget(QLabel("Tiling:"), row, 0)
+        self.tiling_checkbox = QCheckBox()
+        tiling = settings_mgr.get_session_setting("corridorkey_tiling", False)
+        self.tiling_checkbox.setChecked(tiling)
+        self.tiling_checkbox.setToolTip(
+            "Process the refiner in 512x512 tiles instead of the full frame.\n"
+            "Reduces VRAM usage but adds processing overhead.\n"
+            "Only needed for GPUs with limited VRAM (<12 GB)."
+        )
+        self.tiling_checkbox.stateChanged.connect(
+            lambda state: settings_mgr.set_session_setting(
+                "corridorkey_tiling", self.tiling_checkbox.isChecked()
+            )
+        )
+        params_layout.addWidget(self.tiling_checkbox, row, 1, 1, 2)
+
+        layout.addWidget(params_group)
+        layout.addStretch()
+
+    def _on_refiner_changed(self, value):
+        val = value / 100.0
+        self.refiner_value.setText(f"{val:.2f}")
+        get_settings_manager().set_session_setting("corridorkey_refiner_scale", val)
+
+    def _on_despill_changed(self, value):
+        val = value / 100.0
+        self.despill_value.setText(f"{val:.2f}")
+        get_settings_manager().set_session_setting("corridorkey_despill", val)
+
+    def _on_quality_changed(self, index):
+        labels = ["low", "medium", "high"]
+        if 0 <= index < len(labels):
+            get_settings_manager().set_session_setting("corridorkey_quality", labels[index])
+
+    @staticmethod
+    def _auto_quality_index():
+        """Pick default quality based on available VRAM."""
+        try:
+            import torch
+            if torch.cuda.is_available():
+                vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+                if vram_gb >= 14:
+                    return 2  # high
+                if vram_gb >= 10:
+                    return 1  # medium
+            return 0  # low
+        except Exception:
+            return 0
+
+    def _on_despeckle_size_changed(self, value):
+        self.despeckle_size_value.setText(str(value))
+        get_settings_manager().set_session_setting("corridorkey_despeckle_size", value)
+
+    def load_values_from_settings(self):
+        """Reload UI values from session settings."""
+        settings_mgr = get_settings_manager()
+        source = settings_mgr.get_session_setting("corridorkey_mask_source", "Segmentation")
+        idx = self.mask_source_combo.findText(source)
+        if idx >= 0:
+            self.mask_source_combo.setCurrentIndex(idx)
+        quality = settings_mgr.get_session_setting("corridorkey_quality", "auto")
+        quality_map = {"low": 0, "medium": 1, "high": 2}
+        quality_idx = quality_map.get(quality)
+        if quality_idx is None:
+            quality_idx = self._auto_quality_index()
+        self.quality_combo.setCurrentIndex(quality_idx)
+        refiner = settings_mgr.get_session_setting("corridorkey_refiner_scale", 1.0)
+        self.refiner_slider.setValue(int(refiner * 100))
+        self.refiner_value.setText(f"{refiner:.2f}")
+        despill = settings_mgr.get_session_setting("corridorkey_despill", 1.0)
+        self.despill_slider.setValue(int(despill * 100))
+        self.despill_value.setText(f"{despill:.2f}")
+        despeckle = settings_mgr.get_session_setting("corridorkey_despeckle", True)
+        self.despeckle_checkbox.setChecked(despeckle)
+        despeckle_size = settings_mgr.get_session_setting("corridorkey_despeckle_size", 400)
+        self.despeckle_slider.setValue(despeckle_size)
+        self.despeckle_size_value.setText(str(despeckle_size))
+        tiling = settings_mgr.get_session_setting("corridorkey_tiling", False)
+        self.tiling_checkbox.setChecked(tiling)
+
+
 class Sidebar(QWidget):
     """Main sidebar containing segmentation and matting tabs"""
     
     def __init__(self):
         super().__init__()
-        self.setMinimumWidth(250)
+        self.setMinimumWidth(340)
         self._init_ui()
     
+    @staticmethod
+    def _scrollable(widget):
+        """Wrap a widget in a frameless QScrollArea."""
+        sa = QScrollArea()
+        sa.setWidget(widget)
+        sa.setWidgetResizable(True)
+        sa.setFrameShape(QFrame.NoFrame)
+        return sa
+
     def _init_ui(self):
         """Initialize the sidebar layout"""
         layout = QVBoxLayout(self)
@@ -983,10 +1434,12 @@ class Sidebar(QWidget):
         self.segmentation_tab = SegmentationTab()
         self.matting_tab = MattingTab()
         self.removal_tab = ObjectRemovalTab()
+        self.corridorkey_tab = CorridorKeyTab()
         
-        self.tab_widget.addTab(self.segmentation_tab, "Segmentation")
-        self.tab_widget.addTab(self.matting_tab, "Matting")
-        self.tab_widget.addTab(self.removal_tab, "Object Removal")
+        self.tab_widget.addTab(self._scrollable(self.segmentation_tab), "Segmentation")
+        self.tab_widget.addTab(self._scrollable(self.matting_tab), "Matting")
+        self.tab_widget.addTab(self._scrollable(self.removal_tab), "Object Removal")
+        self.tab_widget.addTab(self._scrollable(self.corridorkey_tab), "Corridor Key")
         
         layout.addWidget(self.tab_widget)
 
@@ -995,6 +1448,7 @@ class Sidebar(QWidget):
         self.segmentation_tab.load_values_from_settings()
         self.matting_tab.load_values_from_settings()
         self.removal_tab.load_values_from_settings()
+        self.corridorkey_tab.load_values_from_settings()
 
 
 # ==================== MAIN WINDOW ====================
@@ -1013,6 +1467,14 @@ class MainWindow(QMainWindow):
         self.sam_manager = sammie.SamManager()
         self.matany_manager = sammie.MatAnyManager()
         self.removal_manager = sammie.RemovalManager()
+
+        # VideoMaMa manager (imported separately to avoid loading heavy deps at startup)
+        from videomama.videomama_manager import VideoMaMaManager
+        self.videomama_manager = VideoMaMaManager()
+
+        # CorridorKey manager
+        from corridorkey.corridorkey_manager import CorridorKeyManager
+        self.corridorkey_manager = CorridorKeyManager()
         self.point_manager = sammie.PointManager()
         self.highlighted_point = None
         
@@ -1057,6 +1519,7 @@ class MainWindow(QMainWindow):
     
     def _init_ui(self):
         """Initialize the main window UI"""
+        self.setMinimumSize(1280, 800)
         self._create_menu_bar()
         self._create_main_layout()
         self._setup_status_bar()
@@ -1066,7 +1529,7 @@ class MainWindow(QMainWindow):
         self._load_window_settings()
         
     def _load_window_settings(self):
-        """Load window size and position from settings"""
+        """Load window size and position from settings, centered on screen"""
         settings_mgr = self.settings_mgr
         
         width = settings_mgr.app_settings.window_width
@@ -1074,6 +1537,13 @@ class MainWindow(QMainWindow):
         maximized = settings_mgr.app_settings.window_maximized
         
         self.resize(width, height)
+        
+        screen = QApplication.primaryScreen()
+        if screen:
+            avail = screen.availableGeometry()
+            x = avail.x() + (avail.width() - width) // 2
+            y = avail.y() + (avail.height() - height) // 2
+            self.move(max(x, avail.x()), max(y, avail.y()))
         
         if maximized:
             self.showMaximized()
@@ -1098,7 +1568,7 @@ class MainWindow(QMainWindow):
         # Save tracking state
         settings_mgr.set_session_setting("is_propagated", self.sam_manager.propagated)
         settings_mgr.set_session_setting("is_deduplicated", self.sam_manager.deduplicated)
-        settings_mgr.set_session_setting("is_matted", self.matany_manager.propagated)
+        settings_mgr.set_session_setting("is_matted", self.matany_manager.propagated or self.videomama_manager.propagated)
         settings_mgr.set_session_setting("is_removed", self.removal_manager.propagated)
 
     # ==================== SIGNAL CONNECTIONS ====================
@@ -1153,7 +1623,9 @@ class MainWindow(QMainWindow):
             # Store reference to matting tab for status updates
             self.matting_tab = matting_tab
             # Initialize the button status
-            self.matting_tab.update_matting_status(self.matany_manager.propagated)
+            self.matting_tab.update_matting_status(
+                self.matany_manager.propagated or self.videomama_manager.propagated
+            )
 
         # Get the object removal tab
         removal_tab = self.sidebar.removal_tab
@@ -1182,6 +1654,12 @@ class MainWindow(QMainWindow):
             self.removal_tab = removal_tab
             # Initialize the button status
             self.removal_tab.update_removal_status(self.removal_manager.propagated)
+
+        # Get the corridor key tab
+        corridorkey_tab = self.sidebar.corridorkey_tab
+        if corridorkey_tab:
+            corridorkey_tab.run_corridorkey_btn.clicked.connect(self.run_corridorkey)
+            corridorkey_tab.clear_corridorkey_btn.clicked.connect(self.clear_corridorkey)
 
     # ==================== UI CREATION ====================
 
@@ -1506,7 +1984,9 @@ class MainWindow(QMainWindow):
         view_controls_layout.addWidget(QLabel("View:"))
         self.view_combo = QComboBox()
         self.view_combo.addItems([
-            "Segmentation-Edit", "Segmentation-Matte", "Segmentation-BGcolor", "Matting-Matte", "Matting-BGcolor", "ObjectRemoval"
+            "Segmentation-Edit", "Segmentation-Matte", "Segmentation-BGcolor",
+            "Matting-Matte", "Matting-BGcolor", "ObjectRemoval",
+            "CK-Alpha", "CK-FG", "CK-Comp"
         ])
 
         # Always reset the view to "Segmentation-Edit"
@@ -1659,22 +2139,20 @@ class MainWindow(QMainWindow):
     
     def on_tab_changed(self, index):
         """Handle tab changes and automatically switch views"""
-        # Get the tab widget to determine which tab is selected
         tab_widget = self.sidebar.tab_widget
         current_tab = tab_widget.widget(index)
+        if isinstance(current_tab, QScrollArea):
+            current_tab = current_tab.widget()
         
-        # Determine the appropriate view based on the current tab
         if current_tab == self.sidebar.segmentation_tab:
-            # Switch to Segmentation-Edit view
             target_view = "Segmentation-Edit"
         elif current_tab == self.sidebar.matting_tab:
-            # Switch to Matting-Matte view
             target_view = "Matting-Matte"
         elif current_tab == self.sidebar.removal_tab:
-            # Switch to ObjectRemoval view
             target_view = "ObjectRemoval"
+        elif current_tab == self.sidebar.corridorkey_tab:
+            target_view = "CK-Alpha"
         else:
-            # Fallback to current selection if unknown tab
             return
         
         # Only change if it's different from current selection
@@ -1722,6 +2200,7 @@ class MainWindow(QMainWindow):
             self.sam_manager.propagated = False
             self.sam_manager.deduplicated = False
             self.matany_manager.propagated = False
+            self.videomama_manager.propagated = False
             self.removal_manager.propagated = False
             # No image update here - wait for segmentation to complete
             
@@ -1736,6 +2215,7 @@ class MainWindow(QMainWindow):
                 self.sam_manager.propagated = False
                 self.sam_manager.deduplicated = False
                 self.matany_manager.propagated = False
+                self.videomama_manager.propagated = False
                 self.removal_manager.propagated = False
                 # No image update here - wait for segmentation to complete
         
@@ -1747,6 +2227,7 @@ class MainWindow(QMainWindow):
             self.sam_manager.propagated = False
             self.sam_manager.deduplicated = False
             self.matany_manager.propagated = False
+            self.videomama_manager.propagated = False
             self.removal_manager.propagated = False
             # No image update here - wait for segmentation to complete
             self._refresh_table()
@@ -1755,6 +2236,7 @@ class MainWindow(QMainWindow):
             self.sam_manager.clear_tracking()
             self.sam_manager.deduplicated = False
             self.matany_manager.propagated = False
+            self.videomama_manager.propagated = False
             self.removal_manager.propagated = False
             # Rebuild the entire table and update display
             self._refresh_table()
@@ -1770,6 +2252,7 @@ class MainWindow(QMainWindow):
                 self.sam_manager.predictor.reset_state(self.sam_manager.inference_state)
                 self.sam_manager.propagated = False
                 self.matany_manager.propagated = False
+                self.videomama_manager.propagated = False
                 self.removal_manager.propagated = False
             # Rebuild the entire table and update display
             self._refresh_table()
@@ -2026,7 +2509,8 @@ class MainWindow(QMainWindow):
     def clear_tracking_data(self):
         """Clear tracking data"""
         self.sam_manager.clear_tracking()  # This already handles the clearing both propagated and deduplicated
-        self.matany_manager.propagated = False # Clear matting flag
+        self.matany_manager.propagated = False
+        self.videomama_manager.propagated = False # Clear matting flag
         self.sam_manager.deduplicated = False # Clear deduplication flag
         sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
         self.update_tracking_status()
@@ -2043,6 +2527,7 @@ class MainWindow(QMainWindow):
         """Clear matting data"""
         self.matany_manager.clear_matting()
         self.matany_manager.propagated = False
+        self.videomama_manager.propagated = False
         self.update_matting_status()
         self._update_current_frame_display()
 
@@ -2052,6 +2537,70 @@ class MainWindow(QMainWindow):
         self.removal_manager.propagated = False
         self.update_removal_status()
         self._update_current_frame_display()
+
+    def run_corridorkey(self):
+        """Run CorridorKey green screen keying"""
+        self.settings_mgr.save_session_settings()
+        count = len(self.point_manager.points)
+        if count > 0:
+            device = sammie.DeviceManager.get_device()
+            if device.type == 'cpu':
+                show_message_dialog(
+                    self, title="Error",
+                    message="CorridorKey requires a CUDA GPU.",
+                    type="warning"
+                )
+                return
+
+            print("Loading CorridorKey model...")
+            QApplication.processEvents()
+            self.sam_manager.offload_model_to_cpu()
+
+            # Flush residual VRAM from previous models (matting, etc.)
+            import gc
+            gc.collect()
+            torch.cuda.empty_cache()
+
+            try:
+                success = self.corridorkey_manager.run_corridorkey(
+                    self.point_manager.points, parent_window=self
+                )
+            except Exception as e:
+                if "out of memory" in str(e).lower():
+                    print(e)
+                    show_message_dialog(
+                        self, title="Error",
+                        message="An out of memory error occurred. "
+                                "Please restart the application and try again.",
+                        type="warning"
+                    )
+                    success = 0
+                else:
+                    print(f"Error running CorridorKey: {e}")
+                    success = 0
+
+            if success:
+                self._update_current_frame_display()
+
+            QApplication.processEvents()
+            self.settings_mgr.save_session_settings()
+            self.sam_manager.load_model_to_device()
+        else:
+            print("Points must be added on the Segmentation tab before running CorridorKey")
+
+    def clear_corridorkey(self):
+        """Clear CorridorKey results"""
+        import shutil
+        ck_dir = os.path.join(self.settings_mgr.get_session_dir(), "corridorkey")
+        if os.path.exists(ck_dir):
+            shutil.rmtree(ck_dir)
+        self.corridorkey_manager.clear_corridorkey()
+        # Switch back to edit view so point clicks work again
+        current_view = self.view_combo.currentText()
+        if current_view.startswith("CK-"):
+            self.view_combo.setCurrentIndex(0)  # Segmentation-Edit
+        else:
+            self._update_current_frame_display()
 
     def deduplicate_similar_masks(self):
         """Deduplicate similar masks"""
@@ -2069,30 +2618,99 @@ class MainWindow(QMainWindow):
         self.settings_mgr.save_session_settings()
 
     def run_matting(self):
-        """Run matting process"""
+        """Run matting process — dispatches to selected engine"""
         self.settings_mgr.save_session_settings()
         count = len(self.point_manager.points)
-        if count > 0:  
-            #load models
-            print("Loading Matting model...")
+        if count > 0:
+            engine = self.settings_mgr.get_session_setting("matting_engine", "MatAnyone")
+
+            # Engine-specific validation (following ObjectRemovalTab pattern)
+            if engine == "VideoMaMa":
+                device = sammie.DeviceManager.get_device()
+                if device.type == "cpu":
+                    show_message_dialog(
+                        self, title="Error",
+                        message="VideoMaMa is not supported on CPU. Please use MatAnyone instead.",
+                        type="warning"
+                    )
+                    return
+
+                # VRAM warning for undersized GPUs
+                try:
+                    if torch.cuda.is_available():
+                        total_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+                        if total_gb < 12:
+                            reply = QMessageBox.question(
+                                self, "VRAM Warning",
+                                f"VideoMaMa requires ~12GB VRAM.\n"
+                                f"Your GPU has {total_gb:.1f}GB total.\n\n"
+                                f"This may cause a crash. Continue anyway or switch to MatAnyone?",
+                                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+                            )
+                            if reply == QMessageBox.No:
+                                return
+                except Exception:
+                    pass
+
+            print(f"Loading {engine} model...")
             QApplication.processEvents()
             self.sam_manager.offload_model_to_cpu()
-            if not self.matany_manager.load_matting_model(parent_window=self): # load matting model for first time
-                print("Failed to load matting model")
-                return
-            QApplication.processEvents()
-            success = self.matany_manager.run_matting(self.point_manager.points, parent_window=self)
-        
+
+            if engine == "VideoMaMa":
+                # Extra VRAM cleanup for heavy diffusion model
+                import gc
+                gc.collect()
+                torch.cuda.empty_cache()
+                if torch.cuda.is_available():
+                    free_gb = (torch.cuda.get_device_properties(0).total_memory
+                               - torch.cuda.memory_allocated()) / (1024**3)
+                    print(f"VRAM available before VideoMaMa load: {free_gb:.1f} GB")
+
+                if not self.videomama_manager.load_model(parent_window=self):
+                    print("Failed to load VideoMaMa model")
+                    self.sam_manager.load_model_to_device()
+                    return
+                QApplication.processEvents()
+                try:
+                    success = self.videomama_manager.run_matting(
+                        self.point_manager.points, parent_window=self
+                    )
+                except Exception as e:
+                    if "out of memory" in str(e).lower():
+                        print(e)
+                        show_message_dialog(
+                            self, title="Error",
+                            message="An out of memory error occurred. "
+                                    "Please restart the application to fully release GPU memory, "
+                                    "and try again with MatAnyone or lower settings.",
+                            type="warning"
+                        )
+                        success = 0
+                    else:
+                        print(f"Error running VideoMaMa: {e}")
+                        success = 0
+                self.videomama_manager.unload_model()
+            else:
+                # MatAnyone engine (original code path, unchanged)
+                if not self.matany_manager.load_matting_model(parent_window=self):
+                    print("Failed to load matting model")
+                    self.sam_manager.load_model_to_device()
+                    return
+                QApplication.processEvents()
+                success = self.matany_manager.run_matting(
+                    self.point_manager.points, parent_window=self
+                )
+                self.matany_manager.unload_matting_model()
+
             if success:
                 self.update_matting_status()
                 self._update_current_frame_display()
-                
             else:
                 self.update_matting_status()
                 self._update_current_frame_display()
+
             QApplication.processEvents()
             self.settings_mgr.save_session_settings()
-            self.matany_manager.unload_matting_model() # unload matting model since its not needed in memory
             self.sam_manager.load_model_to_device()
         else:
             print("Points must be added on the Segmentation tab before matting")
@@ -2141,6 +2759,7 @@ class MainWindow(QMainWindow):
             if not self.sam_manager.propagated:
                 self.sam_manager.deduplicated = False
                 self.matany_manager.propagated = False
+                self.videomama_manager.propagated = False
                 self.removal_manager.propagated = False
             self.update_deduplicate_status()
 
@@ -2151,7 +2770,9 @@ class MainWindow(QMainWindow):
     def update_matting_status(self):
         """Update the matting status display"""
         if hasattr(self, 'matting_tab'):
-            self.matting_tab.update_matting_status(self.matany_manager.propagated)
+            self.matting_tab.update_matting_status(
+                self.matany_manager.propagated or self.videomama_manager.propagated
+            )
 
     def update_removal_status(self):
         """Update the removal status display"""
@@ -2499,6 +3120,7 @@ class MainWindow(QMainWindow):
         self.point_manager.clear_all()
         self.sam_manager.propagated = False
         self.matany_manager.propagated = False
+        self.videomama_manager.propagated = False
 
         # Create new session
         self.settings_mgr.create_new_session(file_path)

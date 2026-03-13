@@ -10,13 +10,13 @@ from pathlib import Path
 class ApplicationSettings:
     """Global application settings that persist across sessions"""
     # UI Layout
-    main_splitter_sizes: list = field(default_factory=lambda: [1000, 300])
+    main_splitter_sizes: list = field(default_factory=lambda: [1160, 400])
     vertical_splitter_sizes: list = field(default_factory=lambda: [600, 208])
     bottom_splitter_sizes: list = field(default_factory=lambda: [450, 550])
     
     # Window state
-    window_width: int = 1400
-    window_height: int = 900
+    window_width: int = 1600
+    window_height: int = 1000
     window_maximized: bool = False
     
     # View defaults
@@ -37,11 +37,26 @@ class ApplicationSettings:
     default_grow: int = 0
     default_show_all_points: bool = True  # If True, show points from all frames
     
+    # Matting engine defaults
+    default_matting_engine: str = "MatAnyone"
+
     # MatAnyone Processing defaults
     default_matany_grow: int = 0
     default_matany_gamma: float = 1.0
     default_matany_model: str = "MatAnyone2"
     default_matany_res: int = 720
+
+    # VideoMaMa Processing defaults
+    default_videomama_overlap: int = 2
+    default_videomama_resolution: str = "1024x576"
+    default_videomama_vae_tiling: bool = False
+
+    # CorridorKey Processing defaults
+    default_corridorkey_mask_source: str = "Segmentation"
+    default_corridorkey_refiner_scale: float = 1.0
+    default_corridorkey_despill: float = 1.0
+    default_corridorkey_despeckle: bool = True
+    default_corridorkey_despeckle_size: int = 400
 
     # Object Removal Processing defaults
     default_removal_method: str = "Minimax-Remover"
@@ -107,11 +122,28 @@ class SessionSettings:
     border_fix: int = 0
     grow: int = 0
     
+    # Matting engine selection
+    matting_engine: str = "MatAnyone"
+
     # MatAnyone parameters
     matany_grow: int = 0
     matany_gamma: float = 1.0
     matany_model: str = "MatAnyone2"
     matany_res: int = 1080
+
+    # VideoMaMa parameters
+    videomama_overlap: int = 2
+    videomama_resolution: str = "1024x576"
+    videomama_vae_tiling: bool = False
+
+    # CorridorKey parameters
+    corridorkey_mask_source: str = "Segmentation"
+    corridorkey_quality: str = "auto"
+    corridorkey_refiner_scale: float = 1.0
+    corridorkey_despill: float = 1.0
+    corridorkey_despeckle: bool = True
+    corridorkey_despeckle_size: int = 400
+    corridorkey_tiling: bool = False
 
     # Object removal parameters
     inpaint_method: str = "Telea"
@@ -273,6 +305,10 @@ class SettingsManager:
             matany_gamma=self.app_settings.default_matany_gamma,
             matany_model=self.app_settings.default_matany_model,
             matany_res = self.app_settings.default_matany_res,
+            matting_engine=self.app_settings.default_matting_engine,
+            videomama_overlap=self.app_settings.default_videomama_overlap,
+            videomama_resolution=self.app_settings.default_videomama_resolution,
+            videomama_vae_tiling=self.app_settings.default_videomama_vae_tiling,
             inpaint_method=self.app_settings.default_inpaint_method,
             inpaint_radius=self.app_settings.default_inpaint_radius,
             inpaint_grow=self.app_settings.default_inpaint_grow,
@@ -344,10 +380,12 @@ class SettingsManager:
     def get_matting_params(self) -> Dict[str, Any]:
         """Get current matting parameters"""
         return {
+            'matting_engine': self.session_settings.matting_engine,
             'matany_gamma': self.session_settings.matany_gamma,
             'matany_grow': self.session_settings.matany_grow,
             'matany_model': self.session_settings.matany_model,
-            'matany_res': self.session_settings.matany_res
+            'matany_res': self.session_settings.matany_res,
+            'videomama_overlap': self.session_settings.videomama_overlap,
         }
     
     def get_inpainting_params(self) -> Dict[str, Any]:
@@ -360,6 +398,10 @@ class SettingsManager:
             'minimax_resolution': self.session_settings.minimax_resolution,
             'minimax_vae_tiling': self.session_settings.minimax_vae_tiling
         }
+
+    def get_session_dir(self) -> str:
+        """Return the current session temp directory"""
+        return self.temp_dir
 
     def session_exists(self) -> bool:
         """Check if a session exists in temp directory"""
@@ -470,3 +512,14 @@ def save_app_settings() -> bool:
 def save_session_settings() -> bool:
     """Convenience function to save session settings"""
     return get_settings_manager().save_session_settings()
+
+def get_session_dir() -> str:
+    """Convenience function to get the current session temp directory"""
+    return get_settings_manager().get_session_dir()
+
+def get_frame_extension() -> str:
+    """Convenience function to get the current frame file extension (e.g. 'png', 'exr')"""
+    try:
+        return get_settings_manager().session_settings.frame_format
+    except Exception:
+        return "png"  # fallback default

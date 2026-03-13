@@ -148,7 +148,8 @@ class ProResFormat(ExportFormat):
     def get_available_output_types(self) -> List[str]:
         return [
             'Segmentation-Matte', 'Segmentation-Alpha', 'Segmentation-BGcolor',
-            'Matting-Matte', 'Matting-Alpha', 'Matting-BGcolor', 'ObjectRemoval'
+            'Matting-Matte', 'Matting-Alpha', 'Matting-BGcolor', 'ObjectRemoval',
+            'CK-Alpha', 'CK-FG', 'CK-Comp'
         ]
     
     def get_codec_name(self) -> str:
@@ -197,7 +198,8 @@ class FFV1Format(ExportFormat):
     def get_available_output_types(self) -> List[str]:
         return [
             'Segmentation-Matte', 'Segmentation-Alpha', 'Segmentation-BGcolor',
-            'Matting-Matte', 'Matting-Alpha', 'Matting-BGcolor', 'ObjectRemoval'
+            'Matting-Matte', 'Matting-Alpha', 'Matting-BGcolor', 'ObjectRemoval',
+            'CK-Alpha', 'CK-FG', 'CK-Comp'
         ]
     
     def get_codec_name(self) -> str:
@@ -246,7 +248,8 @@ class H264Format(ExportFormat):
     def get_available_output_types(self) -> List[str]:
         return [
             'Segmentation-Matte', 'Segmentation-BGcolor',
-            'Matting-Matte', 'Matting-BGcolor', 'ObjectRemoval'
+            'Matting-Matte', 'Matting-BGcolor', 'ObjectRemoval',
+            'CK-Alpha', 'CK-FG', 'CK-Comp'
         ]
     
     def get_codec_name(self) -> str:
@@ -295,7 +298,8 @@ class H265Format(ExportFormat):
     def get_available_output_types(self) -> List[str]:
         return [
             'Segmentation-Matte', 'Segmentation-BGcolor',
-            'Matting-Matte', 'Matting-BGcolor', 'ObjectRemoval'
+            'Matting-Matte', 'Matting-BGcolor', 'ObjectRemoval',
+            'CK-Alpha', 'CK-FG', 'CK-Comp'
         ]
     
     def get_codec_name(self) -> str:
@@ -344,7 +348,8 @@ class VP9Format(ExportFormat):
     def get_available_output_types(self) -> List[str]:
         return [
             'Segmentation-Matte', 'Segmentation-Alpha', 'Segmentation-BGcolor',
-            'Matting-Matte', 'Matting-Alpha', 'Matting-BGcolor', 'ObjectRemoval'
+            'Matting-Matte', 'Matting-Alpha', 'Matting-BGcolor', 'ObjectRemoval',
+            'CK-Alpha', 'CK-FG', 'CK-Comp'
         ]
     
     def get_codec_name(self) -> str:
@@ -403,7 +408,7 @@ class EXRSequenceFormat(ExportFormat):
         return True
     
     def get_available_output_types(self) -> List[str]:
-        return ['Segmentation-Matte', 'Matting-Matte']
+        return ['Segmentation-Matte', 'Matting-Matte', 'CK-Alpha', 'CK-FG', 'CK-Comp']
     
     def get_codec_name(self) -> Optional[str]:
         return None
@@ -451,7 +456,8 @@ class PNGSequenceFormat(ExportFormat):
     def get_available_output_types(self) -> List[str]:
         return [
             'Segmentation-Matte', 'Segmentation-Alpha', 'Segmentation-BGcolor',
-            'Matting-Matte', 'Matting-Alpha', 'Matting-BGcolor', 'ObjectRemoval'
+            'Matting-Matte', 'Matting-Alpha', 'Matting-BGcolor', 'ObjectRemoval',
+            'CK-Alpha', 'CK-FG', 'CK-Comp'
         ]
     
     def get_codec_name(self) -> Optional[str]:

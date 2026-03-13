@@ -4,6 +4,7 @@ Export worker threads for different export modes.
 """
 import os
 import av
+import cv2
 import numpy as np
 import OpenEXR
 import Imath
@@ -140,7 +141,7 @@ class VideoExportWorker(BaseExportWorker):
             total_progress_steps = self.export_frame_count
         
         object_id_filter = None if object_id == -1 else object_id
-        has_alpha = 'Alpha' in self.settings.output_type
+        has_alpha = self.settings.output_type in ('Segmentation-Alpha', 'Matting-Alpha')
         
         # Create output container
         container = av.open(output_path, mode='w')
@@ -182,6 +183,10 @@ class VideoExportWorker(BaseExportWorker):
                 
                 if frame_array is None:
                     continue
+                
+                # Downconvert 16-bit to 8-bit for video codecs
+                if frame_array.dtype == np.uint16:
+                    frame_array = (frame_array >> 8).astype(np.uint8)
                 
                 # Handle alpha channel
                 if has_alpha and frame_array.shape[2] != 4:
@@ -290,33 +295,40 @@ class SequenceExportWorker(BaseExportWorker):
                 exr_data = {}
                 view_options = self._get_view_options(self.settings.output_type, self.settings.antialias)
                 
+                is_rgb_output = self.settings.output_type in ('CK-FG', 'CK-Comp')
+
                 # Export each object as a layer
                 for obj_id in all_object_ids:
-                    mask_array = sammie.update_image(
+                    frame_array = sammie.update_image(
                         frame_num, view_options, self.points,
                         return_numpy=True, object_id_filter=obj_id
                     )
                     
-                    if mask_array is not None:
-                        # Convert to grayscale if needed
-                        if len(mask_array.shape) == 3 and mask_array.shape[2] > 1:
-                            mask_array = mask_array[:, :, 0]
+                    if frame_array is not None:
+                        # Normalize to 0-1 float
+                        if frame_array.dtype == np.uint8:
+                            frame_array = frame_array.astype(np.float32) / 255.0
+                        elif frame_array.dtype == np.uint16:
+                            frame_array = frame_array.astype(np.float32) / 65535.0
+                        elif frame_array.dtype != np.float32:
+                            frame_array = frame_array.astype(np.float32)
                         
-                        # Normalize to 0-1 range
-                        if mask_array.dtype == np.uint8:
-                            mask_array = mask_array.astype(np.float32) / 255.0
-                        elif mask_array.dtype != np.float32:
-                            mask_array = mask_array.astype(np.float32)
-                        
-                        # Generate layer name
+                        # Generate layer name prefix
                         object_name = object_names.get(str(obj_id), "")
                         if object_name:
                             sanitized_name = self._sanitize_name(object_name)
-                            layer_name = f'{obj_id}_{sanitized_name}'
+                            layer_prefix = f'{obj_id}_{sanitized_name}'
                         else:
-                            layer_name = f'{obj_id}'
+                            layer_prefix = f'{obj_id}'
                         
-                        exr_data[layer_name] = mask_array
+                        if is_rgb_output and len(frame_array.shape) == 3 and frame_array.shape[2] >= 3:
+                            exr_data[f'{layer_prefix}.R'] = frame_array[:, :, 0]
+                            exr_data[f'{layer_prefix}.G'] = frame_array[:, :, 1]
+                            exr_data[f'{layer_prefix}.B'] = frame_array[:, :, 2]
+                        else:
+                            if len(frame_array.shape) == 3 and frame_array.shape[2] > 1:
+                                frame_array = frame_array[:, :, 0]
+                            exr_data[layer_prefix] = frame_array
                 
                 # Include original frame if requested
                 if self.settings.include_original:
@@ -365,7 +377,7 @@ class SequenceExportWorker(BaseExportWorker):
         """Export PNG frame sequence"""
         output_dir = self.settings.output_dir
         object_id_filter = None if self.settings.object_id == -1 else self.settings.object_id
-        has_alpha = 'Alpha' in self.settings.output_type
+        has_alpha = self.settings.output_type in ('Segmentation-Alpha', 'Matting-Alpha')
         
         exported_files = []
         
@@ -390,15 +402,18 @@ class SequenceExportWorker(BaseExportWorker):
                 if frame_array is not None:
                     # Handle alpha channel
                     if has_alpha and frame_array.shape[2] != 4:
-                        alpha_channel = np.full((frame_array.shape[0], frame_array.shape[1], 1), 255, dtype=np.uint8)
+                        alpha_channel = np.full((frame_array.shape[0], frame_array.shape[1], 1), 255, dtype=frame_array.dtype)
                         frame_array = np.concatenate([frame_array, alpha_channel], axis=2)
                     elif not has_alpha and frame_array.shape[2] == 4:
                         frame_array = frame_array[:, :, :3]
                     
-                    # Save as PNG using PIL
-                    mode = 'RGBA' if has_alpha else 'RGB'
-                    img = Image.fromarray(frame_array, mode=mode)
-                    img.save(frame_path, 'PNG')
+                    if frame_array.dtype == np.uint16:
+                        # 16-bit PNG via OpenCV (CK outputs)
+                        cv2.imwrite(frame_path, cv2.cvtColor(frame_array, cv2.COLOR_RGB2BGR))
+                    else:
+                        mode = 'RGBA' if has_alpha else 'RGB'
+                        img = Image.fromarray(frame_array, mode=mode)
+                        img.save(frame_path, 'PNG')
                     exported_files.append(frame_path)
                 
                 progress = int((i + 1) / self.export_frame_count * 100)

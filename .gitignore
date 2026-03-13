@@ -4,11 +4,10 @@ temp/
 sammie_debug.log
 sammie_settings.json
 sammie_settings.conf
-checkpoints/matanyone.pth
-checkpoints/sam2.1_hiera_base_plus.pt
-checkpoints/sam2.1_hiera_large.pt
-checkpoints/transformer/diffusion_pytorch_model.safetensors
-checkpoints/vae/diffusion_pytorch_model.safetensors
+clean_for_git.sh
+GIT_SUBMIT.md
+# All downloaded models and checkpoints (CorridorKey, VideoMaMa, SVD, SAM2, MatAnyone, etc.)
+checkpoints/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

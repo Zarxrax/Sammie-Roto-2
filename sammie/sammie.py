@@ -33,6 +33,7 @@ mask_dir = os.path.join(temp_dir, "masks")
 backup_dir = os.path.join(temp_dir, "masks_backup")
 matting_dir = os.path.join(temp_dir, "matting")
 removal_dir = os.path.join(temp_dir, "removal")
+corridorkey_dir = os.path.join(temp_dir, "corridorkey")
 smoothing_model = None #global variable needed to avoid complexity of passing the model around
 
 PALETTE = [
@@ -103,6 +104,8 @@ class DeviceManager:
     def clear_cache(cls):
         if cls._device is None:
             return
+        import gc
+        gc.collect()
         if cls._device.type == "cuda":
             torch.cuda.empty_cache()
         elif cls._device.type == "mps":
@@ -1539,6 +1542,12 @@ def update_image(slider_value, view_options, points, return_numpy=False, object_
         return _handle_matting_alpha_view(slider_value, view_options, points, return_numpy, object_id_filter)
     elif view_mode == "ObjectRemoval":
         return _handle_object_removal_view(slider_value, view_options, points, return_numpy, object_id_filter)
+    elif view_mode == "CK-Alpha":
+        return _handle_ck_alpha_view(slider_value, view_options, points, return_numpy, object_id_filter)
+    elif view_mode == "CK-FG":
+        return _handle_ck_fg_view(slider_value, view_options, points, return_numpy, object_id_filter)
+    elif view_mode == "CK-Comp":
+        return _handle_ck_comp_view(slider_value, view_options, points, return_numpy, object_id_filter)
     elif view_mode == "None":
         return _handle_none_view(slider_value, return_numpy)
     else:
@@ -1924,6 +1933,105 @@ def draw_masks(image, processed_masks):
         return overlay
     else:
         return image
+
+
+# ==================== CorridorKey View Handlers ====================
+
+def _load_ck_output(frame_number, subdir, object_id, color=False):
+    """Load a CorridorKey output image for the given frame and object.
+
+    Uses IMREAD_UNCHANGED to preserve 16-bit precision when available.
+    Returns uint16 arrays for 16-bit PNGs, uint8 for legacy 8-bit files.
+
+    Args:
+        frame_number: Frame number
+        subdir: Subdirectory name ('alpha', 'fg', 'comp')
+        object_id: Object ID
+        color: If True, load as color (BGR->RGB). If False, load grayscale.
+
+    Returns:
+        numpy array (uint8 or uint16) or None
+    """
+    path = os.path.join(corridorkey_dir, subdir, f"{frame_number:05d}", f"{object_id}.png")
+    if not os.path.exists(path):
+        return None
+    img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+    if img is None:
+        return None
+    if color:
+        if img.ndim == 3:
+            return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        return cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    else:
+        if img.ndim == 3:
+            return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        return img
+
+
+def _handle_ck_alpha_view(frame_number, view_options, points, return_numpy=False, object_id_filter=None):
+    """Handle CK-Alpha view: shows the CorridorKey refined alpha matte."""
+    if object_id_filter is not None:
+        object_ids = [object_id_filter]
+    else:
+        object_ids = sorted(set(p['object_id'] for p in points if 'object_id' in p))
+    if not object_ids:
+        return None
+
+    first_alpha = _load_ck_output(frame_number, "alpha", object_ids[0], color=False)
+    if first_alpha is None:
+        return _handle_none_view(frame_number, return_numpy)
+
+    h, w = first_alpha.shape[:2]
+    combined = np.zeros((h, w), dtype=np.float32)
+    for oid in object_ids:
+        alpha = _load_ck_output(frame_number, "alpha", oid, color=False)
+        if alpha is not None:
+            max_val = 65535.0 if alpha.dtype == np.uint16 else 255.0
+            combined = np.maximum(combined, alpha.astype(np.float32) / max_val)
+    combined = np.clip(combined, 0, 1)
+
+    if return_numpy:
+        result = (combined * 65535).astype(np.uint16)
+        return np.stack([result] * 3, axis=-1)
+    else:
+        result = (combined * 255).astype(np.uint8)
+        return _convert_to_qpixmap(np.stack([result] * 3, axis=-1))
+
+
+def _handle_ck_fg_view(frame_number, view_options, points, return_numpy=False, object_id_filter=None):
+    """Handle CK-FG view: shows the CorridorKey despilled foreground."""
+    oid = object_id_filter if object_id_filter is not None else next(
+        (p['object_id'] for p in points if 'object_id' in p), None)
+    if oid is None:
+        return None
+
+    fg = _load_ck_output(frame_number, "fg", oid, color=True)
+    if fg is None:
+        return _handle_none_view(frame_number, return_numpy)
+
+    if return_numpy:
+        return fg
+    else:
+        display = (fg >> 8).astype(np.uint8) if fg.dtype == np.uint16 else fg
+        return _convert_to_qpixmap(display)
+
+
+def _handle_ck_comp_view(frame_number, view_options, points, return_numpy=False, object_id_filter=None):
+    """Handle CK-Comp view: shows CorridorKey composite on checkerboard."""
+    oid = object_id_filter if object_id_filter is not None else next(
+        (p['object_id'] for p in points if 'object_id' in p), None)
+    if oid is None:
+        return None
+
+    comp = _load_ck_output(frame_number, "comp", oid, color=True)
+    if comp is None:
+        return _handle_none_view(frame_number, return_numpy)
+
+    if return_numpy:
+        return comp
+    else:
+        display = (comp >> 8).astype(np.uint8) if comp.dtype == np.uint16 else comp
+        return _convert_to_qpixmap(display)
 
 def draw_removal_overlay(image, mask):
     """Draw masked overlay on the current frame for object removal"""
