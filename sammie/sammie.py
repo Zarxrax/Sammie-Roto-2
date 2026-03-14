@@ -157,7 +157,6 @@ class SamManager:
             return False
         
         self.predictor = build_sam2_video_predictor(model_cfg, checkpoint, device=device)
-        self.predictor = build_sam2_video_predictor('../configs/efficienttam_s_512x512.yaml', './checkpoints/efficienttam_s_512x512.pt', device=device)
         self.loaded_model_name = sam_model
         return True # model loaded successfully
 
