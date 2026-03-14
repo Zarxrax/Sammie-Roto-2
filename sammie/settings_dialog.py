@@ -77,7 +77,7 @@ class SettingsDialog(QDialog):
         """Create the defaults settings tab"""
         tab = QWidget()
         layout = QVBoxLayout(tab)
-        
+
         # View defaults group
         view_group = QGroupBox("View Defaults")
         view_layout = QFormLayout(view_group)
@@ -96,10 +96,15 @@ class SettingsDialog(QDialog):
         
         layout.addWidget(view_group)
         
-        # Processing defaults group
-        proc_group = QGroupBox("Segmentation Postprocessing Defaults")
+        # Segmentation Processing defaults group
+        proc_group = QGroupBox("Segmentation Defaults")
         proc_layout = QFormLayout(proc_group)
         
+        #self.default_sam_model_combo = QComboBox()
+        #self.default_sam_model_combo.addItems(["Base", "Large", "Efficient"])
+        #self.default_sam_model_combo.setToolTip("Large model is slower but slightly more accurate. Efficient model is faster but less accurate.")
+        #proc_layout.addRow("SAM Model:", self.default_sam_model_combo)
+
         self.default_holes_spin = QSpinBox()
         self.default_holes_spin.setRange(0, 50)
         proc_layout.addRow("Default Remove Holes:", self.default_holes_spin)
@@ -198,22 +203,15 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(tab)
         
         # Model settings group
-        model_group = QGroupBox("Model Settings")
-        model_layout = QFormLayout(model_group)
-        model_layout.addRow("", QLabel("Model changes require restart"))
-        
-        # SAM model selection
-        self.sam_model_combo = QComboBox()
-        self.sam_model_combo.addItems(["Base", "Large", "Efficient"])
-        self.sam_model_combo.setToolTip("Large model is slower but slightly more accurate. Efficient model is faster but less accurate.")
-        model_layout.addRow("SAM Model:", self.sam_model_combo)
+        device_group = QGroupBox("Hardware Settings")
+        device_layout = QFormLayout(device_group)
         
         # Force CPU checkbox
         self.force_cpu_cb = QCheckBox()
         self.force_cpu_cb.setToolTip("Force processing to use CPU instead of GPU. Only used for debugging purposes.")
-        model_layout.addRow("Force CPU Processing:", self.force_cpu_cb)
+        device_layout.addRow("Force CPU Processing (requires restart):", self.force_cpu_cb)
         
-        layout.addWidget(model_group)
+        layout.addWidget(device_group)
         
         # Frame extraction settings group
         frame_group = QGroupBox("Video frame extraction")
@@ -271,7 +269,8 @@ class SettingsDialog(QDialog):
         """Load current settings values into the dialog"""
         app_settings = self.settings_mgr.app_settings
         
-        # Defaults tab        
+        # Defaults tab
+        #self.default_sam_model_combo.setCurrentText(app_settings.default_sam_model)
         self.default_show_masks_cb.setChecked(app_settings.default_show_masks)
         self.default_show_outlines_cb.setChecked(app_settings.default_show_outlines)
         self.default_antialias_cb.setChecked(app_settings.default_antialias)
@@ -306,7 +305,6 @@ class SettingsDialog(QDialog):
         self.default_minimax_steps_spin.setValue(app_settings.default_minimax_steps)
 
         # General tab
-        self.sam_model_combo.setCurrentText(app_settings.sam_model)
         self.force_cpu_cb.setChecked(app_settings.force_cpu)
         self.frame_format_combo.setCurrentText(app_settings.frame_format)
         self.display_update_slider.setValue(app_settings.display_update_frequency)
@@ -319,6 +317,7 @@ class SettingsDialog(QDialog):
         app_settings = self.settings_mgr.app_settings
         
         # Defaults tab
+        #app_settings.default_sam_model = self.default_sam_model_combo.currentText()
         app_settings.default_show_masks = self.default_show_masks_cb.isChecked()
         app_settings.default_show_outlines = self.default_show_outlines_cb.isChecked()
         app_settings.default_antialias = self.default_antialias_cb.isChecked()
@@ -352,7 +351,6 @@ class SettingsDialog(QDialog):
         app_settings.default_minimax_steps = self.default_minimax_steps_spin.value()
 
         # General tab
-        app_settings.sam_model = self.sam_model_combo.currentText()
         app_settings.force_cpu = self.force_cpu_cb.isChecked()
         app_settings.frame_format = self.frame_format_combo.currentText()
         app_settings.display_update_frequency = self.display_update_slider.value()

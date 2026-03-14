@@ -10,8 +10,8 @@ _links = [
     ('https://huggingface.co/yunyangx/efficient-track-anything/resolve/main/efficienttam_s_512x512.pt', '962e151a9dca3b75d8228a16e5264010', 'checkpoints'),
     ('https://github.com/pq-yang/MatAnyone2/releases/download/v1.0.0/matanyone2.pth', 'b1d3cfbb7596ecf3b88391198427ca95', 'checkpoints'),
     ('https://github.com/pq-yang/MatAnyone/releases/download/v1.0.0/matanyone.pth', 'a50eeaa149a37509feb45e3d6b06f41d', 'checkpoints'),
-    ('https://huggingface.co/zibojia/minimax-remover/resolve/main/transformer/diffusion_pytorch_model.safetensors','183c7a631e831f73f8da64c5c4d83e2f', 'checkpoints/transformer'),
-    ('https://huggingface.co/zibojia/minimax-remover/resolve/main/vae/diffusion_pytorch_model.safetensors','3f80444947443d8f36c0ed2497c20c8d', 'checkpoints/vae'),
+    ('https://huggingface.co/zibojia/minimax-remover/resolve/main/transformer/diffusion_pytorch_model.safetensors','183c7a631e831f73f8da64c5c4d83e2f', 'checkpoints/minimax/transformer'),
+    ('https://huggingface.co/zibojia/minimax-remover/resolve/main/vae/diffusion_pytorch_model.safetensors','3f80444947443d8f36c0ed2497c20c8d', 'checkpoints/minimax/vae'),
 ]
 
 def download_models():

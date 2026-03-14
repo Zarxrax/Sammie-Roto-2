@@ -105,11 +105,11 @@ def _md5(path: Path, chunk: int = 1 << 20) -> str:
 
 class _DownloadWorker(QObject):
     # file-level signals
-    file_started = Signal(int, str)          # (index, filename)
-    file_progress = Signal(int, int, int)    # (index, bytes_done, bytes_total)
-    file_done = Signal(int)                  # (index,)
-    file_skipped = Signal(int, str)          # (index, filename)
-    file_error = Signal(int, str)            # (index, error_message)
+    file_started = Signal(int, str)                 # (index, filename)
+    file_progress = Signal(int, float, float, int)  # (index, mb_done, mb_total, percent)
+    file_done = Signal(int)                         # (index,)
+    file_skipped = Signal(int, str)                 # (index, filename)
+    file_error = Signal(int, str)                   # (index, error_message)
 
     # overall
     overall_progress = Signal(int, int)      # (files_done, files_total)
@@ -121,6 +121,11 @@ class _DownloadWorker(QObject):
         self._specs = specs
         self._abort = False
         self._current_response = None  # set during active download
+    
+        self._session = requests.Session()
+        self._session.headers.update({
+            "Accept-Encoding": "identity"
+        })
 
     @Slot()
     def run(self) -> None:
@@ -163,12 +168,15 @@ class _DownloadWorker(QObject):
         self.all_done.emit()
 
     def _download_one(self, idx: int, spec: DownloadSpec) -> None:
-        response = requests.get(spec.url, stream=True, timeout=30)
+        self._current_response = self._session.get(spec.url, stream=True, timeout=30)
+        response = self._current_response
         response.raise_for_status()
 
         total_size = int(response.headers.get("content-length", 0))
         downloaded = 0
-        chunk_size = 64 * 1024  # 64 KB
+        chunk_size = 1024 * 1024
+        last_emit = 0
+        emit_interval = 1 * 1024 * 1024  # emit every 1 MB
 
         with open(spec.part_path, "wb") as f:
             for chunk in response.iter_content(chunk_size):
@@ -177,7 +185,17 @@ class _DownloadWorker(QObject):
                 if chunk:
                     f.write(chunk)
                     downloaded += len(chunk)
-                    self.file_progress.emit(idx, downloaded, total_size)
+
+                    if downloaded - last_emit >= emit_interval or downloaded == total_size:
+                        mb_done = downloaded / 1_048_576
+                        mb_total = total_size / 1_048_576 if total_size else 0
+                        pct = int(downloaded / total_size * 100) if total_size else 0
+
+                        self.file_progress.emit(idx, mb_done, mb_total, pct)
+                        last_emit = downloaded
+
+        # download finished — no active network socket anymore
+        self._current_response = None
 
         # Verify checksum
         actual_md5 = _md5(spec.part_path)
@@ -320,17 +338,13 @@ class ModelDownloadDialog(QDialog):
         self._file_bar.setValue(0)
         self._file_bar.setFormat("%p%")
 
-    @Slot(int, int, int)
-    def _on_file_progress(self, idx: int, done: int, total: int) -> None:
-        if total > 0:
-            pct = int(done / total * 100)
+    @Slot(int, float, float, int)
+    def _on_file_progress(self, idx: int, mb_done: float, mb_total: float, pct: int) -> None:
+        if mb_total > 0:
             self._file_bar.setValue(pct)
-            mb_done = done / 1_048_576
-            mb_total = total / 1_048_576
-            self._file_bar.setFormat(f"%p%  ({mb_done:.1f} / {mb_total:.1f} MB)")
+            self._file_bar.setFormat(f"{pct}%  ({mb_done:.1f} / {mb_total:.1f} MB)")
         else:
-            # Unknown content-length: show bytes
-            self._file_bar.setRange(0, 0)  # indeterminate
+            self._file_bar.setRange(0, 0)
 
     @Slot(int, str)
     def _on_file_skipped(self, idx: int, filename: str) -> None:
@@ -364,10 +378,11 @@ class ModelDownloadDialog(QDialog):
     def _on_all_done(self) -> None:
         self._thread.quit()
         self._success = True
-        self._status_label.setText("All models downloaded successfully.")
-        self._cancel_btn.setText("Close")
-        self._cancel_btn.clicked.disconnect()
-        self._cancel_btn.clicked.connect(self.accept)
+        self.accept() # auto-close
+        #self._status_label.setText("All models downloaded successfully.")
+        #self._cancel_btn.setText("Close")
+        #self._cancel_btn.clicked.disconnect()
+        #self._cancel_btn.clicked.connect(self.accept)
 
     @Slot()
     def _on_cancelled(self) -> None:
@@ -455,17 +470,17 @@ def ensure_models(
 # ---------------------------------------------------------------------------
 
 MODEL_REGISTRY: "dict[str, DownloadSpec]" = {
-    "sam2_large": DownloadSpec(
+    "Large": DownloadSpec(
         url="https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt",
         md5="2b30654b6112c42a115563c638d238d9",
         dest_dir="checkpoints",
     ),
-    "sam2_base_plus": DownloadSpec(
+    "Base": DownloadSpec(
         url="https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt",
         md5="ec7bd7d23d280d5e3cfa45984c02eda5",
         dest_dir="checkpoints",
     ),
-    "efficienttam": DownloadSpec(
+    "Efficient": DownloadSpec(
         url="https://huggingface.co/yunyangx/efficient-track-anything/resolve/main/efficienttam_s_512x512.pt",
         md5="962e151a9dca3b75d8228a16e5264010",
         dest_dir="checkpoints",
@@ -483,12 +498,12 @@ MODEL_REGISTRY: "dict[str, DownloadSpec]" = {
     "minimax_transformer": DownloadSpec(
         url="https://huggingface.co/zibojia/minimax-remover/resolve/main/transformer/diffusion_pytorch_model.safetensors",
         md5="183c7a631e831f73f8da64c5c4d83e2f",
-        dest_dir="checkpoints/transformer",
+        dest_dir="checkpoints/minimax/transformer",
     ),
     "minimax_vae": DownloadSpec(
         url="https://huggingface.co/zibojia/minimax-remover/resolve/main/vae/diffusion_pytorch_model.safetensors",
         md5="3f80444947443d8f36c0ed2497c20c8d",
-        dest_dir="checkpoints/vae",
+        dest_dir="checkpoints/minimax/vae",
     ),
 }
 
@@ -507,7 +522,7 @@ if __name__ == "__main__":
     btn = QPushButton("Download SAM2 Models")
 
     def launch():
-        ok = ensure_models(["sam2_large", "sam2_base_plus"], parent=win, title="Downloading SAM2 Models")
+        ok = ensure_models(["Base", "Large"], parent=win, title="Downloading SAM2 Models")
         print("All models ready:", ok)
 
     btn.clicked.connect(launch)

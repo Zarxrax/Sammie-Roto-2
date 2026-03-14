@@ -33,7 +33,7 @@ from sammie.gui_widgets import (
 
 # ==================== VERSION ====================
 
-__version__ = "2.2.0"
+__version__ = "2.2.1"
 
 # ==================== LOGGING HELPER ====================
 
@@ -78,6 +78,9 @@ class SegmentationTab(QWidget):
         
         # Add Point group
         self._create_add_point_group(layout)
+
+        # Model Selection group
+        self._create_model_selection_group(layout)
         
         # Clear Points group
         self._create_clear_points_group(layout)
@@ -150,6 +153,24 @@ class SegmentationTab(QWidget):
         
         layout.addWidget(add_point_group)
     
+    def _create_model_selection_group(self, layout):
+        """Create the Model Selection group"""
+        model_group = QGroupBox("Model Selection")
+        model_layout_row = QHBoxLayout(model_group)
+        
+        settings_mgr = get_settings_manager()
+        settings_mgr.get_session_setting("default_sam_model", "Base")
+
+        self.sam_model_combo = QComboBox()
+        self.sam_model_combo.addItems(["Base", "Large", "Efficient"])
+        self.sam_model_combo.setToolTip("Large model is slower but slightly more accurate.\nEfficient model is faster but less accurate.")
+        self.sam_model_btn = QPushButton("Load Model")
+
+        model_layout_row.addWidget(self.sam_model_combo)
+        model_layout_row.addWidget(self.sam_model_btn)
+        
+        layout.addWidget(model_group)
+
     def _create_clear_points_group(self, layout):
         """Create the Clear Points group with all clearing actions"""
         clear_group = QGroupBox("Clear Points")
@@ -330,6 +351,14 @@ class SegmentationTab(QWidget):
         # Update object name
         self._update_name_display(0)
         
+        model = settings_mgr.get_session_setting("sam_model", "Base")
+        if model == "Base":
+            self.sam_model_combo.setCurrentIndex(0)
+        elif model == "Large":
+            self.sam_model_combo.setCurrentIndex(1)
+        elif model == "Efficient":
+            self.sam_model_combo.setCurrentIndex(2)
+
         # Update sliders
         slider_mappings = [
             ("holes", self.holes_slider, self.holes_value),
@@ -342,7 +371,6 @@ class SegmentationTab(QWidget):
             value = settings_mgr.get_session_setting(setting_key, 0)
             slider.setValue(value)
             value_label.setText(str(value))
-
 
 class MattingTab(QWidget):
     """Tab containing matting controls and parameters"""
@@ -1039,7 +1067,7 @@ class MainWindow(QMainWindow):
         print(f"Sammie-Roto version {__version__}")
         self.update_checker.check_for_updates()
         sammie.DeviceManager.setup_device()
-        self.sam_manager.load_segmentation_model()
+        self.sam_manager.load_segmentation_model(parent_window=self)
         #self.matany_manager.load_matting_model(load_to_cpu=True)
         
         # Load file or resume session
@@ -1119,6 +1147,7 @@ class MainWindow(QMainWindow):
         if seg_tab:
             seg_tab.parent_window = self
             # Connect segmentation tab buttons
+            seg_tab.sam_model_btn.clicked.connect(self.load_segmentation_model)
             seg_tab.undo_last_point_btn.clicked.connect(self.undo_last_point)
             seg_tab.clear_frame_btn.clicked.connect(self.clear_frame_points)
             seg_tab.clear_object_btn.clicked.connect(self.clear_object_points)
@@ -2004,6 +2033,22 @@ class MainWindow(QMainWindow):
 
     # ==================== PROCESSING OPERATIONS ====================
     
+    def load_segmentation_model(self):
+        """Load a new SAM model"""
+        model = self.segmentation_tab.sam_model_combo.currentText()
+        if model == self.sam_manager.loaded_model_name:
+            print("Model is already loaded")
+            return
+        self.sam_manager.unload_segmentation_model()
+        QApplication.processEvents()
+        if self.sam_manager.load_segmentation_model(model, parent_window=self):
+            self.sam_manager.initialize_predictor()
+            settings_mgr = get_settings_manager()
+            settings_mgr.set_session_setting("sam_model", model)
+            settings_mgr.set_app_setting("default_sam_model", model)
+        else:
+            print("Failed to load segmentation model")
+
     def track_objects(self):
         """Run object tracking using current points"""
         self.settings_mgr.save_session_settings()
@@ -2746,13 +2791,8 @@ class MainWindow(QMainWindow):
             print("Application settings saved.")
 
             # Prompt to restart if needed
-            if (cpu != self.settings_mgr.get_app_setting("force_cpu", 0)
-                or segmentation != self.settings_mgr.get_app_setting("sam_model", "None")):
-                # Check if efficient model is missing
-                if self.settings_mgr.get_app_setting("sam_model", "None") == "Efficient":
-                    if not os.path.exists("./checkpoints/efficienttam_s_512x512.pt"):
-                        show_message_dialog(self, title="Model not found", message="The Efficient model was not found. Please run 'install_dependencies' and select the option to download models.", type="warning")
-                show_message_dialog(self, title="Restart Required", message="You must restart the application for model or device changes to take effect.", type="info")
+            if cpu != self.settings_mgr.get_app_setting("force_cpu", 0):
+                show_message_dialog(self, title="Restart Required", message="You must restart the application for device changes to take effect.", type="info")
 
     # ==================== UPDATE CHECKER ====================
     

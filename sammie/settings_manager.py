@@ -31,6 +31,7 @@ class ApplicationSettings:
     default_object_id: int = 0
     
     # Segmentation Processing defaults
+    default_sam_model: str = "Base"
     default_holes: int = 0
     default_dots: int = 0
     default_border_fix: int = 0
@@ -56,7 +57,6 @@ class ApplicationSettings:
     playback_fps: int = 24  # frames per second for playback
     
     # Performance
-    sam_model: str = "Base"
     force_cpu: bool = False    
     frame_format: str = "png"
     display_update_frequency: int = 5
@@ -102,6 +102,7 @@ class SessionSettings:
     show_all_points: bool = True  # If True, show points from all frames
     
     # Segmentation parameters
+    sam_model: str = "Base"
     holes: int = 0
     dots: int = 0
     border_fix: int = 0
@@ -265,6 +266,7 @@ class SettingsManager:
             show_removal_mask=self.app_settings.default_show_removal_mask,
             bgcolor=self.app_settings.default_bgcolor,
             show_all_points=self.app_settings.default_show_all_points,
+            sam_model=self.app_settings.default_sam_model,
             holes=self.app_settings.default_holes,
             dots=self.app_settings.default_dots,
             border_fix=self.app_settings.default_border_fix,

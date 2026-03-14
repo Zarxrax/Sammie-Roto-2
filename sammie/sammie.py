@@ -111,6 +111,7 @@ class DeviceManager:
 class SamManager:
     def __init__(self):
         self.model = None
+        self.loaded_model_name = None
         self.predictor = None
         self.inference_state = None
         self.propagated = False # whether we have propagated the masks
@@ -130,9 +131,12 @@ class SamManager:
                 print(f"Callback error: {e}")
                 
     # Load the sam2 model
-    def load_segmentation_model(self):
-        settings_mgr = get_settings_manager()
-        sam_model = settings_mgr.get_app_setting("sam_model", "Base")
+    def load_segmentation_model(self, model=None, parent_window=None):
+        if model is None:
+            settings_mgr = get_settings_manager()
+            sam_model = settings_mgr.get_session_setting("sam_model", "Base")
+        else:
+            sam_model = model
         DeviceManager.clear_cache()
         device = DeviceManager.get_device()
         if sam_model == "Large":
@@ -149,13 +153,20 @@ class SamManager:
             model_cfg = "../configs/efficienttam_s_512x512.yaml"
 
         # Check if files exist
-        if not os.path.exists(checkpoint):
-            raise FileNotFoundError(
-                f"Model checkpoint not found: {checkpoint}\n"
-                f"Please run 'install_dependencies' and select the option to download models."
-            )
+        if not ensure_models(sam_model, parent=parent_window):
+            return False
         
         self.predictor = build_sam2_video_predictor(model_cfg, checkpoint, device=device)
+        self.predictor = build_sam2_video_predictor('../configs/efficienttam_s_512x512.yaml', './checkpoints/efficienttam_s_512x512.pt', device=device)
+        self.loaded_model_name = sam_model
+        return True # model loaded successfully
+
+    def unload_segmentation_model(self):
+        """Unload the SAM model and clear cache"""
+        self.predictor = None
+        self.inference_state = None
+        DeviceManager.clear_cache()
+        print("Unloaded Segmentation model")
 
     def offload_model_to_cpu(self):
         """Offload SAM2 model to CPU to free VRAM"""
@@ -863,7 +874,7 @@ class RemovalManager:
             except Exception as e:
                 print(f"Callback error: {e}")
     
-    def load_minimax_model(self):
+    def load_minimax_model(self, parent_window=None):
         from diffusers.models import AutoencoderKLWan
         from diffusers.schedulers import UniPCMultistepScheduler
         from minimax_remover.pipeline_minimax_remover import Minimax_Remover_Pipeline
@@ -874,8 +885,26 @@ class RemovalManager:
         DeviceManager.clear_cache()
         device = DeviceManager.get_device()
 
-        """Load the minimax remover models."""
-        model_path="./checkpoints/"
+        # Move the models into minimax folder (for better organization) if they aren't already there
+        # This will be removed in a future version
+        try:
+            if not os.path.exists("checkpoints/minimax"):
+                os.makedirs("checkpoints/minimax")
+            if os.path.exists("checkpoints/transformer") :
+                shutil.move("checkpoints/transformer", "checkpoints/minimax/transformer")
+            if os.path.exists("checkpoints/vae") :
+                shutil.move("checkpoints/vae", "checkpoints/minimax/vae")
+            if os.path.exists("checkpoints/scheduler") :
+                shutil.move("checkpoints/scheduler", "checkpoints/minimax/scheduler")
+        except Exception as e:
+            print(f"Warning: Failed to move existing model files: {e}")
+
+        # download models if they don't exist
+        if not ensure_models(["minimax_transformer", "minimax_vae"], parent=parent_window): 
+            return False
+
+        # Load the minimax remover models.
+        model_path="./checkpoints/minimax/"
         vae = AutoencoderKLWan.from_pretrained(
             f"{model_path}/vae", 
             torch_dtype = torch.float16,
@@ -958,7 +987,7 @@ class RemovalManager:
         QApplication.processEvents()
 
         # Load model
-        self.load_minimax_model()
+        self.load_minimax_model(parent_window=parent_window)
         if self.pipe is None:
             print("Error loading MiniMax-Remover model")
             progress_dialog.close()
