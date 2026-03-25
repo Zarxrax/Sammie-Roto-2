@@ -953,6 +953,18 @@ class RemovalManager:
         blank_image = self.resize_image_minimax(blank_image, mask=True)
         resized_h, resized_w = blank_image.shape[:2]
 
+        # Get chunk size setting (0 = auto/disabled, >0 = manual chunk size)
+        chunk_size = settings_mgr.get_session_setting("minimax_chunk_size", 0)
+        
+        # Validate memory before processing
+        if not self._validate_memory_before_processing(frames_to_process, resized_h, resized_w, device, parent_window):
+            # If validation fails, suggest using chunks
+            if chunk_size == 0 and frames_to_process > 8:
+                # Auto-enable chunking if not already set
+                suggested_chunk = max(4, min(12, frames_to_process // 3))
+                print(f"Memory validation failed. Consider enabling chunked processing with chunk size: {suggested_chunk}")
+            return 0
+
         # Create progress dialog
         progress_dialog = QProgressDialog("Loading MiniMax-Remover model...", "Cancel", 0, 0, parent_window)
         progress_dialog.setWindowTitle("Object Removal Progress")
@@ -973,10 +985,34 @@ class RemovalManager:
         # Create output directory if it doesn't exist (don't clear existing frames)
         os.makedirs(removal_dir, exist_ok=True)
 
-        # Load and prepare data
+        # Determine if we should use chunked processing
+        use_chunks = chunk_size > 0 and frames_to_process > chunk_size
+        
+        if use_chunks:
+            print(f"Using chunked processing with chunk size: {chunk_size}")
+            return self._run_object_removal_minimax_chunked(
+                points, start_frame, end_frame, frames_to_process,
+                resized_h, resized_w, minimax_steps, inpaint_grow,
+                progress_dialog, device
+            )
+        
+        # Load and prepare data (original single-batch processing)
         print("Loading frames and masks...")
         QApplication.processEvents()
         frames, masks = self._load_all_frames_and_masks(points, inpaint_grow=inpaint_grow, start_frame=start_frame, end_frame=end_frame)
+        
+        # Validate that we have frames and masks
+        if len(frames) == 0 or len(masks) == 0:
+            print("ERROR: No frames or masks loaded! Cannot proceed with removal.")
+            print(f"  - Frames loaded: {len(frames)}")
+            print(f"  - Masks loaded: {len(masks)}")
+            print(f"  - Frame range: {start_frame} to {end_frame}")
+            self.propagated = False
+            progress_dialog.close()
+            return 0
+        
+        if len(frames) != len(masks):
+            print(f"WARNING: Frame count ({len(frames)}) doesn't match mask count ({len(masks)})")
         
         # Pad frames
         pad_frames = (4 - (frames_to_process % 4)) % 4 + 1
@@ -1015,32 +1051,192 @@ class RemovalManager:
                 progress_dialog.close()
                 raise
         
+        # Validate output
+        if output is None or len(output) == 0:
+            print("ERROR: Pipeline returned empty output!")
+            self.propagated = False
+            progress_dialog.close()
+            return 0
+        
         # Remove padding and convert
         if pad_frames > 0:
             output = output[:frames_to_process]
+        
+        if len(output) == 0:
+            print("ERROR: No frames to save after removing padding!")
+            self.propagated = False
+            progress_dialog.close()
+            return 0
+        
         output = np.uint8(output * 255)
         
+        # Validate output shape
+        if len(output.shape) < 3:
+            print(f"ERROR: Invalid output shape: {output.shape}")
+            self.propagated = False
+            progress_dialog.close()
+            return 0
+        
         # Save frames
-        print("Saving frames...")
-        progress_dialog.setLabelText("Saving frames...")
+        print(f"Saving {len(output)} frames...")
+        progress_dialog.setLabelText(f"Saving frames... (0/{len(output)})")
         QApplication.processEvents()
         extension = get_frame_extension()
 
-        # Save processed frames   
+        # Save processed frames with validation
+        saved_count = 0
         for i, frame in enumerate(output):
             frame_number = start_frame + i
-            composited = self.composite_removal_over_original(frame, frame_number, points)
-            output_path = os.path.join(removal_dir, f"{frame_number:05d}.{extension}")
-            frame_bgr = cv2.cvtColor(composited, cv2.COLOR_RGB2BGR)
-            cv2.imwrite(output_path, frame_bgr)
+            try:
+                composited = self.composite_removal_over_original(frame, frame_number, points)
+                output_path = os.path.join(removal_dir, f"{frame_number:05d}.{extension}")
+                frame_bgr = cv2.cvtColor(composited, cv2.COLOR_RGB2BGR)
+                
+                if not cv2.imwrite(output_path, frame_bgr):
+                    print(f"WARNING: Failed to save frame {frame_number} to {output_path}")
+                else:
+                    saved_count += 1
+                    # Verify file was actually written
+                    if not os.path.exists(output_path):
+                        print(f"WARNING: Frame {frame_number} save reported success but file not found!")
+                    elif os.path.getsize(output_path) == 0:
+                        print(f"WARNING: Frame {frame_number} file is empty!")
+                
+                # Update progress every 10 frames
+                if (i + 1) % 10 == 0:
+                    progress_dialog.setLabelText(f"Saving frames... ({i + 1}/{len(output)})")
+                    QApplication.processEvents()
+            except Exception as e:
+                print(f"ERROR saving frame {frame_number}: {e}")
+                import traceback
+                traceback.print_exc()
         
-        if frame_count == frames_to_process: # only set propagated if the whole video was processed
-            self.propagated = True
-        else:
+        if saved_count == 0:
+            print("ERROR: No frames were successfully saved!")
             self.propagated = False
-        print("Processing complete!")
+            progress_dialog.close()
+            return 0
+        
+        if saved_count < len(output):
+            print(f"WARNING: Only {saved_count}/{len(output)} frames were saved successfully")
+        
+        # Set propagated based on whether frames were saved (even with In/Out points)
+        # This allows viewing results even when only a range was processed
+        self.propagated = True if saved_count > 0 else False
+        
+        print(f"Processing complete! Saved {saved_count} frames to {removal_dir}")
         progress_dialog.close()
-        return True
+        return 1
+
+    def _run_object_removal_minimax_chunked(self, points, start_frame, end_frame, total_frames,
+                                           resized_h, resized_w, minimax_steps, inpaint_grow,
+                                           progress_dialog, device):
+        """
+        Process MiniMax-Remover in chunks to reduce VRAM usage.
+        """
+        settings_mgr = get_settings_manager()
+        chunk_size = settings_mgr.get_session_setting("minimax_chunk_size", 12)
+        extension = get_frame_extension()
+        
+        saved_count = 0
+        total_chunks = (total_frames + chunk_size - 1) // chunk_size
+        
+        print(f"Processing {total_frames} frames in {total_chunks} chunks of {chunk_size} frames each")
+        
+        for chunk_idx in range(total_chunks):
+            chunk_start_frame = start_frame + (chunk_idx * chunk_size)
+            chunk_end_frame = min(chunk_start_frame + chunk_size - 1, end_frame)
+            chunk_frames_count = chunk_end_frame - chunk_start_frame + 1
+            
+            print(f"\nProcessing chunk {chunk_idx + 1}/{total_chunks} (frames {chunk_start_frame}-{chunk_end_frame})...")
+            progress_dialog.setLabelText(f"Processing chunk {chunk_idx + 1}/{total_chunks} (frames {chunk_start_frame}-{chunk_end_frame})...")
+            QApplication.processEvents()
+            
+            if progress_dialog.wasCanceled():
+                print("Processing cancelled by user")
+                self.propagated = False
+                progress_dialog.close()
+                return 0
+            
+            # Load frames and masks for this chunk
+            frames, masks = self._load_all_frames_and_masks(
+                points, inpaint_grow=inpaint_grow,
+                start_frame=chunk_start_frame, end_frame=chunk_end_frame
+            )
+            
+            if len(frames) == 0 or len(masks) == 0:
+                print(f"WARNING: No frames/masks loaded for chunk {chunk_idx + 1}, skipping...")
+                continue
+            
+            # Pad frames to multiple of 4+1
+            pad_frames = (4 - (chunk_frames_count % 4)) % 4 + 1
+            if pad_frames > 0:
+                for _ in range(pad_frames):
+                    frames.append(frames[-1].copy())
+                    masks.append(masks[-1].copy())
+            
+            # Convert to tensors
+            frames_tensor = torch.from_numpy(np.stack(frames)).half().to(device)
+            masks_tensor = torch.from_numpy(np.stack(masks)).half().to(device)
+            masks_tensor = masks_tensor[:, :, :, None]
+            
+            # Run inference for this chunk
+            try:
+                with torch.no_grad():
+                    output = self.pipe(
+                        images=frames_tensor,
+                        masks=masks_tensor,
+                        num_frames=masks_tensor.shape[0],
+                        height=masks_tensor.shape[1],
+                        width=masks_tensor.shape[2],
+                        num_inference_steps=minimax_steps,
+                        generator=torch.Generator(device=device).manual_seed(42),
+                    ).frames[0]
+            except RuntimeError as e:
+                if "cancelled" in str(e).lower():
+                    print("User cancelled MiniMax processing.")
+                    progress_dialog.close()
+                    return 0
+                else:
+                    print(f"Error processing chunk {chunk_idx + 1}: {e}")
+                    progress_dialog.close()
+                    raise
+            
+            # Clean up tensors to free memory
+            del frames_tensor, masks_tensor
+            DeviceManager.clear_cache()
+            
+            # Remove padding
+            if pad_frames > 0:
+                output = output[:chunk_frames_count]
+            
+            output = np.uint8(output * 255)
+            
+            # Save frames from this chunk
+            for i, frame in enumerate(output):
+                frame_number = chunk_start_frame + i
+                try:
+                    composited = self.composite_removal_over_original(frame, frame_number, points)
+                    output_path = os.path.join(removal_dir, f"{frame_number:05d}.{extension}")
+                    frame_bgr = cv2.cvtColor(composited, cv2.COLOR_RGB2BGR)
+                    
+                    if cv2.imwrite(output_path, frame_bgr):
+                        saved_count += 1
+                except Exception as e:
+                    print(f"ERROR saving frame {frame_number}: {e}")
+            
+            # Clean up output array
+            del output
+            DeviceManager.clear_cache()
+            
+            print(f"Chunk {chunk_idx + 1}/{total_chunks} complete. Saved {saved_count} frames so far.")
+        
+        # Set propagated status
+        self.propagated = True if saved_count > 0 else False
+        
+        print(f"\nChunked processing complete! Saved {saved_count} frames to {removal_dir}")
+        progress_dialog.close()
+        return 1 if saved_count > 0 else 0
 
     
     def _load_all_frames_and_masks(self, points_list, inpaint_grow=5, start_frame=0, end_frame=None):
@@ -1169,6 +1365,92 @@ class RemovalManager:
         
         return composited
 
+
+    def _estimate_memory_usage(self, num_frames, height, width, device):
+        """
+        Estimate VRAM usage for MiniMax-Remover processing.
+        
+        Returns:
+            tuple: (estimated_memory_gb, available_memory_gb, total_memory_gb)
+        """
+        import torch
+        
+        if device.type != 'cuda' or not torch.cuda.is_available():
+            return None, None, None
+        
+        # Memory for input frames (half precision)
+        # frames: num_frames × height × width × 3 channels × 2 bytes
+        frames_memory = (num_frames * height * width * 3 * 2) / (1024**3)
+        
+        # Memory for masks (half precision)
+        # masks: num_frames × height × width × 1 channel × 2 bytes
+        masks_memory = (num_frames * height * width * 1 * 2) / (1024**3)
+        
+        # Memory for latents during processing (rough estimate)
+        # Latents are typically smaller but we need space for intermediate computations
+        # Estimate: 2-3x the input size for latents + intermediate tensors
+        latent_memory = (frames_memory + masks_memory) * 2.5
+        
+        # Model memory (Transformer ~3GB, VAE ~1-2GB when loaded)
+        model_memory = 4.0  # Conservative estimate
+        
+        # Safety margin (20%)
+        safety_factor = 1.2
+        
+        estimated_total = (frames_memory + masks_memory + latent_memory + model_memory) * safety_factor
+        
+        # Get available VRAM
+        total_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        allocated_memory = torch.cuda.memory_allocated() / (1024**3)
+        available_memory = total_memory - allocated_memory
+        
+        return estimated_total, available_memory, total_memory
+    
+    def _validate_memory_before_processing(self, num_frames, height, width, device, parent_window=None):
+        """
+        Validate that there's enough VRAM before processing.
+        Returns True if safe to proceed, False otherwise.
+        """
+        from sammie.gui_widgets import show_message_dialog
+        
+        estimated, available, total = self._estimate_memory_usage(num_frames, height, width, device)
+        
+        if estimated is None:
+            # Not CUDA, skip validation
+            return True
+        
+        if estimated > available:
+            # Not enough memory
+            suggested_resolution = int(min(height, width) * 0.7)  # Reduce by 30%
+            suggested_chunk_size = max(4, num_frames // 3)  # Process in 3 chunks
+            
+            message = f"Insufficient VRAM for processing!\n\n"
+            message += f"Estimated memory needed: {estimated:.2f} GB\n"
+            message += f"Available VRAM: {available:.2f} GB / {total:.2f} GB\n\n"
+            message += f"Suggestions:\n"
+            message += f"• Reduce resolution to ~{suggested_resolution}px\n"
+            message += f"• Enable chunked processing (chunk size: {suggested_chunk_size})\n"
+            message += f"• Reduce number of frames (use In/Out points)\n"
+            message += f"• Enable VAE Tiling if not already enabled\n"
+            message += f"• Use Flush Memory button to free VRAM\n\n"
+            message += f"Processing will likely cause a crash (segmentation fault)."
+            
+            if parent_window:
+                show_message_dialog(
+                    parent_window,
+                    title="Insufficient VRAM",
+                    message=message,
+                    type="warning"
+                )
+            
+            print(f"ERROR: Insufficient VRAM. Estimated: {estimated:.2f} GB, Available: {available:.2f} GB")
+            return False
+        
+        # Memory is sufficient, but warn if close to limit
+        if estimated > available * 0.8:
+            print(f"WARNING: Memory usage will be high ({estimated:.2f} GB / {available:.2f} GB available)")
+        
+        return True
 
     def resize_image_minimax(self, image, mask=False):
         """
@@ -1571,12 +1853,16 @@ def load_removal_frame(frame_number):
     Load the object removal frame image from disk
     If the frame does not exist, load the base frame instead
     """
-    frame_filename = os.path.join(removal_dir, f"{frame_number:05d}.png")
+    extension = get_frame_extension()
+    frame_filename = os.path.join(removal_dir, f"{frame_number:05d}.{extension}")
     if os.path.exists(frame_filename):
         image = cv2.imread(frame_filename)
-        return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    else: 
-        return load_base_frame(frame_number)
+        if image is not None:
+            return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        else:
+            print(f"WARNING: Could not read removal frame {frame_number} from {frame_filename}")
+    # Fallback to base frame if removal frame doesn't exist
+    return load_base_frame(frame_number)
 
 def load_masks_for_frame(frame_number, points, return_combined=True, object_id_filter=None, folder=mask_dir):
     """

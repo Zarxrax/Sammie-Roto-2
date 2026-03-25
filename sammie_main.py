@@ -809,6 +809,12 @@ class ObjectRemovalTab(QWidget):
         self.clear_removal_btn = QPushButton("Clear Object Removal")
         self.clear_removal_btn.setToolTip("Remove all object removal data")
         removal_layout.addWidget(self.clear_removal_btn)
+        
+        # Flush Memory button
+        self.flush_memory_btn = QPushButton("Flush Memory (VRAM)")
+        self.flush_memory_btn.setToolTip("Clear GPU memory by unloading all models. Useful before running MiniMax-Remover after segmentation/matting.")
+        removal_layout.addWidget(self.flush_memory_btn)
+        
         layout.addWidget(removal_group)
 
         # Method selection (MiniMax-Remover vs OpenCV)
@@ -1102,6 +1108,38 @@ class ObjectRemovalTab(QWidget):
             lambda: self._reset_slider_to_default(self.minimax_steps_slider, default_steps)
         )
         
+        row += 1
+        
+        # Chunk Size slider (0 = disabled, process all at once)
+        default_chunk_size = getattr(settings_mgr.app_settings, "default_minimax_chunk_size", 0)
+        current_chunk_size = settings_mgr.get_session_setting("minimax_chunk_size", default_chunk_size)
+        
+        label = ClickableLabel("Chunk Size:")
+        label.setToolTip(f"Double-click to reset to default value ({default_chunk_size if default_chunk_size > 0 else 'Auto'})")
+        params_layout.addWidget(label, row, 0)
+        
+        self.minimax_chunk_size_slider = QSlider(Qt.Horizontal)
+        self.minimax_chunk_size_slider.setRange(0, 32)
+        self.minimax_chunk_size_slider.setValue(current_chunk_size)
+        self.minimax_chunk_size_slider.setToolTip("Process frames in chunks to reduce VRAM usage. 0 = disabled (process all at once). Recommended: 8-12 for high resolution/long videos.")
+        params_layout.addWidget(self.minimax_chunk_size_slider, row, 1)
+        
+        self.minimax_chunk_size_value = QLabel("Auto" if current_chunk_size == 0 else str(current_chunk_size))
+        self.minimax_chunk_size_value.setMinimumWidth(30)
+        self.minimax_chunk_size_value.setAlignment(Qt.AlignCenter)
+        params_layout.addWidget(self.minimax_chunk_size_value, row, 2)
+        
+        self.minimax_chunk_size_slider.valueChanged.connect(
+            lambda v: self.minimax_chunk_size_value.setText("Auto" if v == 0 else str(v))
+        )
+        self.minimax_chunk_size_slider.valueChanged.connect(
+            lambda v: settings_mgr.set_session_setting("minimax_chunk_size", v)
+        )
+        
+        label.doubleClicked.connect(
+            lambda: self._reset_slider_to_default(self.minimax_chunk_size_slider, default_chunk_size)
+        )
+        
         minimax_layout.addWidget(params_group)
         layout.addWidget(self.minimax_params_group)
 
@@ -1154,6 +1192,10 @@ class ObjectRemovalTab(QWidget):
         steps = settings_mgr.get_session_setting("minimax_steps", 6)
         self.minimax_steps_slider.setValue(steps)
         self.minimax_steps_value.setText(str(steps))
+        
+        chunk_size = settings_mgr.get_session_setting("minimax_chunk_size", 0)
+        self.minimax_chunk_size_slider.setValue(chunk_size)
+        self.minimax_chunk_size_value.setText("Auto" if chunk_size == 0 else str(chunk_size))
         
         # Load shared shrink/grow setting
         shrink_grow = settings_mgr.get_session_setting("inpaint_grow", 5)
@@ -1634,6 +1676,7 @@ class MainWindow(QMainWindow):
             # Connect removal tab buttons
             removal_tab.run_removal_btn.clicked.connect(self.run_object_removal)
             removal_tab.clear_removal_btn.clicked.connect(self.clear_object_removal)
+            removal_tab.flush_memory_btn.clicked.connect(self.flush_memory)
             
             # Connect method selection to update display
             removal_tab.method_combo.currentTextChanged.connect(self._update_current_frame_display)
@@ -2730,12 +2773,18 @@ class MainWindow(QMainWindow):
             success = False
             try:
                 success = self.removal_manager.run_object_removal_minimax(self.point_manager.points, parent_window=self)
+                if success:
+                    print("MiniMax-Remover completed successfully")
+                else:
+                    print("MiniMax-Remover returned False (may have failed silently)")
             except Exception as e:
-                if "out of memory" in str(e):
-                    print(e)
+                import traceback
+                print(f"Exception running MiniMax-Remover: {e}")
+                traceback.print_exc()
+                if "out of memory" in str(e).lower():
                     show_message_dialog(self, title="Error", message="An out of memory error occurred. Please restart the application to fully release GPU memory, and try again with lower settings." , type="warning")
                 else: 
-                    print(f"Error running MiniMax-Remover: {e}")
+                    show_message_dialog(self, title="Error", message=f"An error occurred while running MiniMax-Remover:\n\n{str(e)}\n\nCheck the console for details.", type="warning")
         else:
             success = self.removal_manager.run_object_removal_cv(self.point_manager.points, parent_window=self)
         if success:
@@ -2749,6 +2798,90 @@ class MainWindow(QMainWindow):
         # unload minimax model and load sam model
         self.removal_manager.unload_minimax_model()    
         self.sam_manager.load_model_to_device()
+
+    def flush_memory(self):
+        """Flush VRAM by unloading all models. Useful before running MiniMax-Remover after segmentation/matting."""
+        import gc
+        import torch
+        
+        device = sammie.DeviceManager.get_device()
+        
+        # Get VRAM info before flush (if CUDA)
+        vram_before = None
+        total_vram = None
+        if device.type == 'cuda' and torch.cuda.is_available():
+            vram_before = torch.cuda.memory_allocated() / (1024**3)  # GB
+            total_vram = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        
+        # NOTE: We do NOT offload SAM model here because:
+        # 1. It's used immediately after flush (for adding points/segmentation)
+        # 2. Offloading SAM causes device mismatch errors with inference_state
+        # 3. SAM is relatively small compared to other models
+        # If you need to free SAM memory, it will be offloaded automatically
+        # when running MiniMax-Remover or other heavy operations
+        
+        # Unload MiniMax model if loaded
+        if self.removal_manager.pipe is not None:
+            self.removal_manager.unload_minimax_model()
+            print("MiniMax-Remover model unloaded")
+        
+        # Unload MatAny model if loaded
+        if self.matany_manager.processor is not None:
+            self.matany_manager.unload_matting_model()
+            print("MatAny model unloaded")
+        
+        # Unload VideoMaMa model if loaded
+        if self.videomama_manager.pipeline is not None:
+            self.videomama_manager.unload_model()
+            print("VideoMaMa model unloaded")
+        
+        # Unload CorridorKey model if loaded
+        if self.corridorkey_manager.engine is not None:
+            self.corridorkey_manager.unload_model()
+            print("CorridorKey model unloaded")
+        
+        # Force garbage collection
+        gc.collect()
+        
+        # Clear PyTorch cache
+        sammie.DeviceManager.clear_cache()
+        
+        # Get VRAM info after flush (if CUDA)
+        vram_after = None
+        vram_freed = None
+        free_vram = None
+        if device.type == 'cuda' and torch.cuda.is_available() and total_vram is not None:
+            vram_after = torch.cuda.memory_allocated() / (1024**3)  # GB
+            vram_freed = vram_before - vram_after if vram_before is not None else None
+            free_vram = total_vram - vram_after
+        
+        # Show confirmation message
+        if device.type == 'cuda' and vram_freed is not None and total_vram is not None:
+            message = f"GPU memory flushed successfully!\n\n"
+            message += f"Memory freed: {vram_freed:.2f} GB\n"
+            message += f"Free VRAM: {free_vram:.2f} GB / {total_vram:.2f} GB\n\n"
+            message += "Heavy models (MiniMax, MatAny, VideoMaMa, CorridorKey) have been unloaded.\n"
+            message += "SAM model kept in memory for immediate use.\n\n"
+            message += "You can now run MiniMax-Remover or reload models as needed."
+        elif device.type == 'cuda':
+            message = "GPU memory flushed successfully!\n\n"
+            message += "Heavy models have been unloaded from VRAM.\n"
+            message += "SAM model kept in memory for immediate use.\n\n"
+            message += "You can now run MiniMax-Remover or reload models as needed."
+        else:
+            message = "Memory flushed successfully!\n\n"
+            message += "Heavy models have been unloaded.\n"
+            message += "SAM model kept in memory for immediate use.\n\n"
+            message += "Note: This feature is most useful when using CUDA GPU."
+        
+        show_message_dialog(
+            self, 
+            title="Memory Flushed",
+            message=message,
+            type="information"
+        )
+        
+        print("Memory flush completed")
 
     def update_tracking_status(self):
         """Update the tracking status display"""

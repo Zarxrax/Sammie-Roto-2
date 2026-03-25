@@ -66,6 +66,7 @@ class ApplicationSettings:
     default_minimax_steps: int = 6
     default_minimax_resolution: int = 480
     default_minimax_vae_tiling: bool = False
+    default_minimax_chunk_size: int = 0  # 0 = disabled (process all at once)
     
     # Playback
     playback_fps: int = 24  # frames per second for playback
@@ -152,6 +153,7 @@ class SessionSettings:
     minimax_steps: int = 6
     minimax_resolution: int = 480
     minimax_vae_tiling: bool = False
+    minimax_chunk_size: int = 0  # 0 = disabled (process all at once), >0 = chunk size
     
     # Selected objects
     selected_object_id: int = 0
@@ -315,6 +317,7 @@ class SettingsManager:
             minimax_steps=self.app_settings.default_minimax_steps,
             minimax_resolution=self.app_settings.default_minimax_resolution,
             minimax_vae_tiling=self.app_settings.default_minimax_vae_tiling,
+            minimax_chunk_size=self.app_settings.default_minimax_chunk_size,
             selected_object_id=self.app_settings.default_object_id,
             created_timestamp=timestamp,
             modified_timestamp=timestamp
@@ -396,6 +399,7 @@ class SettingsManager:
             'inpaint_grow': self.session_settings.inpaint_grow,
             'minimax_steps': self.session_settings.minimax_steps,
             'minimax_resolution': self.session_settings.minimax_resolution,
+            'minimax_chunk_size': self.session_settings.minimax_chunk_size,
             'minimax_vae_tiling': self.session_settings.minimax_vae_tiling
         }
 
