@@ -32,7 +32,7 @@ from PySide6.QtCore import (
     Qt, QPointF, QObject, Signal, QRect, QPoint
 )
 
-from sammie import sammie
+from sammie import core
 from sammie.settings_manager import get_settings_manager
 
 # ==================== CONSOLE REDIRECT ====================
@@ -269,8 +269,8 @@ class PointTable(QTableWidget):
         layout.setSpacing(5)
         
         # Create colored square
-        if 0 <= object_id < len(sammie.PALETTE):
-            color_widget = ColorDisplayWidget(sammie.PALETTE[object_id], size=(16, 12))
+        if 0 <= object_id < len(core.PALETTE):
+            color_widget = ColorDisplayWidget(core.PALETTE[object_id], size=(16, 12))
         else:
             # Fallback for out-of-range object IDs
             color_widget = ColorDisplayWidget((128, 128, 128), size=(16, 12))
@@ -446,7 +446,7 @@ class PointTable(QTableWidget):
         if removed_points and hasattr(self, 'parent_window'):
             # Delete mask directories for affected frames only
             for frame in affected_frames:
-                frame_mask_dir = os.path.join(sammie.mask_dir, f"{frame:05d}")
+                frame_mask_dir = os.path.join(core.mask_dir, f"{frame:05d}")
                 if os.path.exists(frame_mask_dir):
                     shutil.rmtree(frame_mask_dir)
 

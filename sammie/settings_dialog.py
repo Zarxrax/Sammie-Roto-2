@@ -129,15 +129,20 @@ class SettingsDialog(QDialog):
 
         # Matting model selection
         self.default_matting_model_combo = QComboBox()
-        self.default_matting_model_combo.addItems(["MatAnyone", "MatAnyone2"])
-        self.default_matting_model_combo.setToolTip("MatAnyone2 is generally more accurate. Both models are the same speed.")
+        self.default_matting_model_combo.addItems(["MatAnyone", "MatAnyone2", "VideoMaMa"])
+        self.default_matting_model_combo.setToolTip("VideoMaMa is higher quality but slower and uses more VRAM.")
         mat_layout.addRow("Matting Model:", self.default_matting_model_combo)
 
         # MatAnyone Internal Resolution selection
         self.default_matany_res_combo = QComboBox()
-        self.default_matany_res_combo.addItems(["480", "720", "1080", "1440", "2160", "Full"])
-        mat_layout.addRow("MatAnyone Internal Resolution:", self.default_matany_res_combo)
-        
+        self.default_matany_res_combo.addItems(["352", "480", "576", "720", "1080", "1440", "2160", "Full"])
+        mat_layout.addRow("Matting Internal Resolution:", self.default_matany_res_combo)
+
+        # MatAnyone Combined Mask
+        self.default_combined_mask_checkbox = QCheckBox()
+        self.default_combined_mask_checkbox.setToolTip("If checked, all objects will be merged and processed as a single object.")
+        mat_layout.addRow("Combine All Objects", self.default_combined_mask_checkbox)
+
         self.default_matany_gamma_spin = QDoubleSpinBox()
         self.default_matany_gamma_spin.setRange(0.1, 10.0)
         self.default_matany_gamma_spin.setSingleStep(0.1)
@@ -284,6 +289,7 @@ class SettingsDialog(QDialog):
         self.default_matany_gamma_spin.setValue(app_settings.default_matany_gamma)
         self.default_matany_grow_spin.setValue(app_settings.default_matany_grow)
         self.default_matting_model_combo.setCurrentText(app_settings.default_matany_model)
+        self.default_combined_mask_checkbox.setChecked(app_settings.default_matany_combined)
 
         # Set MatAnyone resolution combo box
         if app_settings.default_matany_res == 0:
@@ -329,6 +335,7 @@ class SettingsDialog(QDialog):
         app_settings.default_matany_gamma = self.default_matany_gamma_spin.value()
         app_settings.default_matany_grow = self.default_matany_grow_spin.value()
         app_settings.default_matany_model = self.default_matting_model_combo.currentText()
+        app_settings.default_matany_combined = self.default_combined_mask_checkbox.isChecked()
 
         # Handle MatAnyone resolution setting
         matany_text = self.default_matany_res_combo.currentText()

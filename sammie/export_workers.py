@@ -11,7 +11,8 @@ from fractions import Fraction
 from PIL import Image
 from PySide6.QtCore import QThread, Signal
 from sammie import sammie
-from .export_formats import ExportSettings, FormatRegistry
+from sammie.core import VideoInfo
+from sammie.export_formats import ExportSettings, FormatRegistry
 import re
 
 
@@ -146,13 +147,13 @@ class VideoExportWorker(BaseExportWorker):
         container = av.open(output_path, mode='w')
         
         # Get frame rate
-        fps = sammie.VideoInfo.fps
+        fps = VideoInfo.fps
         fps_rational = self._convert_fps_to_fraction(fps)
         
         # Create video stream
         stream = container.add_stream(self.format.get_codec_name(), rate=fps_rational)
-        stream.width = sammie.VideoInfo.width
-        stream.height = sammie.VideoInfo.height
+        stream.width = VideoInfo.width
+        stream.height = VideoInfo.height
         stream.pix_fmt = self.format.get_pixel_format(has_alpha)
         
         # Set codec options

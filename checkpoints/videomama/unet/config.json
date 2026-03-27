@@ -1,0 +1,38 @@
+{
+  "_class_name": "UNetSpatioTemporalConditionModel",
+  "_diffusers_version": "0.34.0",
+  "_name_or_path": "/home/colligo/localssd/model_trained/svd_onestep/stage_1/dino/up_blocks1/checkpoint-9000",
+  "addition_time_embed_dim": 256,
+  "block_out_channels": [
+    320,
+    640,
+    1280,
+    1280
+  ],
+  "cross_attention_dim": 1024,
+  "down_block_types": [
+    "CrossAttnDownBlockSpatioTemporal",
+    "CrossAttnDownBlockSpatioTemporal",
+    "CrossAttnDownBlockSpatioTemporal",
+    "DownBlockSpatioTemporal"
+  ],
+  "in_channels": 12,
+  "layers_per_block": 2,
+  "num_attention_heads": [
+    5,
+    10,
+    20,
+    20
+  ],
+  "num_frames": 25,
+  "out_channels": 4,
+  "projection_class_embeddings_input_dim": 768,
+  "sample_size": 96,
+  "transformer_layers_per_block": 1,
+  "up_block_types": [
+    "UpBlockSpatioTemporal",
+    "CrossAttnUpBlockSpatioTemporal",
+    "CrossAttnUpBlockSpatioTemporal",
+    "CrossAttnUpBlockSpatioTemporal"
+  ]
+}

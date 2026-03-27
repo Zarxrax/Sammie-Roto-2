@@ -7,7 +7,7 @@ cd "$SCRIPT_DIR" || { echo "Failed to cd to script directory"; exit 1; }
 # Function to check Python version
 check_python_version() {
     if ! command -v python3 &> /dev/null; then
-        echo "❌ python3 is not installed."
+        echo "ERROR: python3 is not installed."
         exit 1
     fi
 
@@ -19,18 +19,18 @@ check_python_version() {
     }
 
     if ! version_ge "$PYTHON_VERSION" "$REQUIRED_VERSION"; then
-        echo "❌ Python 3.10 or higher is required. Detected version: $PYTHON_VERSION"
+        echo "ERROR: Python 3.10 or higher is required. Detected version: $PYTHON_VERSION"
         exit 1
     fi
 	
 	# Check if venv is available
 	if ! python3 -m venv --help &> /dev/null; then
-		echo "❌ Error: The 'venv' module is not available in this Python installation."
+		echo "ERROR: The 'venv' module is not available in this Python installation."
 		echo "Try reinstalling Python from https://www.python.org/ or via your package manager."
 		exit 1
 	fi
 	
-	echo "✅ Detected compatible Python version: $PYTHON_VERSION"
+	echo "Detected compatible Python version: $PYTHON_VERSION"
 }
 
 # Check Python version
@@ -38,25 +38,6 @@ check_python_version
 
 # Detect OS
 OS_TYPE="$(uname)"
-
-# Ask user what they want to do
-echo
-echo "❓ What would you like to do?"
-select ACTION in "Full installation" "Exit"; do
-    case $ACTION in
-        "Full installation")
-            echo "Proceeding with full installation..."
-            break
-            ;;
-        "Exit")
-            echo "Exiting..."
-            exit 0
-            ;;
-        *)
-            echo "Invalid option. Please choose 1, 2, or 3."
-            ;;
-    esac
-done
 
 # Create and activate virtual environment
 if [ -d "venv" ]; then
@@ -76,35 +57,40 @@ pip3 install wheel
 # Install PyTorch
 if [[ "$OS_TYPE" == "Darwin" ]]; then
     echo "Detected macOS. Installing PyTorch..."
-    pip3 install torch==2.9.1 torchvision
+    pip3 install torch==2.11.0 torchvision
 elif [[ "$OS_TYPE" == "Linux" ]]; then
     echo "Detected Linux."
 	echo
-    echo "❓ Which PyTorch build do you want to install?"
-    select PT_VERSION in "CUDA 12.8 (For modern NVIDIA GPUs, RTX)" "CUDA 12.6 (For old NVIDIA GPUs, GTX)" "ROCm (Radeon)" "CPU"; do
+    echo "Which PyTorch build do you want to install?"
+    select PT_VERSION in "CUDA 13.0 (For modern NVIDIA GPUs, RTX)" "CUDA 12.6 (For old NVIDIA GPUs, GTX)" "ROCm (Radeon)" "Intel Arc (beta, may not work)" "CPU"; do
         case $PT_VERSION in
-            "CUDA 12.8 (For modern NVIDIA GPUs, RTX)")
-                echo "Installing PyTorch with CUDA 12.8..."
-                pip3 install torch==2.9.1 torchvision --index-url https://download.pytorch.org/whl/cu128
+            "CUDA 13.0 (For modern NVIDIA GPUs, RTX)")
+                echo "Installing PyTorch with CUDA 13.0..."
+                pip3 install torch==2.10.0 torchvision --index-url https://download.pytorch.org/whl/cu130
                 break
                 ;;
             "CUDA 12.6 (For old NVIDIA GPUs, GTX)")
                 echo "Installing PyTorch with CUDA 12.6..."
-                pip3 install torch==2.9.1 torchvision --index-url https://download.pytorch.org/whl/cu126
+                pip3 install torch==2.10.0 torchvision --index-url https://download.pytorch.org/whl/cu126
                 break
                 ;;
             "ROCm (Radeon)")
-                echo "Installing PyTorch with ROCm 6.4..."
-                pip3 install torch==2.9.1 torchvision --index-url https://download.pytorch.org/whl/rocm6.4
+                echo "Installing PyTorch with ROCm 7.1..."
+                pip3 install torch==2.10.0 torchvision --index-url https://download.pytorch.org/whl/rocm7.1
+                break
+                ;;
+            "XPU (Intel Arc / Data Center GPU)")
+                echo "Installing PyTorch with XPU support..."
+                pip3 install torch==2.10.0 torchvision --index-url https://download.pytorch.org/whl/xpu
                 break
                 ;;
             CPU)
                 echo "Installing CPU-only version of PyTorch..."
-                pip3 install torch==2.9.1 torchvision --index-url https://download.pytorch.org/whl/cpu
+                pip3 install torch==2.10.0 torchvision --index-url https://download.pytorch.org/whl/cpu
                 break
                 ;;
             *)
-                echo "Invalid option. Please choose 1, 2, 3, or 4."
+                echo "Invalid option. Please choose 1, 2, 3, 4, or 5."
                 ;;
         esac
     done
@@ -120,4 +106,4 @@ chmod +x run_sammie.command
 echo "Installing requirements..."
 pip3 install -r requirements.txt
 
-echo "✅ Setup complete!"
+echo "Setup complete."

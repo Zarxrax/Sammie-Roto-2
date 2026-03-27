@@ -11,10 +11,10 @@ from PySide6.QtWidgets import (
     QFileDialog, QProgressDialog, QMessageBox
 )
 from PySide6.QtCore import Qt
-from sammie import sammie
+from sammie.core import VideoInfo
 from sammie.gui_widgets import show_message_dialog
-from .export_formats import FormatRegistry, ExportSettings
-from .export_workers import VideoExportWorker, SequenceExportWorker
+from sammie.export_formats import FormatRegistry, ExportSettings
+from sammie.export_workers import VideoExportWorker, SequenceExportWorker
 
 
 class ExportPathManager:
@@ -31,7 +31,7 @@ class ExportPathManager:
         base_name = os.path.splitext(os.path.basename(input_file))[0] if input_file else "video"
         
         # Get in/out points
-        total_frames = sammie.VideoInfo.total_frames
+        total_frames = VideoInfo.total_frames
         in_point = self.settings_mgr.get_session_setting("in_point", 0)
         out_point = self.settings_mgr.get_session_setting("out_point", total_frames - 1)
         
@@ -198,12 +198,6 @@ class ExportDialog(QDialog):
         # Object selection
         self.object_id_combo = QComboBox()
         self.object_id_combo.addItem("All Objects", -1)
-        if self.parent_window and hasattr(self.parent_window, 'point_manager'):
-            points = self.parent_window.point_manager.get_all_points()
-            if points:
-                object_ids = sorted(set(point['object_id'] for point in points))
-                for obj_id in object_ids:
-                    self.object_id_combo.addItem(f"Object {obj_id}", obj_id)
         self.object_id_combo.currentIndexChanged.connect(self._update_filename_preview)
         settings_layout.addRow("Export Object:", self.object_id_combo)
         
@@ -313,6 +307,9 @@ class ExportDialog(QDialog):
         output_type = self.output_type_combo.currentText()
         is_object_removal = output_type == 'ObjectRemoval'
         
+        # Repopulate the object combo to reflect the correct source for this output type
+        self._repopulate_object_combo()
+
         # ObjectRemoval always uses all objects
         if is_object_removal:
             self.object_id_combo.setCurrentIndex(0)  # Set to "All Objects"
@@ -334,6 +331,13 @@ class ExportDialog(QDialog):
         self._update_antialias_visibility()
         self._update_filename_preview()
     
+    def _repopulate_object_combo(self):
+        """Repopulate the object selection combo based on the current output type."""
+        self.object_id_combo.clear()
+        self.object_id_combo.addItem("All Objects", -1)
+        for obj_id in self._get_available_object_ids():
+            self.object_id_combo.addItem(f"Object {obj_id}", obj_id)
+
     def _update_ui_for_format(self):
         """Update UI controls based on current format"""
         if not self.current_format:
@@ -452,7 +456,7 @@ class ExportDialog(QDialog):
         
         # Get points
         points = self.parent_window.point_manager.get_all_points()
-        total_frames = sammie.VideoInfo.total_frames
+        total_frames = VideoInfo.total_frames
         
         # Generate output paths
         output_paths, object_ids = self._generate_output_paths(settings)
@@ -629,7 +633,7 @@ class ExportDialog(QDialog):
     def _check_sequence_files_exist(self, base_path: str, settings: ExportSettings) -> list:
         """Check if sequence files exist"""
         existing_files = []
-        total_frames = sammie.VideoInfo.total_frames
+        total_frames = VideoInfo.total_frames
         
         # Determine frame range
         if settings.use_inout and settings.in_point is not None and settings.out_point is not None:
@@ -656,7 +660,7 @@ class ExportDialog(QDialog):
         files_text = "\n".join(existing_files)
         
         # Calculate total frames
-        total_frames = sammie.VideoInfo.total_frames
+        total_frames = VideoInfo.total_frames
         if settings.use_inout and settings.in_point is not None and settings.out_point is not None:
             frame_count = settings.out_point - settings.in_point + 1
         else:
@@ -693,7 +697,7 @@ class ExportDialog(QDialog):
     def _get_initial_progress_text(self, settings: ExportSettings, output_paths: list) -> str:
         """Get initial progress dialog text"""
         if self.current_format.is_sequence:
-            total_frames = sammie.VideoInfo.total_frames
+            total_frames = VideoInfo.total_frames
             if settings.use_inout and settings.in_point is not None and settings.out_point is not None:
                 frame_count = settings.out_point - settings.in_point + 1
             else:
@@ -814,9 +818,58 @@ class ExportDialog(QDialog):
     # === Helper Methods ===
     
     def _get_available_object_ids(self) -> list:
-        """Get list of available object IDs from points"""
-        if self.parent_window and hasattr(self.parent_window, 'point_manager'):
-            points = self.parent_window.point_manager.get_all_points()
-            if points:
-                return sorted(set(point['object_id'] for point in points))
+            """Get list of available object IDs.
+            For matting output types, reads from the matting directory on disk so
+            the list reflects what was actually matted (e.g. a single combined object).
+            For all other output types, reads from point_manager as usual.
+            """
+            output_type = self.output_type_combo.currentText()
+            if output_type in ('Matting-Matte', 'Matting-Alpha', 'Matting-BGcolor'):
+                return self._get_matting_object_ids()
+            if self.parent_window and hasattr(self.parent_window, 'point_manager'):
+                points = self.parent_window.point_manager.get_all_points()
+                if points:
+                    return sorted(set(point['object_id'] for point in points))
+            return []
+    
+    def _get_matting_object_ids(self) -> list:
+        """Get object IDs that have matting output on disk.
+        If the user is exporting between in/out markers, only frame folders
+        within that range are considered, so the result reflects what was
+        actually matted in the relevant section of the video.
+        """
+        from sammie import core
+        matting_dir = core.matting_dir
+        if not os.path.exists(matting_dir):
+            return []
+ 
+        # Determine frame range to search
+        in_point = None
+        out_point = None
+        if self.use_inout_checkbox.isChecked() and self.parent_window:
+            settings_mgr = self.parent_window.settings_mgr
+            in_point = settings_mgr.get_session_setting("in_point", None)
+            out_point = settings_mgr.get_session_setting("out_point", None)
+ 
+        for frame_dirname in sorted(os.listdir(matting_dir)):
+            frame_dir = os.path.join(matting_dir, frame_dirname)
+            if not os.path.isdir(frame_dir):
+                continue
+ 
+            # If in/out range is set, skip frames outside it
+            if in_point is not None and out_point is not None:
+                try:
+                    frame_num = int(frame_dirname)
+                    if frame_num < in_point or frame_num > out_point:
+                        continue
+                except ValueError:
+                    continue
+ 
+            ids = [
+                int(os.path.splitext(f)[0])
+                for f in os.listdir(frame_dir)
+                if f.endswith('.png') and os.path.splitext(f)[0].isdigit()
+            ]
+            if ids:
+                return sorted(ids)
         return []

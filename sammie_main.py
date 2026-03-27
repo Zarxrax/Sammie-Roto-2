@@ -19,6 +19,9 @@ from PySide6.QtCore import Qt, QTimer
 # Import external logic functions
 from sammie import sammie
 from sammie import resources
+from sammie import core
+from sammie import matting
+from sammie import removal
 from sammie.export_image_dialog import ImageExportDialog
 from sammie.export_dialog import ExportDialog
 from sammie.settings_dialog import SettingsDialog
@@ -33,7 +36,7 @@ from sammie.gui_widgets import (
 
 # ==================== VERSION ====================
 
-__version__ = "2.2.1"
+__version__ = "2.3.0"
 
 # ==================== LOGGING HELPER ====================
 
@@ -109,7 +112,7 @@ class SegmentationTab(QWidget):
         object_row.addWidget(self.object_spinbox)
         
         # Color display widget
-        self.color_display = ColorDisplayWidget(sammie.PALETTE[0])
+        self.color_display = ColorDisplayWidget(core.PALETTE[0])
         object_row.addWidget(self.color_display)
         object_row.addStretch()
         
@@ -287,8 +290,8 @@ class SegmentationTab(QWidget):
 
     def _update_color_display(self, object_id):
         """Update the color display when object ID changes"""
-        if 0 <= object_id < len(sammie.PALETTE):
-            self.color_display.set_color(sammie.PALETTE[object_id])
+        if 0 <= object_id < len(core.PALETTE):
+            self.color_display.set_color(core.PALETTE[object_id])
 
     def get_selected_object_id(self):
         """Get the currently selected object ID"""
@@ -382,6 +385,7 @@ class MattingTab(QWidget):
     def _init_ui(self):
         """Initialize the matting tab layout"""
         layout = QVBoxLayout(self)
+        settings_mgr = get_settings_manager()
         
         # Instructions
         self._create_instructions_section(layout)
@@ -405,17 +409,23 @@ class MattingTab(QWidget):
         
         model_label = QLabel("Model:")
         self.matany_model_combo = QComboBox()
-        self.matany_model_combo.addItems(["MatAnyone", "MatAnyone2"])
-        self.matany_model_combo.setToolTip("The MatAnyone2 model is generally more accurate.\nProcessing speed and resource usage are the same for both.")
+        self.matany_model_combo.addItems(["MatAnyone", "MatAnyone2", "VideoMaMa"])
+        self.matany_model_combo.setToolTip("VideoMaMa is higher quality but slower and uses more VRAM.")
 
         res_label = QLabel("Internal Resolution:")
         self.matany_res_combo = QComboBox()
-        self.matany_res_combo.addItems(["480", "720", "1080", "1440", "2160", "Full"])
-        self.matany_res_combo.setToolTip("If your video's resolution is higher than this, it will be\ndownsampled to this resolution before running matting.\nThis reduces VRAM requirements and increases processing speed.")
+        self.matany_res_combo.addItems(["352", "480", "576", "720", "1080", "1440", "2160", "Full"])
+        self.matany_res_combo.setToolTip("If your video's shortest side is larger than this, it will be\ndownsampled to this size before running matting.\nThis reduces VRAM requirements and increases processing speed.")
         
+        self.combined_mask_checkbox = QCheckBox("Combine All Objects")
+        self.combined_mask_checkbox.setToolTip("If checked, all objects will be merged and processed as a single object.")
+
         # Connect to save settings when changed
         self.matany_model_combo.currentTextChanged.connect(self._save_model_setting)
         self.matany_res_combo.currentTextChanged.connect(self._save_resolution_setting)
+        self.combined_mask_checkbox.stateChanged.connect(
+            lambda state: settings_mgr.set_session_setting("matany_combined", self.combined_mask_checkbox.isChecked())
+        )
 
         model_layout.addWidget(model_label)
         model_layout.addWidget(self.matany_model_combo)
@@ -426,6 +436,7 @@ class MattingTab(QWidget):
         
         processing_layout.addLayout(model_layout)
         processing_layout.addLayout(res_layout)
+        processing_layout.addWidget(self.combined_mask_checkbox)
         layout.addWidget(processing_group)
 
         # Parameters
@@ -446,10 +457,10 @@ class MattingTab(QWidget):
         # Set the instruction content
         instruction_content = """
         • Matting can be used to create mattes for objects with soft or poorly defined edges.<br>
-        • You first need to add points to at least one frame in the Segmentation tab, then press the 'Run Matting' button.<br>
-        • If you add points to multiple frames, the matting will 'refresh' at each keyframe, which may momentarily break temporal stability.<br>
+        • For MatAnyone, you first need to add points to at least one frame in the Segmentation tab, then press the 'Run Matting' button.<br>
+        • For MatAnyone, if you add points to multiple frames, the matting will 'refresh' at each keyframe, which may momentarily break temporal stability.<br>
+        • For VideoMaMa, you must also run tracking in the Segmentation tab.<br>
         • Each object is processed separately, so multiple objects will multiply the processing time.<br>
-        • Tracking objects in the Segmentation tab is <b>not</b> needed and will <b>not</b> improve the result.<br>
         """
         
         instructions_text.setText(instruction_content)
@@ -581,8 +592,10 @@ class MattingTab(QWidget):
         model = settings_mgr.get_session_setting("matany_model", "MatAnyone2")
         if model == "MatAnyone2":
             self.matany_model_combo.setCurrentIndex(1)
-        else:
+        elif model == "MatAnyone":
             self.matany_model_combo.setCurrentIndex(0)
+        else:
+            self.matany_model_combo.setCurrentIndex(2)
 
         # Load resolution
         resolution = settings_mgr.get_session_setting("matany_res", 1080)
@@ -593,6 +606,10 @@ class MattingTab(QWidget):
             index = self.matany_res_combo.findText(str(resolution))
             if index >= 0:
                 self.matany_res_combo.setCurrentIndex(index)
+
+        # Load combined checkbox
+        combined = settings_mgr.get_session_setting("matany_combined", False)
+        self.combined_mask_checkbox.setChecked(combined)
 
         # Update gamma slider
         gamma = settings_mgr.get_session_setting("matany_gamma", 1.0)
@@ -1039,9 +1056,9 @@ class MainWindow(QMainWindow):
         self.play_timer = QTimer(self)
         self.play_timer.timeout.connect(self.play_next_frame)
         self.sam_manager = sammie.SamManager()
-        self.matany_manager = sammie.MatAnyManager()
-        self.removal_manager = sammie.RemovalManager()
-        self.point_manager = sammie.PointManager()
+        self.matany_manager = matting.create_matting_manager()
+        self.removal_manager = removal.RemovalManager()
+        self.point_manager = core.PointManager()
         self.highlighted_point = None
         
         # Store initial file to load after initialization
@@ -1066,7 +1083,7 @@ class MainWindow(QMainWindow):
         self._update_point_editing_state()
         print(f"Sammie-Roto version {__version__}")
         self.update_checker.check_for_updates()
-        sammie.DeviceManager.setup_device()
+        core.DeviceManager.setup_device()
         self.sam_manager.load_segmentation_model(parent_window=self)
         #self.matany_manager.load_matting_model(load_to_cpu=True)
         
@@ -1861,7 +1878,7 @@ class MainWindow(QMainWindow):
 
     def _update_current_frame_display(self):
         """Update the current frame display with masks and points"""
-        if sammie.VideoInfo.total_frames == 0:
+        if core.VideoInfo.total_frames == 0:
             return  # Don't try to update before video is loaded
         current_frame = self.frame_slider.value()
         view_options = self.get_view_options()
@@ -1949,8 +1966,8 @@ class MainWindow(QMainWindow):
     def undo_last_point(self):
         """Remove last point"""
         removed_point = self.point_manager.remove_last()
-        frame, object_id, point_type, x, y = removed_point.values()
         if removed_point:
+            frame, object_id, point_type, x, y = removed_point.values()
             print(f"Deleted point: Frame {frame}, Object {object_id}, "
               f"Type: {point_type}, Position: ({x}, {y})")
         else:
@@ -2117,16 +2134,20 @@ class MainWindow(QMainWindow):
         """Run matting process"""
         self.settings_mgr.save_session_settings()
         count = len(self.point_manager.points)
+        matting_model = self.settings_mgr.get_session_setting("matany_model", "MatAnyone2")
+        combined=self.settings_mgr.get_session_setting("matany_combined", False)
         if count > 0:  
             #load models
-            print("Loading Matting model...")
+            print(f"Loading {matting_model} model...")
             QApplication.processEvents()
             self.sam_manager.offload_model_to_cpu()
-            if not self.matany_manager.load_matting_model(parent_window=self): # load matting model for first time
-                print("Failed to load matting model")
+            if self.matany_manager.BACKEND != matting_model: # if the existing matting manager backend is wrong, create a new one
+                self.matany_manager = matting.create_matting_manager()
+            if not self.matany_manager.load_matting_model(parent_window=self): # load matting model
+                print(f"Failed to load { matting_model} model")
                 return
             QApplication.processEvents()
-            success = self.matany_manager.run_matting(self.point_manager.points, parent_window=self)
+            success = self.matany_manager.run_matting(self.point_manager.points, parent_window=self, combined=combined)
         
             if success:
                 self.update_matting_status()
@@ -2146,7 +2167,7 @@ class MainWindow(QMainWindow):
         """Run object removal process"""
 
         # Don't allow minimax-remover on CPU
-        if sammie.DeviceManager.get_device().type == 'cpu' and self.removal_tab.method_combo.currentText() == 'MiniMax-Remover':
+        if core.DeviceManager.get_device().type == 'cpu' and self.removal_tab.method_combo.currentText() == 'MiniMax-Remover':
             show_message_dialog(self, title="Error" , message="MiniMax-Remover is not supported on CPU. Please use OpenCV instead.", type="warning")
             return
         self.settings_mgr.save_session_settings()
@@ -2568,7 +2589,7 @@ class MainWindow(QMainWindow):
                 
             if framecount and framecount > 0:
                 # Save video info to session
-                video_info = sammie.VideoInfo
+                video_info = core.VideoInfo
                 self.settings_mgr.update_video_info(
                     video_info.width, video_info.height, 
                     video_info.fps, video_info.total_frames, file_path
@@ -2713,7 +2734,7 @@ class MainWindow(QMainWindow):
         """Open export dialog"""
         self.settings_mgr.save_session_settings()
         self.settings_mgr.save_points(self.point_manager.get_all_points())
-        if sammie.VideoInfo.total_frames == 0:
+        if core.VideoInfo.total_frames == 0:
             show_message_dialog(self, title="Export Error", message="No video data available. Please load a video first.", type="warning")
             return
         
@@ -2724,7 +2745,7 @@ class MainWindow(QMainWindow):
         """Open export image dialog"""
         self.settings_mgr.save_session_settings()
         self.settings_mgr.save_points(self.point_manager.get_all_points())
-        if sammie.VideoInfo.total_frames == 0:
+        if core.VideoInfo.total_frames == 0:
             show_message_dialog(self, title="Export Error", message="No video data available. Please load a video first.", type="warning")
             return
         frame = self.frame_slider.value()

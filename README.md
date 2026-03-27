@@ -7,15 +7,18 @@
 [![GitHub Code License](https://img.shields.io/github/license/Zarxrax/Sammie-Roto-2)](LICENSE)
 [![Discord](https://img.shields.io/discord/1437589475369811970?label=Discord&color=blue)](https://discord.gg/jb5qrFyGFF)
 
-Sammie-Roto 2 is a full-featured, cross-platform desktop application for AI assisted masking of video clips. It has 3 primary functions:
+**Please add a Github Star if you find it useful!**
+
+Sammie-Roto 2 is an easy-to-use, cross-platform desktop application for AI assisted masking of video clips. It has 3 primary functions:
 - Video Segmentation using [SAM2](https://github.com/facebookresearch/sam2)
-- Video Matting using [MatAnyone](https://github.com/pq-yang/MatAnyone) & [MatAnyone 2](https://github.com/pq-yang/MatAnyone2)
+- Video Matting using [MatAnyone](https://github.com/pq-yang/MatAnyone), [MatAnyone 2](https://github.com/pq-yang/MatAnyone2), and [VideoMaMa](https://github.com/cvlab-kaist/VideoMaMa)
 - Video Object Removal using [MiniMax-Remover](https://github.com/zibojia/MiniMax-Remover)
 
-**Please add a Github Star if you find it useful!**
+Sammie-Roto 2 is free and open source, but runs models produced by several external projects and organizations. Some models may have restrictions on commercial usage. Please check with the relevant model provider if you have questions regarding licensing.
 
 ### Updates
 **Full Changelog can be seen under [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)**
+- [03/27/2026] 2.3.0 - Added VideoMaMa model, added option to combine objects when matting, fixed major segmentation bug, and more.
 - [03/08/2026] 2.2.0 - Added MatAnyone2 model.
 - [01/18/2026] 2.1.1 - Rebuilt the export dialog, slightly faster application startup, bug fixes.
 - [12/16/2025] 2.1.0 - Added In/Out markers. Modifying points no longer deletes tracking data. Enabled half-precision for much faster segmentation. Added EfficientTAM model.
@@ -23,9 +26,11 @@ Sammie-Roto 2 is a full-featured, cross-platform desktop application for AI assi
 - [10/31/2025] Release of Sammie-Roto 2 Beta.
 
 ### Documentation and Tutorials:
-[Documentation and usage guide](https://github.com/Zarxrax/Sammie-Roto-2/wiki)
+## [Wiki Documentation and usage guide](https://github.com/Zarxrax/Sammie-Roto-2/wiki)
 
 [![Quick Start Video](https://img.youtube.com/vi/m0iZpxsZJcE/0.jpg)](https://www.youtube.com/watch?v=m0iZpxsZJcE)
+
+*This video does not cover new features and changes added since version 2.0
 
 ### Installation (Windows):
 - Download latest version from [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)
@@ -47,7 +52,8 @@ Everything is self-contained in the Sammie-Roto folder. If you want to remove th
 ### Acknowledgements
 * [SAM 2](https://github.com/facebookresearch/sam2)
 * [EfficientTAM](https://github.com/yformer/EfficientTAM)
-* [MatAnyone](https://github.com/pq-yang/MatAnyone)
+* [MatAnyone](https://github.com/pq-yang/MatAnyone) & [MatAnyone2](https://github.com/pq-yang/MatAnyone2)
+* [Wan2GP](https://github.com/deepbeepmeep/Wan2GP) (for optimized MatAnyone code)
+* [VideoMaMa](https://github.com/cvlab-kaist/VideoMaMa)
 * [MiniMax-Remover](https://github.com/zibojia/MiniMax-Remover)
-* [Wan2GP](https://github.com/deepbeepmeep/Wan2GP) (for optimized MatAnyone)
 * Some icons by [Yusuke Kamiyamane](http://p.yusukekamiyamane.com/)

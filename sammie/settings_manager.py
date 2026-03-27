@@ -43,6 +43,7 @@ class ApplicationSettings:
     default_matany_gamma: float = 1.0
     default_matany_model: str = "MatAnyone2"
     default_matany_res: int = 720
+    default_matany_combined: bool = False
 
     # Object Removal Processing defaults
     default_removal_method: str = "Minimax-Remover"
@@ -113,6 +114,7 @@ class SessionSettings:
     matany_gamma: float = 1.0
     matany_model: str = "MatAnyone2"
     matany_res: int = 1080
+    matany_combined: bool = False
 
     # Object removal parameters
     inpaint_method: str = "Telea"
@@ -275,6 +277,7 @@ class SettingsManager:
             matany_gamma=self.app_settings.default_matany_gamma,
             matany_model=self.app_settings.default_matany_model,
             matany_res = self.app_settings.default_matany_res,
+            matany_combined=self.app_settings.default_matany_combined,
             inpaint_method=self.app_settings.default_inpaint_method,
             inpaint_radius=self.app_settings.default_inpaint_radius,
             inpaint_grow=self.app_settings.default_inpaint_grow,
@@ -349,7 +352,8 @@ class SettingsManager:
             'matany_gamma': self.session_settings.matany_gamma,
             'matany_grow': self.session_settings.matany_grow,
             'matany_model': self.session_settings.matany_model,
-            'matany_res': self.session_settings.matany_res
+            'matany_res': self.session_settings.matany_res,
+            'matany_combined': self.session_settings.matany_combined
         }
     
     def get_inpainting_params(self) -> Dict[str, Any]:

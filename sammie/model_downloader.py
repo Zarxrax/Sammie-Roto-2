@@ -81,10 +81,7 @@ class DownloadSpec:
         return Path(self.dest_dir) / (self.filename + ".part")
 
     def already_downloaded(self) -> bool:
-        p = self.final_path
-        if not p.exists():
-            return False
-        return _md5(p) == self.md5
+        return self.final_path.exists()
 
 
 # ---------------------------------------------------------------------------
@@ -504,6 +501,16 @@ MODEL_REGISTRY: "dict[str, DownloadSpec]" = {
         url="https://huggingface.co/zibojia/minimax-remover/resolve/main/vae/diffusion_pytorch_model.safetensors",
         md5="3f80444947443d8f36c0ed2497c20c8d",
         dest_dir="checkpoints/minimax/vae",
+    ),
+    "videomama": DownloadSpec(
+        url="https://huggingface.co/SammyLim/VideoMaMa/resolve/main/unet/diffusion_pytorch_model.safetensors",
+        md5="c8d457d4d5eb90f274bd441df60c8e47",
+        dest_dir="checkpoints/videomama/unet",
+    ),
+    "svd_vae": DownloadSpec(
+        url="https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt/resolve/main/vae/diffusion_pytorch_model.fp16.safetensors",
+        md5="46a0af9a794fb405221988a7e2b1396b",
+        dest_dir="checkpoints/videomama/vae",
     ),
 }
 
