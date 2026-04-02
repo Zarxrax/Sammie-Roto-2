@@ -36,7 +36,7 @@ from sammie.gui_widgets import (
 
 # ==================== VERSION ====================
 
-__version__ = "2.3.0"
+__version__ = "2.3.1"
 
 # ==================== LOGGING HELPER ====================
 
@@ -139,7 +139,7 @@ class SegmentationTab(QWidget):
         self._update_name_display(0)
         
         # Instructions for mouse clicks
-        instructions_label = QLabel("Left-click: Add positive point\nRight-click: Add negative point")
+        instructions_label = QLabel("Left-click: Add positive point\nCtrl+Left-click: Add negative point\nRight-click: Add negative point\nHold Shift: Live Preview")
         instructions_label.setStyleSheet("""
             QLabel {
                 background-color: palette(alternate-base);
@@ -1150,8 +1150,10 @@ class MainWindow(QMainWindow):
         
     def _connect_signals(self):
         """Connect all UI signals"""
-        # Connect image viewer point clicks to point addition
+        # Connect image viewer point clicks and preview
         self.viewer.point_clicked.connect(self.add_point_from_click)
+        self.viewer.preview_requested.connect(self.on_preview_requested)
+        self.viewer.preview_cancelled.connect(self.on_preview_cancelled)
 
         # Connect image viewer file drops to file loading
         self.viewer.file_dropped.connect(self.handle_dropped_file)
@@ -1174,10 +1176,11 @@ class MainWindow(QMainWindow):
             seg_tab.deduplicate_masks_btn.clicked.connect(self.deduplicate_similar_masks)
 
             # Connect postprocessing tab sliders
-            seg_tab.holes_slider.valueChanged.connect(self._update_current_frame_display)
-            seg_tab.dots_slider.valueChanged.connect(self._update_current_frame_display)
-            seg_tab.border_fix_slider.valueChanged.connect(self._update_current_frame_display)
-            seg_tab.grow_slider.valueChanged.connect(self._update_current_frame_display)
+
+            seg_tab.holes_slider.valueChanged.connect(lambda _: self._update_current_frame_display())
+            seg_tab.dots_slider.valueChanged.connect(lambda _: self._update_current_frame_display())
+            seg_tab.border_fix_slider.valueChanged.connect(lambda _: self._update_current_frame_display())
+            seg_tab.grow_slider.valueChanged.connect(lambda _: self._update_current_frame_display())
             
             # Store reference to segmentation tab for status updates
             self.segmentation_tab = seg_tab
@@ -1193,9 +1196,10 @@ class MainWindow(QMainWindow):
             matting_tab.clear_matting_btn.clicked.connect(self.clear_matting)
 
             # Connect postprocessing tab sliders
-            matting_tab.shrink_grow_slider.valueChanged.connect(self._update_current_frame_display)
-            matting_tab.gamma_slider.valueChanged.connect(self._update_current_frame_display)
-            
+            matting_tab.shrink_grow_slider.valueChanged.connect(lambda _: self._update_current_frame_display())
+            matting_tab.gamma_slider.valueChanged.connect(lambda _: self._update_current_frame_display())
+
+
             # Store reference to matting tab for status updates
             self.matting_tab = matting_tab
             # Initialize the button status
@@ -1210,19 +1214,19 @@ class MainWindow(QMainWindow):
             removal_tab.clear_removal_btn.clicked.connect(self.clear_object_removal)
             
             # Connect method selection to update display
-            removal_tab.method_combo.currentTextChanged.connect(self._update_current_frame_display)
-            
+            removal_tab.method_combo.currentTextChanged.connect(lambda _: self._update_current_frame_display())
+
             # Connect shared shrink/grow slider
-            removal_tab.shrink_grow_slider.valueChanged.connect(self._update_current_frame_display)
-            
+            removal_tab.shrink_grow_slider.valueChanged.connect(lambda _: self._update_current_frame_display())
+
             # Connect OpenCV parameter controls
-            removal_tab.opencv_algorithm_combo.currentTextChanged.connect(self._update_current_frame_display)
-            removal_tab.opencv_radius_slider.valueChanged.connect(self._update_current_frame_display)
-            
+            removal_tab.opencv_algorithm_combo.currentTextChanged.connect(lambda _: self._update_current_frame_display())
+            removal_tab.opencv_radius_slider.valueChanged.connect(lambda _: self._update_current_frame_display())
+
             # Connect MiniMax parameter controls
-            removal_tab.minimax_resolution_combo.currentTextChanged.connect(self._update_current_frame_display)
-            removal_tab.minimax_vae_tiling_checkbox.stateChanged.connect(self._update_current_frame_display)
-            removal_tab.minimax_steps_slider.valueChanged.connect(self._update_current_frame_display)
+            removal_tab.minimax_resolution_combo.currentTextChanged.connect(lambda _: self._update_current_frame_display())
+            removal_tab.minimax_vae_tiling_checkbox.stateChanged.connect(lambda _: self._update_current_frame_display())
+            removal_tab.minimax_steps_slider.valueChanged.connect(lambda _: self._update_current_frame_display())
             
             # Store reference to removal tab for status updates
             self.removal_tab = removal_tab
@@ -1655,7 +1659,7 @@ class MainWindow(QMainWindow):
         self.statusBar = QStatusBar()
         self.statusBar.addWidget(self.status)
         self.setStatusBar(self.statusBar)
-    
+
     def _setup_console_redirect(self):
         """Setup console redirection to the console tab"""
         self.console_redirect = ConsoleRedirect()
@@ -1876,13 +1880,14 @@ class MainWindow(QMainWindow):
             # Update display after replay is complete
             self._update_current_frame_display()
 
-    def _update_current_frame_display(self):
+    def _update_current_frame_display(self, preview_mask=None):
         """Update the current frame display with masks and points"""
         if core.VideoInfo.total_frames == 0:
             return  # Don't try to update before video is loaded
         current_frame = self.frame_slider.value()
         view_options = self.get_view_options()
-        updated_image = sammie.update_image(current_frame, view_options, self.point_manager.points)
+        object_id = self.sidebar.segmentation_tab.get_selected_object_id() if preview_mask is not None else None
+        updated_image = sammie.update_image(current_frame, view_options, self.point_manager.points, object_id_filter=object_id, preview_mask=preview_mask)
         if updated_image:
             self.viewer.update_image(updated_image)
             
@@ -1932,6 +1937,11 @@ class MainWindow(QMainWindow):
         # Add point to table
         self._add_point_and_segment(current_frame, object_id, is_positive, x, y, point_type)
 
+        # If preview is active, refresh it at the same position to reflect the new point
+        if self.viewer._preview_active:
+            self.viewer._preview_pending_pos = (x, y)
+            self.viewer._preview_timer.start()
+
     def _add_point_and_segment(self, frame, object_id, is_positive, x, y, point_type):
         """Helper method to add point and trigger segmentation"""
         # Add the point (this will trigger point callback but not update image yet)
@@ -1945,6 +1955,17 @@ class MainWindow(QMainWindow):
         # Run segmentation (this will trigger segmentation callback and update image)
         self.sam_manager.segment_image(frame, object_id, coordinates, labels)  
     
+    def on_preview_requested(self, x, y, is_positive):
+        frame = self.frame_slider.value()
+        object_id = self.sidebar.segmentation_tab.get_selected_object_id()
+        preview_mask = self.sam_manager.preview_point(frame, object_id, self.point_manager.get_all_points(), x, y, is_positive)
+        if preview_mask is not None:
+            self._update_current_frame_display(preview_mask=preview_mask)
+
+    def on_preview_cancelled(self):
+        """Clear the preview and restore the real mask display"""
+        self._update_current_frame_display()
+        
     def delete_selected_point(self):
         """Delete the currently selected point in the table"""
         if hasattr(self, 'point_table'):

@@ -134,6 +134,57 @@ class SamManager:
             # Notify that segmentation is complete
             self._notify('segmentation_complete', frame=frame_number, object_id=object_id, out_obj_ids=out_obj_ids)
 
+    def preview_point(self, frame_number, object_id, all_points, preview_x, preview_y, is_positive):
+        """Run a preview using the real video predictor, then revert the state."""
+        if self.predictor is None or self.inference_state is None:
+            return None
+        try:
+            existing = [p for p in all_points
+                        if p['frame'] == frame_number and p['object_id'] == object_id]
+
+            # Build preview point set
+            preview_points = np.array([[p['x'], p['y']] for p in existing] + [[preview_x, preview_y]], dtype=np.float32)
+            preview_labels = np.array([1 if p['positive'] else 0 for p in existing] + [1 if is_positive else 0], dtype=np.int32)
+
+            # Step 1: run with preview point
+            _, out_obj_ids, out_mask_logits = self.predictor.add_new_points_or_box(
+                inference_state=self.inference_state,
+                frame_idx=frame_number,
+                obj_id=object_id,
+                points=preview_points,
+                labels=preview_labels,
+                clear_old_points=True,
+            )
+
+            # Capture the preview mask
+            preview_mask = None
+            for i, oid in enumerate(out_obj_ids):
+                if oid == object_id:
+                    mask = (out_mask_logits[i] > 0.0).cpu().numpy().squeeze()
+                    preview_mask = (mask * 255).astype(np.uint8)
+                    break
+
+            # Step 2: revert by replaying the original points
+            if existing:
+                orig_points = np.array([[p['x'], p['y']] for p in existing], dtype=np.float32)
+                orig_labels = np.array([1 if p['positive'] else 0 for p in existing], dtype=np.int32)
+                self.predictor.add_new_points_or_box(
+                    inference_state=self.inference_state,
+                    frame_idx=frame_number,
+                    obj_id=object_id,
+                    points=orig_points,
+                    labels=orig_labels,
+                    clear_old_points=True,
+                )
+            else:
+                self.predictor.reset_state(self.inference_state)
+
+            return preview_mask
+
+        except Exception as e:
+            print(f"Preview error: {e}")
+            return None
+
     def replay_points(self, points_list):
         """Replay all points incrementally to rebuild masks."""
         frame_count = core.VideoInfo.total_frames
@@ -274,7 +325,7 @@ def load_smoothing_model():
 # View / display handlers
 # .........................................................................................
 
-def update_image(slider_value, view_options, points, return_numpy=False, object_id_filter=None):
+def update_image(slider_value, view_options, points, return_numpy=False, object_id_filter=None, preview_mask=None):
     """Main image update function - delegates to specific view handlers
 
     Args:
@@ -290,7 +341,7 @@ def update_image(slider_value, view_options, points, return_numpy=False, object_
     view_mode = view_options.get("view_mode", "Segmentation-Edit")
 
     if view_mode == "Segmentation-Edit":
-        return _handle_segmentation_edit_view(slider_value, view_options, points, return_numpy, object_id_filter)
+        return _handle_segmentation_edit_view(slider_value, view_options, points, return_numpy, object_id_filter, preview_mask)
     elif view_mode == "Segmentation-Matte":
         return _handle_segmentation_matte_view(slider_value, view_options, points, return_numpy, object_id_filter)
     elif view_mode == "Segmentation-BGcolor":
@@ -356,13 +407,13 @@ def _handle_none_view(frame_number, return_numpy=False):
         return _convert_to_qpixmap(image)
 
 
-def _handle_segmentation_edit_view(frame_number, view_options, points, return_numpy=False, object_id_filter=None):
+def _handle_segmentation_edit_view(frame_number, view_options, points, return_numpy=False, object_id_filter=None, preview_mask=None):
     """Handle Segmentation-Edit view"""
     image = core.load_base_frame(frame_number)
     if image is None:
         return None
 
-    image = apply_postprocessing_to_display(image, frame_number, points, view_options, object_id_filter)
+    image = apply_postprocessing_to_display(image, frame_number, points, view_options, object_id_filter, preview_mask)
 
     highlighted_points = view_options.get('highlighted_point', None)
 
@@ -652,7 +703,7 @@ def draw_points(image, frame_number, points, highlighted_points=None):
     return image
 
 
-def apply_postprocessing_to_display(image, frame_number, points, view_options, object_id_filter=None):
+def apply_postprocessing_to_display(image, frame_number, points, view_options, object_id_filter=None, preview_mask=None):
     """Apply postprocessing to masks and draw them on the image for display"""
     raw_masks = core.load_masks_for_frame(
         frame_number, points, return_combined=False, object_id_filter=object_id_filter
@@ -664,6 +715,10 @@ def apply_postprocessing_to_display(image, frame_number, points, view_options, o
         }
     else:
         processed_masks = {}
+
+    # Substitute the preview mask for the selected object if provided
+    if preview_mask is not None and object_id_filter is not None:
+        processed_masks[object_id_filter] = core.apply_mask_postprocessing(preview_mask)
 
     if view_options.get("show_masks", True):
         image = draw_masks(image, processed_masks)

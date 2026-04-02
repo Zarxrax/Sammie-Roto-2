@@ -22,14 +22,15 @@ from PySide6.QtWidgets import (
     QLabel, QTableWidget, QTableWidgetItem, QAbstractItemView, 
     QHeaderView, QPushButton, QWidget, QHBoxLayout, QVBoxLayout,
     QDialog, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
-    QColorDialog, QSlider, QStyleOptionSlider, QStyle, QMessageBox
+    QColorDialog, QSlider, QStyleOptionSlider, QStyle, QMessageBox,
+    QApplication, QLineEdit
 )
 from PySide6.QtGui import (
     QPixmap, QMouseEvent, QWheelEvent, QPainter, QColor, QIcon,
-    QPen, QPolygon, QPalette
+    QPen, QPalette, QKeyEvent
 )
 from PySide6.QtCore import (
-    Qt, QPointF, QObject, Signal, QRect, QPoint
+    Qt, QPointF, QObject, Signal, QRect, QTimer
 )
 
 from sammie import core
@@ -540,6 +541,9 @@ class ImageViewer(QGraphicsView):
     
     # Add signal for point clicks
     point_clicked = Signal(int, int, bool)  # x, y coordinates, is_positive
+    # Add signal for live preview
+    preview_requested = Signal(int, int, bool)  # x, y, is_positive
+    preview_cancelled = Signal()
     # Add signal for file drops
     file_dropped = Signal(str)  # file path
     
@@ -580,6 +584,16 @@ class ImageViewer(QGraphicsView):
         self.max_scale = 8.0
         self.current_scale = 1.0
         self.has_been_initialized = False  # Track if we've done initial zoom
+
+        # Preview state
+        self._preview_active = False          # True while Shift is held
+        self._preview_is_positive = True      # Which point type to preview
+        self._preview_pending_pos = None      # Latest mouse position for debounce
+        self._preview_timer = QTimer(self)
+        self._preview_timer.setInterval(150)
+        self._preview_timer.timeout.connect(self._emit_preview)
+        self._preview_last_pos = None
+        self._preview_running = False  # throttle flag
 
 
     def load_image(self, image, preserve_zoom=True):
@@ -756,6 +770,9 @@ class ImageViewer(QGraphicsView):
     
         if self.point_editing_enabled:
             if event.button() == Qt.LeftButton:
+                # Update preview point type in case shift is held
+                self._preview_is_positive = True
+
                 # Left click = positive point
                 mouse_pos = self.mapToScene(event.position().toPoint())
                 x, y = int(mouse_pos.x()), int(mouse_pos.y())
@@ -765,11 +782,17 @@ class ImageViewer(QGraphicsView):
                     0 <= x < self.original_pixmap.width() and 
                     0 <= y < self.original_pixmap.height()):
                     
-                    # Emit signal for positive point addition
-                    self.point_clicked.emit(x, y, True)
+                    # Ctrl+left click = negative point, plain left click = positive
+                    ctrl_held = event.modifiers() & Qt.ControlModifier
+                    is_positive = not bool(ctrl_held)
+                    self._preview_is_positive = is_positive
+                    self.point_clicked.emit(x, y, is_positive)
                     return  # Don't call super() to prevent other handling
             
             elif event.button() == Qt.RightButton:
+                # Update preview point type in case shift is held
+                self._preview_is_positive = False
+
                 # Right click = negative point
                 mouse_pos = self.mapToScene(event.position().toPoint())
                 x, y = int(mouse_pos.x()), int(mouse_pos.y())
@@ -786,7 +809,7 @@ class ImageViewer(QGraphicsView):
         super().mousePressEvent(event)
     
     def mouseMoveEvent(self, event: QMouseEvent):
-        """Handle mouse movement for panning and coordinate display"""
+        """Handle mouse movement for panning, coordinate display, and live preview"""
         if self._is_panning:
             delta = event.position().toPoint() - self._pan_start
             self._pan_start = event.position().toPoint()
@@ -799,6 +822,26 @@ class ImageViewer(QGraphicsView):
             )
         else:
             self._update_mouse_status(event.position().toPoint())
+
+            # Grab focus when the mouse enters the viewer, only if Shift is held
+            focused = QApplication.focusWidget()
+            if not isinstance(focused, QLineEdit):
+                modifiers = QApplication.keyboardModifiers()
+                if modifiers & Qt.ShiftModifier:
+                    if not self.hasFocus():
+                        self.setFocus()
+                        fake_event = QKeyEvent(QKeyEvent.KeyPress, Qt.Key_Shift, Qt.ShiftModifier)
+                        self.keyPressEvent(fake_event)
+
+            # Trigger live preview if Shift is held and editing is enabled
+            if (self._preview_active and self.point_editing_enabled and self.original_pixmap):
+                scene_pos = self.mapToScene(event.position().toPoint())
+                x, y = int(scene_pos.x()), int(scene_pos.y())
+                if (0 <= x < self.original_pixmap.width() and
+                        0 <= y < self.original_pixmap.height()):
+                    self._preview_pending_pos = (x, y)
+                    if not self._preview_timer.isActive():
+                        self._preview_timer.start()
         
         super().mouseMoveEvent(event)
     
@@ -809,6 +852,64 @@ class ImageViewer(QGraphicsView):
             self.setCursor(Qt.ArrowCursor)
         
         super().mouseReleaseEvent(event)
+
+    def keyPressEvent(self, event):
+        """Activate or update live preview on Shift/Ctrl press"""
+        if event.isAutoRepeat():
+            super().keyPressEvent(event)
+            return
+
+        if event.key() == Qt.Key_Shift:
+            self._preview_active = True
+            # Ctrl+Shift = negative preview, Shift alone = positive
+            ctrl_held = event.modifiers() & Qt.ControlModifier
+            self._preview_is_positive = not bool(ctrl_held)
+            # Trigger preview immediately at current mouse position
+            cursor_pos = self.mapFromGlobal(self.cursor().pos())
+            scene_pos = self.mapToScene(cursor_pos)
+            x, y = int(scene_pos.x()), int(scene_pos.y())
+            if (self.original_pixmap and
+                    0 <= x < self.original_pixmap.width() and
+                    0 <= y < self.original_pixmap.height()):
+                self._preview_pending_pos = (x, y)
+                self._preview_timer.start()
+        elif event.key() == Qt.Key_Control and self._preview_active:
+            # Ctrl pressed while Shift already held — switch to negative preview
+            self._preview_is_positive = False
+            # Re-fire the timer so the display updates immediately
+            if self._preview_pending_pos is not None:
+                self._preview_timer.start()
+
+        super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event):
+        """Deactivate or update live preview on Shift/Ctrl release"""
+        if event.isAutoRepeat():
+            super().keyReleaseEvent(event)
+            return
+
+        if event.key() == Qt.Key_Shift:
+            self._preview_active = False
+            self._preview_timer.stop()
+            self._preview_pending_pos = None
+            self._preview_last_pos = None
+            self.preview_cancelled.emit()
+        elif event.key() == Qt.Key_Control and self._preview_active:
+            # Ctrl released while Shift still held — switch back to positive preview
+            self._preview_is_positive = True
+            # Re-fire the timer so the display updates immediately
+            if self._preview_pending_pos is not None:
+                self._preview_timer.start()
+
+        super().keyReleaseEvent(event)
+
+    def _emit_preview(self):
+        """Emit the preview signal for the latest pending mouse position"""
+        if self._preview_pending_pos is not None:
+            x, y = self._preview_pending_pos
+            if (x, y) != self._preview_last_pos:
+                self._preview_last_pos = (x, y)
+                self.preview_requested.emit(x, y, self._preview_is_positive)
     
     def resizeEvent(self, event):
         """Handle viewport resize events"""
