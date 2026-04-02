@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from PySide6.QtWidgets import QApplication
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.attention import FeedForward
 from diffusers.models.attention_processor import Attention
@@ -266,6 +267,8 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
 
         for block in self.blocks:
             hidden_states = block(hidden_states, timestep_proj, rotary_emb)
+            # let gui update
+            QApplication.processEvents()
 
         shift, scale = (self.scale_shift_table + temb.unsqueeze(1)).chunk(2, dim=1)
         hidden_states = (self.norm_out(hidden_states.float()) * (1 + scale) + shift).type_as(hidden_states)

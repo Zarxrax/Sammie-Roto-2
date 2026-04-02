@@ -185,10 +185,13 @@ class Minimax_Remover_Pipeline(DiffusionPipeline):
             
         QApplication.processEvents()
         self.load_vae_to_gpu(device)
+        QApplication.processEvents()
 
         # Encode to get the ACTUAL latent shape
         masked_latents = self.vae.encode(masked_images.half()).latent_dist.mode()
+        QApplication.processEvents()
         masks_latents = self.vae.encode(2*masks.half()-1.0).latent_dist.mode()
+        QApplication.processEvents()
         
         # Get actual latent dimensions from encoding
         actual_latent_frames = masked_latents.shape[2]
@@ -199,6 +202,7 @@ class Minimax_Remover_Pipeline(DiffusionPipeline):
 
         masked_latents = (masked_latents - latents_mean) * latents_std
         masks_latents = (masks_latents - latents_mean) * latents_std
+        QApplication.processEvents()
         
         # Create noise latents with the CORRECT shape from actual encoding
         latents = self.prepare_latents(
@@ -213,14 +217,18 @@ class Minimax_Remover_Pipeline(DiffusionPipeline):
             None,
         )
         #print(f"Prepared latents shape: {latents.shape}")
+        QApplication.processEvents()
 
         # Free memory from encoding
         del masked_images, images, masks
+        QApplication.processEvents()
         clear_device_cache(device)
 
         # Offload VAE, load Transformer
         self.offload_vae_to_cpu(device)
+        QApplication.processEvents()
         self.load_transformer_to_gpu(device)
+        QApplication.processEvents()
 
         # PHASE 2: TRANSFORMER DENOISING
         print("Phase 2: Transformer Denoising...")
@@ -257,11 +265,14 @@ class Minimax_Remover_Pipeline(DiffusionPipeline):
 
         # Free transformer-related tensors
         del masked_latents, masks_latents, noise_pred, latent_model_input
+        QApplication.processEvents()
         clear_device_cache(device)
         
         # Offload Transformer, load VAE
         self.offload_transformer_to_cpu(device)
+        QApplication.processEvents()
         self.load_vae_to_gpu(device)
+        QApplication.processEvents()
 
         # PHASE 3: VAE DECODING
         print("Phase 3: VAE Decoding...")
@@ -277,13 +288,18 @@ class Minimax_Remover_Pipeline(DiffusionPipeline):
 
         # Move latents_mean and latents_std to the same device as latents for decoding
         latents_mean = latents_mean.to(latents.device)
+        QApplication.processEvents()
         latents_std = latents_std.to(latents.device)
+        QApplication.processEvents()
         
         latents = latents.half() / latents_std + latents_mean
+        QApplication.processEvents()
 
         video = self.vae.decode(latents, return_dict=False)[0]
+        QApplication.processEvents()
 
         video = self.video_processor.postprocess_video(video, output_type=output_type)
+        QApplication.processEvents()
 
         clear_device_cache(device)
 

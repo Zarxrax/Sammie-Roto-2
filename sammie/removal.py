@@ -93,12 +93,17 @@ class RemovalManager:
             print("VAE tiling enabled")
 
         return self.pipe
-
+        
     def unload_minimax_model(self):
         """Unload the MiniMax model and clear cache"""
-        self.pipe = None
-        core.DeviceManager.clear_cache()
-        print("Unloaded MiniMax-Remover model")
+        if self.pipe is not None:
+            # Explicitly delete the internal components
+            del self.pipe.transformer
+            del self.pipe.vae
+            del self.pipe.scheduler
+            self.pipe = None
+            core.DeviceManager.clear_cache()
+            print("Unloaded MiniMax-Remover model")
 
     def run_object_removal_minimax(self, points, parent_window=None):
         """
@@ -199,6 +204,12 @@ class RemovalManager:
             else:
                 progress_dialog.close()
                 raise
+        finally:
+            if frames is not None:
+                del frames
+            if masks is not None:
+                del masks
+            self.unload_minimax_model()
 
         # Remove padding and convert
         if pad_frames > 0:

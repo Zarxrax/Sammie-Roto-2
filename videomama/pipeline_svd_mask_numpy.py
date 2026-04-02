@@ -6,6 +6,8 @@ from typing import List, Optional, Union
 import numpy as np
 import torch
 
+from PySide6.QtWidgets import QApplication
+
 from diffusers.models import AutoencoderKLTemporalDecoder, UNetSpatioTemporalConditionModel
 from diffusers.schedulers import EulerDiscreteScheduler
 from diffusers.utils import BaseOutput, logging
@@ -431,6 +433,7 @@ class StableVideoDiffusionPipelineOnestepWithMask(DiffusionPipeline):
             num_frames_in = latents[i: i + decode_chunk_size].shape[0]
             frame = self.vae.decode(latents[i: i + decode_chunk_size], num_frames=num_frames_in).sample
             frames.append(frame)
+            QApplication.processEvents()
         frames = torch.cat(frames, dim=0)
         frames = frames.reshape(-1, num_frames, *frames.shape[1:]).permute(0, 2, 1, 3, 4)
         frames = frames.float()
@@ -551,9 +554,11 @@ class StableVideoDiffusionPipelineOnestepWithMask(DiffusionPipeline):
 
         conditional_latents = self._encode_video_vae(image_tensor, device)
         conditional_latents = conditional_latents / self.vae.config.scaling_factor
+        QApplication.processEvents()
 
         mask_latents = self._encode_video_vae(mask_tensor, device)
         mask_latents = mask_latents / self.vae.config.scaling_factor
+        QApplication.processEvents()
 
         if mask_noise_strength > 0.0:
             mask_noise = randn_tensor(mask_latents.shape, generator=generator, device=device, dtype=dtype)
@@ -586,6 +591,7 @@ class StableVideoDiffusionPipelineOnestepWithMask(DiffusionPipeline):
             latent_model_input, timestep, encoder_hidden_states=image_embeddings, added_time_ids=added_time_ids,
             return_dict=False
         )[0]
+        QApplication.processEvents()
 
         # The model's prediction is the final denoised latent
         denoised_latents = noise_pred
@@ -907,9 +913,11 @@ class VideoInferencePipeline:
 
             cond_latents = self._tensor_to_vae_latent(cond_video_tensor.to(self.weight_dtype))
             cond_latents = cond_latents / self.vae.config.scaling_factor
+            QApplication.processEvents()
 
             mask_latents = self._tensor_to_vae_latent(mask_video_tensor.to(self.weight_dtype))
             mask_latents = mask_latents / self.vae.config.scaling_factor
+            QApplication.processEvents()
 
             # Free raw pixel tensors - no longer needed after VAE encoding
             del cond_video_tensor, mask_video_tensor
@@ -938,6 +946,7 @@ class VideoInferencePipeline:
             clear_device_cache(self.device)
 
             pred_latents = self.unet(unet_input, timesteps, encoder_hidden_states, added_time_ids=added_time_ids).sample
+            QApplication.processEvents()
 
             del unet_input
             if self.enable_model_cpu_offload:
@@ -960,7 +969,7 @@ class VideoInferencePipeline:
                 chunk = pred_latents[i: i + decode_chunk_size]
                 decoded_chunk = self.vae.decode(chunk, num_frames=chunk.shape[0]).sample
                 frames.append(decoded_chunk.cpu())  # Move decoded frames to CPU immediately
-
+                QApplication.processEvents()
             del pred_latents
             if self.enable_model_cpu_offload:
                 self.vae.to("cpu")
