@@ -36,7 +36,7 @@ from sammie.gui_widgets import (
 
 # ==================== VERSION ====================
 
-__version__ = "2.3.1"
+__version__ = "2.3.2"
 
 # ==================== LOGGING HELPER ====================
 
@@ -406,6 +406,7 @@ class MattingTab(QWidget):
         processing_layout = QVBoxLayout(processing_group)
         model_layout = QHBoxLayout()
         res_layout = QHBoxLayout()
+        overlap_layout = QHBoxLayout()
         
         model_label = QLabel("Model:")
         self.matany_model_combo = QComboBox()
@@ -416,13 +417,23 @@ class MattingTab(QWidget):
         self.matany_res_combo = QComboBox()
         self.matany_res_combo.addItems(["352", "480", "576", "720", "1080", "1440", "2160", "Full"])
         self.matany_res_combo.setToolTip("If your video's shortest side is larger than this, it will be\ndownsampled to this size before running matting.\nThis reduces VRAM requirements and increases processing speed.")
-        
+
+        self.overlap_label = QLabel("Crossfade overlap frames:")
+        self.overlap_combo = QComboBox()
+        self.overlap_combo.addItems(["0", "2", "4"])
+        self.overlap_combo.setToolTip("Number of overlapping frames between processed chunks. Higher values can look smoother on slow or poorly defined subjects.")
+        self.overlap_label.setVisible(False)
+        self.overlap_combo.setVisible(False)
+
         self.combined_mask_checkbox = QCheckBox("Combine All Objects")
         self.combined_mask_checkbox.setToolTip("If checked, all objects will be merged and processed as a single object.")
 
         # Connect to save settings when changed
         self.matany_model_combo.currentTextChanged.connect(self._save_model_setting)
         self.matany_res_combo.currentTextChanged.connect(self._save_resolution_setting)
+        self.overlap_combo.currentTextChanged.connect(
+            lambda v: settings_mgr.set_session_setting("matany_overlap", int(v))
+        )
         self.combined_mask_checkbox.stateChanged.connect(
             lambda state: settings_mgr.set_session_setting("matany_combined", self.combined_mask_checkbox.isChecked())
         )
@@ -433,9 +444,13 @@ class MattingTab(QWidget):
         res_layout.addWidget(res_label)
         res_layout.addWidget(self.matany_res_combo)
         res_layout.addStretch()
+        overlap_layout.addWidget(self.overlap_label)
+        overlap_layout.addWidget(self.overlap_combo)
+        overlap_layout.addStretch()
         
         processing_layout.addLayout(model_layout)
         processing_layout.addLayout(res_layout)
+        processing_layout.addLayout(overlap_layout)
         processing_layout.addWidget(self.combined_mask_checkbox)
         layout.addWidget(processing_group)
 
@@ -570,6 +585,14 @@ class MattingTab(QWidget):
         settings_mgr = get_settings_manager()
         settings_mgr.set_session_setting("matany_model", value)
 
+        # Show overlap only for VideoMaMa
+        if value == "VideoMaMa":
+            self.overlap_label.setVisible(True)
+            self.overlap_combo.setVisible(True)
+        else:
+            self.overlap_label.setVisible(False)
+            self.overlap_combo.setVisible(False)
+
     def _save_resolution_setting(self, value):
         """Save resolution combo box value to session settings"""
         if value == "Full":
@@ -592,10 +615,20 @@ class MattingTab(QWidget):
         model = settings_mgr.get_session_setting("matany_model", "MatAnyone2")
         if model == "MatAnyone2":
             self.matany_model_combo.setCurrentIndex(1)
+            self.overlap_label.setVisible(False)
+            self.overlap_combo.setVisible(False)
         elif model == "MatAnyone":
             self.matany_model_combo.setCurrentIndex(0)
+            self.overlap_label.setVisible(False)
+            self.overlap_combo.setVisible(False)
         else:
             self.matany_model_combo.setCurrentIndex(2)
+            self.overlap_label.setVisible(True) # overlap setting is visible for VideoMaMa
+            self.overlap_combo.setVisible(True)
+
+        # Load overlap value
+        overlap = settings_mgr.get_session_setting("matany_overlap", 2)
+        self.overlap_combo.setCurrentText(str(overlap))
 
         # Load resolution
         resolution = settings_mgr.get_session_setting("matany_res", 1080)

@@ -99,11 +99,6 @@ class SettingsDialog(QDialog):
         # Segmentation Processing defaults group
         proc_group = QGroupBox("Segmentation Defaults")
         proc_layout = QFormLayout(proc_group)
-        
-        #self.default_sam_model_combo = QComboBox()
-        #self.default_sam_model_combo.addItems(["Base", "Large", "Efficient"])
-        #self.default_sam_model_combo.setToolTip("Large model is slower but slightly more accurate. Efficient model is faster but less accurate.")
-        #proc_layout.addRow("SAM Model:", self.default_sam_model_combo)
 
         self.default_holes_spin = QSpinBox()
         self.default_holes_spin.setRange(0, 50)
@@ -133,12 +128,20 @@ class SettingsDialog(QDialog):
         self.default_matting_model_combo.setToolTip("VideoMaMa is higher quality but slower and uses more VRAM.")
         mat_layout.addRow("Matting Model:", self.default_matting_model_combo)
 
-        # MatAnyone Internal Resolution selection
+        # Matting Internal Resolution selection
         self.default_matany_res_combo = QComboBox()
         self.default_matany_res_combo.addItems(["352", "480", "576", "720", "1080", "1440", "2160", "Full"])
         mat_layout.addRow("Matting Internal Resolution:", self.default_matany_res_combo)
 
-        # MatAnyone Combined Mask
+        # VideoMaMa overlap size
+        self.default_matany_overlap_combo = QComboBox()
+        self.default_matany_overlap_combo.addItems(["0", "2", "4"])
+        self.default_matany_overlap_combo.setToolTip(
+            "Number of overlapping frames between chunks (VideoMaMa only)."
+        )
+        mat_layout.addRow("Overlap Frames:", self.default_matany_overlap_combo)
+
+        # Matting Combined Mask
         self.default_combined_mask_checkbox = QCheckBox()
         self.default_combined_mask_checkbox.setToolTip("If checked, all objects will be merged and processed as a single object.")
         mat_layout.addRow("Combine All Objects", self.default_combined_mask_checkbox)
@@ -290,6 +293,7 @@ class SettingsDialog(QDialog):
         self.default_matany_grow_spin.setValue(app_settings.default_matany_grow)
         self.default_matting_model_combo.setCurrentText(app_settings.default_matany_model)
         self.default_combined_mask_checkbox.setChecked(app_settings.default_matany_combined)
+        self.default_matany_overlap_combo.setCurrentText(str(app_settings.default_matany_overlap))
 
         # Set MatAnyone resolution combo box
         if app_settings.default_matany_res == 0:
@@ -336,6 +340,7 @@ class SettingsDialog(QDialog):
         app_settings.default_matany_grow = self.default_matany_grow_spin.value()
         app_settings.default_matany_model = self.default_matting_model_combo.currentText()
         app_settings.default_matany_combined = self.default_combined_mask_checkbox.isChecked()
+        app_settings.default_matany_overlap = int(self.default_matany_overlap_combo.currentText())
 
         # Handle MatAnyone resolution setting
         matany_text = self.default_matany_res_combo.currentText()

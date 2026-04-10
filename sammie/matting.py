@@ -50,19 +50,25 @@ class MattingManager:
         print("Unloaded Matting model")
 
     def _resize_image(self, image):
-        """Resize image based on matting quality setting"""
-        settings_mgr = get_settings_manager()
-        max_size = settings_mgr.get_session_setting("matany_res", 0)
-        if max_size > 0:
+            """Resize image and ensure dimensions are multiples of 8 for the model."""
+            settings_mgr = get_settings_manager()
+            max_size = settings_mgr.get_session_setting("matany_res", 0)
             h, w = image.shape[:2]
-            min_side = min(h, w)
-            if min_side > max_size:
-                scale = max_size / min_side
-                new_h = (int(h * scale) // 8) * 8
-                new_w = (int(w * scale) // 8) * 8
-                #print(f"[_resize_image] {w}x{h} -> {new_w}x{new_h} (scale={scale:.3f}, max_size={max_size})")
-                image = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_AREA)
-        return image
+            
+            # 1. Determine scaling factor
+            scale = 1.0
+            if max_size > 0:
+                min_side = min(h, w)
+                if min_side > max_size:
+                    scale = max_size / min_side
+
+            # 2. ALWAYS round to a multiple of 8
+            # This ensures [3, 1384, 600] instead of [3, 1390, 602]
+            new_h = (int(h * scale) // 8) * 8
+            new_w = (int(w * scale) // 8) * 8
+            
+            # 3. Always resize, even if scale is 1.0, to catch those extra pixels
+            return cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_AREA)
     
     def _restore_image_size(self, image, original_size):
         """Restore image to original size. original_size must be (w, h) as expected by cv2."""
@@ -639,28 +645,25 @@ class VideoMaMaManager(MattingManager):
         settings_mgr = get_settings_manager()
         matting_model = settings_mgr.get_session_setting("matany_model", "VideoMaMa")
         max_size = settings_mgr.get_session_setting("matany_res", 0)
+        overlap = settings_mgr.get_session_setting("matany_overlap", 2)
         combined = settings_mgr.get_session_setting("matany_combined", False)
 
         if not ensure_models(["videomama", "svd_vae"], parent=parent_window):
             return False  # user cancelled or download failed
 
         try:
-            # Read VAE tiling preference from settings
-            settings_mgr = get_settings_manager()
-            vae_tiling = settings_mgr.get_session_setting("videomama_vae_tiling", False)
-
             self.pipeline = VideoInferencePipeline(
                 base_model_path=os.path.join("checkpoints", "videomama"),
                 unet_checkpoint_path=os.path.join("checkpoints", "videomama"),
                 weight_dtype=torch.float16,
                 device=str(device),
-                enable_model_cpu_offload=False,    # Move models to CPU when not in use
-                vae_encode_chunk_size=1,          # Process VAE in small chunks
+                enable_model_cpu_offload=False,    # Not much benefit here, since the vae is a small model
+                vae_encode_chunk_size=1,          # Process VAE in small chunks, increasing doesnt help anything
                 attention_mode="auto",            # Use xformers if available, else SDPA
-                enable_vae_tiling=vae_tiling,     # Tile-based VAE for lower VRAM peak
+                enable_vae_tiling=False,        # Tiling VAE is not worth it
                 enable_vae_slicing=True,          # Process VAE one image at a time
             )
-            print(f"Loaded {matting_model} model to {device} with max size {max_size} and combined={combined}")
+            print(f"Loaded {matting_model} model to {device} with max size {max_size} and overlap={overlap} and combined={combined}")
             return True
 
         except Exception as e:
@@ -688,10 +691,19 @@ class VideoMaMaManager(MattingManager):
             return 0
 
         core.DeviceManager.clear_cache()
-        device = core.DeviceManager.get_device()
         frame_count = core.VideoInfo.total_frames
         extension = core.get_frame_extension()
-        overlap = 2
+        settings_mgr = get_settings_manager()
+        
+        # --- VideoMaMa batch settings ---
+        batch_size = 16           # frames per chunk sent to the model
+        overlap = settings_mgr.get_session_setting("matany_overlap", 2) # frames re-processed at each boundary for continuity
+        if overlap == 0: 
+            enable_boundary_blend = False
+        else: 
+            enable_boundary_blend = True # blend overlap frames linearly at chunk boundaries
+        if overlap == 4: # increase the batch size if overlap is 4
+            batch_size+=2
 
         start_frame, end_frame, frames_to_process = self._get_frame_range()
         print(f"Processing matting from frame {start_frame} to {end_frame} ({frames_to_process} frames)")
@@ -723,8 +735,7 @@ class VideoMaMaManager(MattingManager):
                             os.remove(os.path.join(frame_dir, f))
 
         # Calculate total operations for progress tracking
-        total_batches = self._calculate_batch_count(frames_to_process, overlap)
-        total_operations = total_batches * len(object_ids)
+        total_operations = len(self._generate_windows(frames_to_process, batch_size, overlap)) * len(object_ids)
 
         progress_dialog, pbar = self._make_progress_dialog(parent_window, total_operations, unit="batch")
         operations_completed = 0
@@ -738,9 +749,10 @@ class VideoMaMaManager(MattingManager):
             print(f"Processing object {object_id}...")
 
             batches_completed = self._process_object(
-                object_id, start_frame, end_frame, overlap, extension,
+                object_id, start_frame, end_frame, overlap, batch_size, extension,
                 progress_dialog, pbar, operations_completed,
-                total_operations, parent_window, combine_ids=combine_ids
+                total_operations, parent_window, combine_ids=combine_ids,
+                enable_boundary_blend=enable_boundary_blend
             )
 
             if batches_completed is None:  # cancelled or failed
@@ -870,29 +882,19 @@ class VideoMaMaManager(MattingManager):
 
         return windows
 
-    def _calculate_batch_count(self, total_frames, overlap):
-        """Calculate the number of batches for the given frame count and overlap."""
-        batch_size = 16
-        if total_frames <= batch_size:
-            return 1
-        step = max(1, batch_size - overlap)
-        return max(1, (total_frames - overlap + step - 1) // step)
 
-
-    def _process_object(self, object_id, start_frame, end_frame, overlap, extension,
+    def _process_object(self, object_id, start_frame, end_frame, overlap, batch_size, extension,
                         progress_dialog, pbar, operations_completed, total_operations, parent_window,
-                        combine_ids=None):
+                        combine_ids=None, enable_boundary_blend=True):
         """
         Process a single object across all frames using windowed batching.
- 
-        Overlap frames are used purely as warm-up context for the model.
-        Their output is discarded; only the non-overlap portion of each batch is saved.
  
         Args:
             object_id: Object ID to process (also the output file label)
             start_frame: First frame (inclusive)
             end_frame: Last frame (inclusive)
             overlap: Overlap frames between batches
+            batch_size: Number of frames per chunk sent to the model
             extension: Frame file extension
             progress_dialog: Qt progress dialog
             pbar: tqdm progress bar
@@ -901,11 +903,11 @@ class VideoMaMaManager(MattingManager):
             parent_window: Parent window for display updates
             combine_ids: If set, union masks for these IDs in memory rather than
                          loading a single object mask from disk
+            enable_boundary_blend: Linearly blend overlap frames at chunk boundaries
  
         Returns:
             int: Number of batches completed, or None if cancelled/failed
         """
-        BATCH_SIZE = 16
         frames_to_process = end_frame - start_frame + 1
         settings_mgr = get_settings_manager()
         display_update_frequency = settings_mgr.get_app_setting("display_update_frequency", 5)
@@ -919,8 +921,18 @@ class VideoMaMaManager(MattingManager):
             original_w = core.VideoInfo.width
             original_h = core.VideoInfo.height
  
-        windows = self._generate_windows(frames_to_process, BATCH_SIZE, overlap)
+        windows = self._generate_windows(frames_to_process, batch_size, overlap)
         batches_completed = 0
+
+        # Stores soft alpha mattes (model working resolution, grayscale uint8) for the
+        # last `overlap` frames of each batch.  Fed back as mask_frames for the overlap
+        # frames of the next batch, giving the model continuity across chunk boundaries.
+        # Kept soft (not binarized) so the model sees graduated edge information.
+        previous_overlap_masks = None
+
+        # Stores the last `overlap` committed alpha mattes at original resolution,
+        # used for linear blending across the boundary after each non-first batch.
+        prev_boundary_alphas = None
  
         for batch_idx, (window_start, window_end) in enumerate(windows):
             if progress_dialog.wasCanceled():
@@ -928,7 +940,6 @@ class VideoMaMaManager(MattingManager):
  
             abs_start = start_frame + window_start
             abs_end = start_frame + window_end  # exclusive
-            batch_length = abs_end - abs_start
  
             # For non-first batches, the leading overlap frames are warm-up context only —
             # their output is discarded in favour of the already-committed result from the
@@ -946,8 +957,20 @@ class VideoMaMaManager(MattingManager):
                     f"(frames {abs_start}-{abs_end - 1}) — missing data")
                 pbar.update(1)
                 batches_completed += 1
+                # Reset both carry-overs so stale data is never injected after a gap
+                previous_overlap_masks = None
+                prev_boundary_alphas = None
                 continue
  
+            # --- FEEDBACK LOOP INJECTION ---
+            # Replace the SAM2 masks for the overlap frames with the soft alpha mattes
+            # predicted by the previous batch.  The model sees its own prior output as
+            # guidance, encouraging consistent alpha values across the chunk boundary.
+            if not is_first_batch and previous_overlap_masks is not None:
+                for i in range(min(overlap, len(mask_frames), len(previous_overlap_masks))):
+                    mask_frames[i] = previous_overlap_masks[i]
+            # -------------------------------
+
             def _on_pipeline_progress(step, total, desc):
                 progress_dialog.setLabelText(f"Batch {batch_idx + 1}/{len(windows)} — {desc}")
                 QApplication.processEvents()
@@ -964,14 +987,50 @@ class VideoMaMaManager(MattingManager):
                 print(f"Error in VideoMaMa inference for batch {batch_idx}: {e}")
                 raise
  
+            # --- CAPTURE SOFT MASKS FOR NEXT BATCH ---
+            # Store the last `overlap` frames of the current output at model resolution
+            # (before _restore_image_size) as soft grayscale — NOT binarized, so the
+            # model receives graduated edge values rather than a hard binary boundary.
+            previous_overlap_masks = []
+            for frame_out in output_frames[-overlap:]:
+                alpha_out = cv2.cvtColor(frame_out, cv2.COLOR_RGB2GRAY)
+                previous_overlap_masks.append(alpha_out)
+            # -----------------------------------------
+ 
             # Discard leading overlap output on non-first batches
             committed_output = output_frames[output_start_offset:]
- 
+
+            # --- LINEAR BLEND AT CHUNK BOUNDARIES ---
+            # The overlap frames were re-processed by the new batch, giving us a second
+            # prediction for those already-committed frames (output_frames[0:overlap]).
+            # We linearly blend the original committed alpha (prev_boundary_alphas) with
+            # the new prediction across the overlap window and re-write those frames.
+            if enable_boundary_blend and not is_first_batch and prev_boundary_alphas is not None:
+                for i in range(min(overlap, len(prev_boundary_alphas), len(output_frames))):
+                    new_alpha = cv2.cvtColor(output_frames[i], cv2.COLOR_RGB2GRAY)
+                    new_alpha = self._restore_image_size(new_alpha, (original_w, original_h))
+                    new_weight = (i + 1) / (overlap + 1)
+                    blended = (
+                        (1.0 - new_weight) * prev_boundary_alphas[i].astype(np.float32)
+                        + new_weight * new_alpha.astype(np.float32)
+                    ).clip(0, 255).astype(np.uint8)
+                    abs_blend_frame = abs_start + i
+                    mat_filename = os.path.join(core.matting_dir, f"{abs_blend_frame:05d}", f"{object_id}.png")
+                    os.makedirs(os.path.dirname(mat_filename), exist_ok=True)
+                    cv2.imwrite(mat_filename, blended)
+            # -----------------------------------------
+
+            # Collect the last `overlap` committed alphas (original resolution) for the
+            # next batch's boundary blend, then write all committed frames to disk.
+            current_boundary_alphas = []
             for i, frame_out in enumerate(committed_output):
                 abs_frame = abs_start + output_start_offset + i
  
                 alpha = cv2.cvtColor(frame_out, cv2.COLOR_RGB2GRAY)
                 final_alpha = self._restore_image_size(alpha, (original_w, original_h))
+
+                if i >= len(committed_output) - overlap:
+                    current_boundary_alphas.append(final_alpha.copy())
  
                 mat_filename = os.path.join(core.matting_dir, f"{abs_frame:05d}", f"{object_id}.png")
                 os.makedirs(os.path.dirname(mat_filename), exist_ok=True)
@@ -983,6 +1042,8 @@ class VideoMaMaManager(MattingManager):
                         QApplication.processEvents()
                     except Exception:
                         pass
+
+            prev_boundary_alphas = current_boundary_alphas if len(current_boundary_alphas) == overlap else None
  
             # Update progress
             pbar.update(1)
