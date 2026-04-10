@@ -62,15 +62,15 @@ class SamManager:
         if sam_model == "Large":
             print("Loaded SAM2 Large model")
             checkpoint = "./checkpoints/sam2.1_hiera_large.pt"
-            model_cfg = "../configs/sam2.1_hiera_l.yaml"
+            model_cfg = "./configs/sam2.1/sam2.1_hiera_l.yaml"
         elif sam_model == "Base":
             print("Loaded SAM2 Base model")
             checkpoint = "./checkpoints/sam2.1_hiera_base_plus.pt"
-            model_cfg = "../configs/sam2.1_hiera_b+.yaml"
+            model_cfg = "./configs/sam2.1/sam2.1_hiera_b+.yaml"
         elif sam_model == "Efficient":
             print("Loaded EfficientTAM 512x512 model")
             checkpoint = "./checkpoints/efficienttam_s_512x512.pt"
-            model_cfg = "../configs/efficienttam_s_512x512.yaml"
+            model_cfg = "./configs/sam2.1/efficienttam_s_512x512.yaml"
 
         # Check if files exist
         if not ensure_models(sam_model, parent=parent_window):
