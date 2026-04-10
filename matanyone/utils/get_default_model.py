@@ -10,7 +10,7 @@ from matanyone.model.matanyone import MatAnyone
 def get_matanyone_model(ckpt_path, device=None) -> MatAnyone:
     #initialize(version_base='1.3.2', config_path="../config", job_name="eval_our_config")
     #cfg = compose(config_name="eval_matanyone_config")
-    cfg = OmegaConf.load("configs/eval_matanyone_config.yaml")
+    cfg = OmegaConf.load("matanyone/config/eval_matanyone_config.yaml")
     
     #with open_dict(cfg):  # Allow modifying read-only configs
     #cfg.weights = ckpt_path  # Update weights path
