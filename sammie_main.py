@@ -2645,8 +2645,8 @@ class MainWindow(QMainWindow):
                 # Save video info to session
                 video_info = core.VideoInfo
                 self.settings_mgr.update_video_info(
-                    video_info.width, video_info.height, 
-                    video_info.fps, video_info.total_frames, file_path
+                    video_info.width, video_info.height, video_info.fps, video_info.total_frames, 
+                    video_info.color_space, file_path
                 )
                 
                 # If png or jpg was loaded, set the frame format to override the app setting

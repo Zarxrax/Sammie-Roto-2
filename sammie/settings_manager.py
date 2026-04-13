@@ -88,6 +88,7 @@ class SessionSettings:
     video_height: int = 0
     video_fps: float = 0.0
     total_frames: int = 0
+    color_space: int = 1    # 1=BT.709, 5=BT.601 etc.
     in_point: int = None
     out_point: int = None
     
@@ -320,12 +321,13 @@ class SettingsManager:
     
     # ==================== CONVENIENCE METHODS ====================
     
-    def update_video_info(self, width: int, height: int, fps: float, total_frames: int, video_path: str = ""):
+    def update_video_info(self, width: int, height: int, fps: float, total_frames: int, color_space: int, video_path: str = ""):
         """Update video information in session settings"""
         self.session_settings.video_width = width
         self.session_settings.video_height = height
         self.session_settings.video_fps = fps
         self.session_settings.total_frames = total_frames
+        self.session_settings.color_space = color_space
         if video_path:
             self.session_settings.video_file_path = video_path
     

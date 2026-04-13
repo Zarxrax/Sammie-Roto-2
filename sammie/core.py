@@ -30,6 +30,7 @@ class VideoInfo:
     height = 0
     fps = 0
     total_frames = 0
+    color_space = 1
 
 
 class DeviceManager:

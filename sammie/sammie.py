@@ -3,13 +3,13 @@ import cv2
 import os
 import numpy as np
 import shutil
-import torch
 import re
 import glob
 import zipfile
 import threading
 import queue
 import multiprocessing
+import av
 from tqdm import tqdm
 from PySide6.QtGui import QPixmap, QImage
 from PySide6.QtCore import Qt
@@ -477,10 +477,9 @@ def _handle_segmentation_bgcolor_view(frame_number, view_options, points, return
             mask_3channel = run_smoothing_model(mask_3channel, smoothing_model, device)
 
     bgcolor = view_options.get("bgcolor", (0, 255, 0))
-    bgcolor_bgr = np.array(bgcolor)
-    alpha_channel = mask_3channel / 255.0
-    image = (image * alpha_channel) + (bgcolor_bgr * (1 - alpha_channel))
-    image = image.astype(np.uint8)
+    bg = np.full_like(image, bgcolor)
+    alpha = mask_3channel[:, :, 0].astype(np.float32) / 255.0
+    image = cv2.blendLinear(image, bg, alpha, 1.0 - alpha)
 
     if return_numpy:
         return image
@@ -493,10 +492,6 @@ def _handle_segmentation_alpha_view(frame_number, view_options, points, return_n
     image = core.load_base_frame(frame_number)
     if image is None:
         return None
-
-    image_rgba = np.zeros((image.shape[0], image.shape[1], 4), dtype=np.uint8)
-    image_rgba[:, :, :3] = image
-    image_rgba[:, :, 3] = 255
 
     mask = core.load_masks_for_frame(frame_number, points, return_combined=True, object_id_filter=object_id_filter)
     if mask is None:
@@ -514,7 +509,7 @@ def _handle_segmentation_alpha_view(frame_number, view_options, points, return_n
             mask_3channel = run_smoothing_model(mask_3channel, smoothing_model, device)
             mask = mask_3channel[:, :, 0]
 
-    image_rgba[:, :, 3] = mask
+    image_rgba = cv2.merge([image[:, :, 0], image[:, :, 1], image[:, :, 2], mask])
 
     if return_numpy:
         return image_rgba
@@ -550,13 +545,11 @@ def _handle_matting_bgcolor_view(frame_number, view_options, points, return_nump
         return _convert_to_qpixmap(image) if not return_numpy else image
 
     mask = core.apply_matany_postprocessing(mask)
-    mask_3channel = np.stack([mask] * 3, axis=-1)
 
     bgcolor = view_options.get("bgcolor", (0, 255, 0))
-    bgcolor_bgr = np.array(bgcolor)
-    alpha_channel = mask_3channel / 255.0
-    image = (image * alpha_channel) + (bgcolor_bgr * (1 - alpha_channel))
-    image = image.astype(np.uint8)
+    bg = np.full_like(image, bgcolor)
+    alpha = mask.astype(np.float32) / 255.0
+    image = cv2.blendLinear(image, bg, alpha, 1.0 - alpha)
 
     if return_numpy:
         return image
@@ -570,17 +563,13 @@ def _handle_matting_alpha_view(frame_number, view_options, points, return_numpy=
     if image is None:
         return None
 
-    image_rgba = np.zeros((image.shape[0], image.shape[1], 4), dtype=np.uint8)
-    image_rgba[:, :, :3] = image
-    image_rgba[:, :, 3] = 255
-
     mask = core.load_masks_for_frame(frame_number, points, return_combined=True,
                                 object_id_filter=object_id_filter, folder=core.matting_dir)
     if mask is None:
         return _convert_to_qpixmap(image_rgba) if not return_numpy else image_rgba
 
     mask = core.apply_matany_postprocessing(mask)
-    image_rgba[:, :, 3] = mask
+    image_rgba = cv2.merge([image[:, :, 0], image[:, :, 1], image[:, :, 2], mask])
 
     if return_numpy:
         return image_rgba
@@ -636,20 +625,13 @@ def draw_masks(image, processed_masks):
         return overlay
     else:
         return image
-
+    
 
 def draw_removal_overlay(image, mask):
     """Draw masked overlay on the current frame for object removal"""
-    mask_norm = mask.astype(np.float32) / 255.0
-    mask_3ch = np.dstack([mask_norm] * 3)
-    color_layer = np.full_like(image, (255, 255, 255), dtype=np.uint8)
-    overlay = np.where(
-        (mask_3ch > 0),
-        cv2.addWeighted(image, 1 - 0.5, color_layer, 0.5, 0),
-        image
-    )
-    return overlay
-
+    color_layer = np.full_like(image, 255, dtype=np.uint8)
+    alpha = mask.astype(np.float32) / 255.0
+    return cv2.blendLinear(image, color_layer, 1.0 - (alpha * 0.5), alpha * 0.5)
 
 def draw_contours(image, processed_masks):
     """Draw colored contours on the current frame (expects preprocessed masks)"""
@@ -668,40 +650,25 @@ def draw_contours(image, processed_masks):
 
 
 def draw_points(image, frame_number, points, highlighted_points=None):
-    """Draw points on image, with optional highlighting"""
+    """Draw points on image"""
     frame_points = [p for p in points if p['frame'] == frame_number]
     if not frame_points:
         return image
 
-    is_highlighted = False
+    highlighted_set = set()
+    if highlighted_points:
+        highlighted_set = {(p['frame'], p['x'], p['y']) for p in highlighted_points}
 
     for point in frame_points:
-        is_highlighted = False
-        if highlighted_points:
-            for point_in_highlighted_list in highlighted_points:
-                is_highlighted = (
-                    point_in_highlighted_list['frame'] == point['frame'] and
-                    point_in_highlighted_list['x'] == point['x'] and
-                    point_in_highlighted_list['y'] == point['y']
-                )
-                if is_highlighted:
-                    highlighted_points.remove(point_in_highlighted_list)
-                    break
-
+        is_highlighted = (point['frame'], point['x'], point['y']) in highlighted_set
+        center = (point['x'], point['y'])
+        point_color = (0, 255, 0) if point['positive'] else (255, 0, 0)
         if is_highlighted:
-            center = (point['x'], point['y'])
             cv2.circle(image, center, 9, (0, 128, 255), 3)
-            point_color = (0, 255, 0) if point['positive'] else (255, 0, 0)
-            cv2.circle(image, center, 5, (255, 255, 0), 2)
-            cv2.circle(image, center, 4, point_color, -1)
-        else:
-            point_color = (0, 255, 0) if point['positive'] else (255, 0, 0)
-            center = (point['x'], point['y'])
-            cv2.circle(image, center, 5, (255, 255, 0), 2)
-            cv2.circle(image, center, 4, point_color, -1)
+        cv2.circle(image, center, 5, (255, 255, 0), 2)
+        cv2.circle(image, center, 4, point_color, -1)
 
     return image
-
 
 def apply_postprocessing_to_display(image, frame_number, points, view_options, object_id_filter=None, preview_mask=None):
     """Apply postprocessing to masks and draw them on the image for display"""
@@ -763,12 +730,20 @@ def load_video(video_file, parent_window):
     progress_dialog.setAutoClose(True)
     progress_dialog.show()
 
-    cap = cv2.VideoCapture(video_file)
-    core.VideoInfo.width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    core.VideoInfo.height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    core.VideoInfo.fps = cap.get(cv2.CAP_PROP_FPS)
-    core.VideoInfo.total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    container = av.open(video_file)
+    stream = container.streams.video[0]
+
+    # Enable threading in the decoder itself for faster demuxing
+    stream.thread_type = "AUTO"
+
+    core.VideoInfo.width = stream.width
+    core.VideoInfo.height = stream.height
+    core.VideoInfo.fps = float(stream.average_rate)
+    # frames may be None for some containers (e.g. MKV), fall back to counting
+    core.VideoInfo.total_frames = stream.frames or 0
     total_frames = core.VideoInfo.total_frames
+    core.VideoInfo.color_space = src_cs = int(stream.codec_context.colorspace)  # 1=BT.709, 5=BT.601 etc.
+    src_range = int(stream.codec_context.color_range)  # 1=limited, 2=full
 
     frame_count = 0
     settings_mgr = get_settings_manager()
@@ -797,37 +772,53 @@ def load_video(video_file, parent_window):
         t.start()
         writers.append(t)
 
-    with tqdm(total=total_frames) as progress:
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
+    cancelled = False
+
+    with tqdm(total=total_frames or None) as progress:
+        for frame in container.decode(stream):
+            frame_rgb = frame.reformat(
+                format="rgb24",
+                src_colorspace=src_cs,
+                dst_colorspace=1,   # always output BT.709
+                src_color_range=src_range,
+                dst_color_range=2,  # always output full range for PNG
+            ).to_ndarray()
+
+            # cv2.imwrite expects BGR
+            frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
 
             frame_filename = os.path.join(core.frames_dir, f"{frame_count:05d}.{frame_format}")
-            save_q.put((frame_filename, frame))
+            save_q.put((frame_filename, frame_bgr))
             frame_count += 1
             progress.update(1)
-            progress_dialog.setValue(frame_count * 100 / total_frames)
+
+            if total_frames:
+                progress_dialog.setValue(frame_count * 100 // total_frames)
             QApplication.processEvents()
 
             if progress_dialog.wasCanceled():
-                cap.release()
-                while not save_q.empty():
-                    try:
-                        save_q.get_nowait()
-                    except queue.Empty:
-                        pass
-                for _ in writers:
-                    save_q.put(None)
-                for t in writers:
-                    t.join()
-                if os.path.exists(core.temp_dir):
-                    shutil.rmtree(core.temp_dir)
-                progress_dialog.close()
-                print("Operation cancelled by user.")
-                return 0
+                cancelled = True
+                break
 
-        cap.release()
+    container.close()
+
+    if cancelled:
+        # Drain the queue without processing so workers can be shut down cleanly
+        while not save_q.empty():
+            try:
+                save_q.get_nowait()
+                save_q.task_done()
+            except queue.Empty:
+                break
+        for _ in writers:
+            save_q.put(None)
+        for t in writers:
+            t.join()
+        if os.path.exists(core.temp_dir):
+            shutil.rmtree(core.temp_dir)
+        progress_dialog.close()
+        print("Operation cancelled by user.")
+        return 0
 
     save_q.join()
     for _ in writers:
@@ -840,8 +831,6 @@ def load_video(video_file, parent_window):
 
     core.VideoInfo.total_frames = frame_count
     return frame_count
-
-
 
 def detect_image_sequence(image_path):
     """

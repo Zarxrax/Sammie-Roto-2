@@ -3,12 +3,12 @@
 Export worker threads for different export modes.
 """
 import os
+import cv2
 import av
 import numpy as np
 import OpenEXR
 import Imath
 from fractions import Fraction
-from PIL import Image
 from PySide6.QtCore import QThread, Signal
 from sammie import sammie
 from sammie.core import VideoInfo
@@ -156,6 +156,19 @@ class VideoExportWorker(BaseExportWorker):
         stream.height = VideoInfo.height
         stream.pix_fmt = self.format.get_pixel_format(has_alpha)
         
+        # Restore the source colorspace metadata onto the output stream
+        src_cs    = int(VideoInfo.color_space)
+        if src_cs == 0: src_cs = 1 # Default to BT.709 if unspecified
+
+        # Determine whether the output pixel format is YUV or RGB
+        is_yuv_output = not stream.pix_fmt.startswith(('rgb', 'rgba', 'bgr', 'bgra', 'gbr', 'abgr', 'argb'))
+        output_range = 1 if is_yuv_output else 2  # limited for YUV, full for RGB
+
+        stream.codec_context.color_primaries = src_cs
+        stream.codec_context.color_trc       = src_cs
+        stream.codec_context.colorspace      = src_cs
+        stream.codec_context.color_range     = output_range
+
         # Set codec options
         codec_options = self.format.get_codec_options(self.settings.quality)
         if has_alpha and self.format.supports_alpha:
@@ -164,10 +177,10 @@ class VideoExportWorker(BaseExportWorker):
         
         for key, value in codec_options.items():
             stream.options[key] = value
-        
         try:
             pts_counter = 0
             for i, frame_num in enumerate(range(self.start_frame, self.end_frame + 1)):
+
                 if self.should_cancel:
                     container.close()
                     if os.path.exists(output_path):
@@ -190,17 +203,35 @@ class VideoExportWorker(BaseExportWorker):
                     frame_array = np.concatenate([frame_array, alpha_channel], axis=2)
                 elif not has_alpha and frame_array.shape[2] == 4:
                     frame_array = frame_array[:, :, :3]
-                
+
                 # Create AV frame
                 av_format = 'rgba' if has_alpha else 'rgb24'
                 av_frame = av.VideoFrame.from_ndarray(frame_array, format=av_format)
+                
+                # Force proper conversion to encoder format
+                if is_yuv_output:
+                    av_frame = av_frame.reformat(
+                        format=stream.pix_fmt,
+                        src_colorspace=src_cs,
+                        dst_colorspace=src_cs,
+                        src_color_range=2,  # input is always full range RGB
+                        dst_color_range=1,  # we want limited range YUV output
+                    )
+                    av_frame.colorspace  = src_cs
+                    av_frame.color_range = 1  # frame is now limited range YUV
+                else:
+                    # RGB formats keep full range
+                    av_frame.colorspace  = src_cs
+                    av_frame.color_range = 2     # frame remains full range RGB
+
+                # Set PTS
                 av_frame.pts = pts_counter
                 pts_counter += 1
-                
+
                 # Encode and write
                 for packet in stream.encode(av_frame):
                     container.mux(packet)
-                
+
                 # Update progress
                 current_progress_step = progress_offset + i + 1
                 progress = int(current_progress_step / total_progress_steps * 100)
@@ -395,12 +426,13 @@ class SequenceExportWorker(BaseExportWorker):
                         frame_array = np.concatenate([frame_array, alpha_channel], axis=2)
                     elif not has_alpha and frame_array.shape[2] == 4:
                         frame_array = frame_array[:, :, :3]
-                    
-                    # Save as PNG using PIL
-                    mode = 'RGBA' if has_alpha else 'RGB'
-                    img = Image.fromarray(frame_array, mode=mode)
-                    img.save(frame_path, 'PNG')
-                    exported_files.append(frame_path)
+
+                    # Save PNG with OpenCV
+                    if has_alpha:
+                        bgra = cv2.cvtColor(frame_array, cv2.COLOR_RGBA2BGRA)
+                    else:
+                        bgra = cv2.cvtColor(frame_array, cv2.COLOR_RGB2BGR)
+                    cv2.imwrite(frame_path, bgra, [cv2.IMWRITE_PNG_COMPRESSION, 4])
                 
                 progress = int((i + 1) / self.export_frame_count * 100)
                 self.progress_updated.emit(progress)
