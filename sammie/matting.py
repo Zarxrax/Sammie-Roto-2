@@ -646,6 +646,7 @@ class VideoMaMaManager(MattingManager):
         matting_model = settings_mgr.get_session_setting("matany_model", "VideoMaMa")
         max_size = settings_mgr.get_session_setting("matany_res", 0)
         overlap = settings_mgr.get_session_setting("matany_overlap", 2)
+        batch_size = settings_mgr.get_session_setting("matany_chunk", 16)
         combined = settings_mgr.get_session_setting("matany_combined", False)
 
         if not ensure_models(["videomama", "svd_vae"], parent=parent_window):
@@ -663,7 +664,7 @@ class VideoMaMaManager(MattingManager):
                 enable_vae_tiling=False,        # Tiling VAE is not worth it
                 enable_vae_slicing=True,          # Process VAE one image at a time
             )
-            print(f"Loaded {matting_model} model to {device} with max size {max_size} and overlap={overlap} and combined={combined}")
+            print(f"Loaded {matting_model} model to {device} with max size {max_size}, overlap={overlap}, batch={batch_size}, and combined={combined}")
             return True
 
         except Exception as e:
@@ -696,14 +697,12 @@ class VideoMaMaManager(MattingManager):
         settings_mgr = get_settings_manager()
         
         # --- VideoMaMa batch settings ---
-        batch_size = 16           # frames per chunk sent to the model
-        overlap = settings_mgr.get_session_setting("matany_overlap", 2) # frames re-processed at each boundary for continuity
+        batch_size = settings_mgr.get_session_setting("matany_chunk", 16)   # frames per chunk sent to the model
+        overlap = settings_mgr.get_session_setting("matany_overlap", 2)     # frames re-processed at each boundary for continuity
         if overlap == 0: 
             enable_boundary_blend = False
         else: 
             enable_boundary_blend = True # blend overlap frames linearly at chunk boundaries
-        if overlap == 4: # increase the batch size if overlap is 4
-            batch_size+=2
 
         start_frame, end_frame, frames_to_process = self._get_frame_range()
         print(f"Processing matting from frame {start_frame} to {end_frame} ({frames_to_process} frames)")
@@ -856,7 +855,7 @@ class VideoMaMaManager(MattingManager):
 
         Args:
             total_frames: Total frames to cover
-            batch_size: Frames per batch (16)
+            batch_size: Frames per batch 
             overlap: Overlap frames between consecutive batches
 
         Returns:

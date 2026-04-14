@@ -44,6 +44,7 @@ class ApplicationSettings:
     default_matany_model: str = "MatAnyone2"
     default_matany_res: int = 720
     default_matany_overlap: int = 2
+    default_matany_chunk: int = 16
     default_matany_combined: bool = False
 
     # Object Removal Processing defaults
@@ -117,6 +118,7 @@ class SessionSettings:
     matany_model: str = "MatAnyone2"
     matany_res: int = 1080
     matany_overlap: int = 2
+    matany_chunk: int = 16
     matany_combined: bool = False
 
     # Object removal parameters
@@ -281,6 +283,7 @@ class SettingsManager:
             matany_model=self.app_settings.default_matany_model,
             matany_res = self.app_settings.default_matany_res,
             matany_overlap=self.app_settings.default_matany_overlap,
+            matany_chunk=self.app_settings.default_matany_chunk,
             matany_combined=self.app_settings.default_matany_combined,
             inpaint_method=self.app_settings.default_inpaint_method,
             inpaint_radius=self.app_settings.default_inpaint_radius,
@@ -359,6 +362,7 @@ class SettingsManager:
             'matany_model': self.session_settings.matany_model,
             'matany_res': self.session_settings.matany_res,
             'matany_overlap': self.session_settings.matany_overlap,
+            'matany_chunk': self.session_settings.matany_chunk,
             'matany_combined': self.session_settings.matany_combined
         }
     

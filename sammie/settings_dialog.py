@@ -1,14 +1,14 @@
 # sammie/settings_dialog.py
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QTabWidget,
+    QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
     QGroupBox, QLabel, QSpinBox, QDoubleSpinBox, QCheckBox, 
-    QPushButton, QComboBox, QSlider, QWidget, QFormLayout, QScrollArea,
+    QComboBox, QSlider, QWidget, QFormLayout, QScrollArea,
     QDialogButtonBox
 )
 from PySide6.QtCore import Qt
 from sammie.settings_manager import SettingsManager
 from sammie.gui_widgets import (
-    ColorPickerWidget, ColorDisplayWidget
+    ColorPickerWidget
 )
 
 class SettingsDialog(QDialog):
@@ -137,9 +137,15 @@ class SettingsDialog(QDialog):
         self.default_matany_overlap_combo = QComboBox()
         self.default_matany_overlap_combo.addItems(["0", "2", "4"])
         self.default_matany_overlap_combo.setToolTip(
-            "Number of overlapping frames between chunks (VideoMaMa only)."
+            "Number of overlapping frames between batches (VideoMaMa only)."
         )
         mat_layout.addRow("Overlap Frames:", self.default_matany_overlap_combo)
+
+        # VideoMaMa chunk size
+        self.default_matany_chunk_combo = QComboBox()
+        self.default_matany_chunk_combo.addItems(["16", "32", "64", "128", "256", "512"])
+        self.default_matany_chunk_combo.setToolTip("Number of frames per batch (VideoMaMa only).")
+        mat_layout.addRow("Frames per batch:", self.default_matany_chunk_combo)
 
         # Matting Combined Mask
         self.default_combined_mask_checkbox = QCheckBox()
@@ -294,6 +300,7 @@ class SettingsDialog(QDialog):
         self.default_matting_model_combo.setCurrentText(app_settings.default_matany_model)
         self.default_combined_mask_checkbox.setChecked(app_settings.default_matany_combined)
         self.default_matany_overlap_combo.setCurrentText(str(app_settings.default_matany_overlap))
+        self.default_matany_chunk_combo.setCurrentText(str(app_settings.default_matany_chunk))
 
         # Set MatAnyone resolution combo box
         if app_settings.default_matany_res == 0:
@@ -341,6 +348,7 @@ class SettingsDialog(QDialog):
         app_settings.default_matany_model = self.default_matting_model_combo.currentText()
         app_settings.default_matany_combined = self.default_combined_mask_checkbox.isChecked()
         app_settings.default_matany_overlap = int(self.default_matany_overlap_combo.currentText())
+        app_settings.default_matany_chunk = int(self.default_matany_chunk_combo.currentText())
 
         # Handle MatAnyone resolution setting
         matany_text = self.default_matany_res_combo.currentText()
