@@ -5,6 +5,7 @@ import math
 import numpy as np
 import torch
 import shutil
+import gc
 from tqdm import tqdm
 from PySide6.QtWidgets import QProgressDialog, QApplication
 from PySide6.QtCore import Qt
@@ -93,17 +94,22 @@ class RemovalManager:
             print("VAE tiling enabled")
 
         return self.pipe
-        
+
     def unload_minimax_model(self):
-        """Unload the MiniMax model and clear cache"""
         if self.pipe is not None:
-            # Explicitly delete the internal components
-            del self.pipe.transformer
-            del self.pipe.vae
-            del self.pipe.scheduler
+            try:
+                self.pipe.maybe_free_model_hooks()
+            except Exception as e:
+                print(f"Warning: Could not free model hooks: {e}")
+
+            self.pipe.transformer = None
+            self.pipe.vae = None
+            self.pipe.scheduler = None
             self.pipe = None
-            core.DeviceManager.clear_cache()
-            print("Unloaded MiniMax-Remover model")
+
+        gc.collect()
+        core.DeviceManager.clear_cache()
+        print("Unloaded MiniMax-Remover model")
 
     def run_object_removal_minimax(self, points, parent_window=None):
         """
@@ -209,7 +215,6 @@ class RemovalManager:
                 del frames
             if masks is not None:
                 del masks
-            self.unload_minimax_model()
 
         # Remove padding and convert
         if pad_frames > 0:
