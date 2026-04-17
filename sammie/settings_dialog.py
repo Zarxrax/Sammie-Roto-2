@@ -113,7 +113,7 @@ class SettingsDialog(QDialog):
         proc_layout.addRow("Default Border Fix:", self.default_border_spin)
         
         self.default_grow_spin = QSpinBox()
-        self.default_grow_spin.setRange(-10, 10)
+        self.default_grow_spin.setRange(-20, 20)
         proc_layout.addRow("Default Shrink/Grow:", self.default_grow_spin)
         
         layout.addWidget(proc_group)
@@ -159,7 +159,7 @@ class SettingsDialog(QDialog):
         mat_layout.addRow("Default Gamma:", self.default_matany_gamma_spin)
         
         self.default_matany_grow_spin = QSpinBox()
-        self.default_matany_grow_spin.setRange(-10, 10)
+        self.default_matany_grow_spin.setRange(-20, 20)
         mat_layout.addRow("Default Shrink/Grow:", self.default_matany_grow_spin)
         
         layout.addWidget(mat_group)
