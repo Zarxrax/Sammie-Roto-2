@@ -147,6 +147,7 @@ if __name__ == "__main__":
             window = MainWindow(initial_file=file_to_load)
             window.show()
             splash.finish(window)
+            window.setWindowIcon(QIcon(":/icon.ico"))
         except ImportError as e:
             splash.close()
             error_msg = f"Failed to import required modules: {str(e)}"
