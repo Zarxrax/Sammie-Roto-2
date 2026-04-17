@@ -18,6 +18,7 @@ Sammie-Roto 2 is free and open source, but runs models produced by several exter
 
 ### Updates
 **Full Changelog can be seen under [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)**
+- [04/17/2026] 2.3.3 - Several large performance optimizations, and colorspace conversions are now handled correctly.
 - [04/10/2026] 2.3.2 - Improved temporal stability for VideoMaMa.
 - [04/02/2026] 2.3.1 - Added a live preview during segmentation while holding the shift key.
 - [03/27/2026] 2.3.0 - Added VideoMaMa model, added option to combine objects when matting, fixed major segmentation bug, and more.

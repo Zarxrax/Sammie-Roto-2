@@ -36,7 +36,7 @@ from sammie.gui_widgets import (
 
 # ==================== VERSION ====================
 
-__version__ = "2.3.2"
+__version__ = "2.3.3"
 
 # ==================== LOGGING HELPER ====================
 
@@ -237,7 +237,7 @@ class SegmentationTab(QWidget):
             "Remove small isolated regions outside main objects."),
             ("Border Fix:", 0, 10, 0, settings_mgr.get_session_setting("border_fix", 0), "border_fix",
             "Fix artifacts at the edge of the frame by extending masks towards the edge."),
-            ("Shrink/Grow:", -10, 10, 0, settings_mgr.get_session_setting("grow", 0), "grow",
+            ("Shrink/Grow:", -20, 20, 0, settings_mgr.get_session_setting("grow", 0), "grow",
             "Shrink (erode) or grow (dilate) the segmented regions.")
         ]
         
@@ -490,7 +490,7 @@ class MattingTab(QWidget):
         • For MatAnyone, you first need to add points to at least one frame in the Segmentation tab, then press the 'Run Matting' button.<br>
         • For MatAnyone, if you add points to multiple frames, the matting will 'refresh' at each keyframe, which may momentarily break temporal stability.<br>
         • For VideoMaMa, you must also run tracking in the Segmentation tab.<br>
-        • Each object is processed separately, so multiple objects will multiply the processing time.<br>
+        • For VideoMaMa, frames are processed in batches of 16 or more. Some videos may exhibit minor temporal instability at the batch boundaries. You can increase the batch size at the cost of more VRAM.<br>
         """
         
         instructions_text.setText(instruction_content)
@@ -522,7 +522,7 @@ class MattingTab(QWidget):
             ("Gamma:", 1, 1000, "matany_gamma", 1.0,
             "Values < 1.0 darken edges, values > 1.0 brighten edges.",
             lambda v: f"{v/100.0:.1f}", lambda v: int(v * 100), lambda v: v / 100.0),
-            ("Shrink/Grow:", -10, 10, "matany_grow", 0,
+            ("Shrink/Grow:", -20, 20, "matany_grow", 0,
             "Shrink (erode) or grow (dilate) the matted regions.",
             lambda v: str(v), lambda v: v, lambda v: v)
         ]
@@ -2219,6 +2219,12 @@ class MainWindow(QMainWindow):
         count = len(self.point_manager.points)
         matting_model = self.settings_mgr.get_session_setting("matany_model", "MatAnyone2")
         combined=self.settings_mgr.get_session_setting("matany_combined", False)
+
+        # Don't allow VideoMama on CPU
+        if core.DeviceManager.get_device().type == 'cpu' and matting_model == 'VideoMaMa':
+            show_message_dialog(self, title="Error" , message="VideoMaMa is not supported on CPU. Please use MatAnyone instead.", type="warning")
+            return
+
         if count > 0:  
             #load models
             print(f"Loading {matting_model} model...")
@@ -2230,19 +2236,20 @@ class MainWindow(QMainWindow):
                 print(f"Failed to load { matting_model} model")
                 return
             QApplication.processEvents()
-            success = self.matany_manager.run_matting(self.point_manager.points, parent_window=self, combined=combined)
-        
-            if success:
+            try:
+                self.matany_manager.run_matting(self.point_manager.points, parent_window=self, combined=combined)
+            except Exception as e:
+                if "out of memory" in str(e):
+                    show_message_dialog(self, title="Error", message="An out of memory error occurred. Please try again with lower settings." , type="warning")
+                else: 
+                    print(f"An error occurred: {e}")
+            finally:
                 self.update_matting_status()
                 self._update_current_frame_display()
-                
-            else:
-                self.update_matting_status()
-                self._update_current_frame_display()
-            QApplication.processEvents()
-            self.settings_mgr.save_session_settings()
-            self.matany_manager.unload_matting_model() # unload matting model since its not needed in memory
-            self.sam_manager.load_model_to_device()
+                QApplication.processEvents()
+                self.settings_mgr.save_session_settings()
+                self.matany_manager.unload_matting_model()
+                self.sam_manager.load_model_to_device()
         else:
             print("Points must be added on the Segmentation tab before matting")
 
@@ -2254,32 +2261,27 @@ class MainWindow(QMainWindow):
             show_message_dialog(self, title="Error" , message="MiniMax-Remover is not supported on CPU. Please use OpenCV instead.", type="warning")
             return
         self.settings_mgr.save_session_settings()
-        # offload sam model
-        self.sam_manager.offload_model_to_cpu()
-
+        
         if self.removal_tab.method_combo.currentText() == 'MiniMax-Remover':
-            success = False
             try:
-                success = self.removal_manager.run_object_removal_minimax(self.point_manager.points, parent_window=self)
+                # offload sam model
+                self.sam_manager.offload_model_to_cpu()
+                self.removal_manager.run_object_removal_minimax(self.point_manager.points, parent_window=self)
             except Exception as e:
                 if "out of memory" in str(e):
-                    print(e)
-                    show_message_dialog(self, title="Error", message="An out of memory error occurred. Please restart the application to fully release GPU memory, and try again with lower settings." , type="warning")
+                    show_message_dialog(self, title="Error", message="An out of memory error occurred. Please try again with lower settings." , type="warning")
                 else: 
-                    print(f"Error running MiniMax-Remover: {e}")
+                    print(f"An error occurred: {e}")
+            finally:
+                self.removal_manager.unload_minimax_model()    
+                self.sam_manager.load_model_to_device()
         else:
-            success = self.removal_manager.run_object_removal_cv(self.point_manager.points, parent_window=self)
-        if success:
-            self.update_removal_status()
-            self._update_current_frame_display()
-        else:
-            self.update_removal_status()
-            self._update_current_frame_display()
+            self.removal_manager.run_object_removal_cv(self.point_manager.points, parent_window=self)
 
+        self.update_removal_status()
+        self._update_current_frame_display()
         self.settings_mgr.save_session_settings()
-        # unload minimax model and load sam model
-        self.removal_manager.unload_minimax_model()    
-        self.sam_manager.load_model_to_device()
+        
 
     def update_tracking_status(self):
         """Update the tracking status display"""

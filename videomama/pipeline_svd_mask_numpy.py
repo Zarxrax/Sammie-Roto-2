@@ -177,20 +177,20 @@ class VideoInferencePipeline:
                 (1, 1, hidden_size), dtype=self.weight_dtype, device=self.device
             )
 
-            #_notify(1, "Image embedding complete")
-
             # --- 3. Prepare Latents ---
             _notify(2, "VAE encoding...")
             if self.enable_model_cpu_offload:
                 self.vae.to(self.device)
 
-            cond_latents = self._tensor_to_vae_latent(cond_video_tensor.to(self.weight_dtype))
+            cond_latents = self._tensor_to_vae_latent(cond_video_tensor.to(self.weight_dtype), progress_callback=progress_callback, stage="Encoding video")
             cond_latents = cond_latents / self.vae.config.scaling_factor
-            QApplication.processEvents()
+            _notify(2, "VAE encoding...")
+            
+            
 
-            mask_latents = self._tensor_to_vae_latent(mask_video_tensor.to(self.weight_dtype))
+            mask_latents = self._tensor_to_vae_latent(mask_video_tensor.to(self.weight_dtype), progress_callback=progress_callback, stage="Encoding mask")
             mask_latents = mask_latents / self.vae.config.scaling_factor
-            QApplication.processEvents()
+            _notify(2, "VAE encoding...")
 
             # Free raw pixel tensors - no longer needed after VAE encoding
             del cond_video_tensor, mask_video_tensor
@@ -199,8 +199,6 @@ class VideoInferencePipeline:
             if self.enable_model_cpu_offload:
                 self.vae.to("cpu")
                 self._clear_device_cache(self.device)
-
-            #_notify(2, "VAE encoding complete")
 
             # --- 4. Run UNet Single-Step Inference ---
             _notify(3, "UNet inference...")
@@ -219,14 +217,12 @@ class VideoInferencePipeline:
             self._clear_device_cache(self.device)
 
             pred_latents = self.unet(unet_input, timesteps, encoder_hidden_states, added_time_ids=added_time_ids).sample
-            QApplication.processEvents()
+            _notify(3, "UNet inference...")
 
             del unet_input
             if self.enable_model_cpu_offload:
                 self.unet.to("cpu")
             self._clear_device_cache(self.device)
-
-            #_notify(3, "UNet inference complete")
 
             # --- 5. Decode Latents to Video Frames ---
             _notify(4, "VAE decoding...")
@@ -239,16 +235,18 @@ class VideoInferencePipeline:
             # Process in chunks to avoid VRAM issues (lower = less memory, slower)
             decode_chunk_size = min(self.vae_encode_chunk_size, pred_latents.shape[0])
             for i in range(0, pred_latents.shape[0], decode_chunk_size):
+                if progress_callback is not None:
+                    progress_callback(i, pred_latents.shape[0], f"Decoding frame {i // decode_chunk_size + 1}")
                 chunk = pred_latents[i: i + decode_chunk_size]
                 decoded_chunk = self.vae.decode(chunk, num_frames=chunk.shape[0]).sample
                 frames.append(decoded_chunk.cpu())  # Move decoded frames to CPU immediately
-                QApplication.processEvents()
+                _notify(4, "VAE decoding...")
             del pred_latents
             if self.enable_model_cpu_offload:
                 self.vae.to("cpu")
             self._clear_device_cache(self.device)
 
-            #_notify(4, "VAE decoding complete")
+            _notify(5, "Writing frames...")
 
             video_tensor = torch.cat(frames, dim=0)
             del frames
@@ -277,21 +275,21 @@ class VideoInferencePipeline:
         video_tensor = torch.stack(tensors).unsqueeze(0)  # (1, F, 3, H, W)
         return video_tensor * 2.0 - 1.0  # normalize to [-1, 1]
 
-    def _tensor_to_vae_latent(self, t: torch.Tensor):
+    def _tensor_to_vae_latent(self, t: torch.Tensor, progress_callback=None, stage="VAE"):
         """Encodes a video tensor into the VAE's latent space with optional chunking."""
         batch_size, video_length = t.shape[0], t.shape[1]
-        #t = rearrange(t, "b f c h w -> (b f) c h w")
         t = t.reshape(t.shape[0] * t.shape[1], *t.shape[2:])
 
         # Encode in chunks to reduce memory usage
         latents_list = []
         for i in range(0, t.shape[0], self.vae_encode_chunk_size):
+            if progress_callback is not None:
+                progress_callback(i, t.shape[0], f"{stage} frame {i // self.vae_encode_chunk_size + 1}")
             chunk = t[i: i + self.vae_encode_chunk_size]
             chunk_latents = self.vae.encode(chunk).latent_dist.sample()
             latents_list.append(chunk_latents)
 
         latents = torch.cat(latents_list, dim=0)
-        #latents = rearrange(latents, "(b f) c h w -> b f c h w", b=batch_size, f=video_length)
         latents = latents.reshape(batch_size, video_length, *latents.shape[1:])
         return latents * self.vae.config.scaling_factor
 

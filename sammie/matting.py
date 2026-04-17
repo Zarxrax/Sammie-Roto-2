@@ -3,6 +3,7 @@ import cv2
 import os
 import numpy as np
 import torch
+import gc
 from tqdm import tqdm
 from PySide6.QtWidgets import QProgressDialog, QApplication
 from PySide6.QtCore import Qt
@@ -33,6 +34,11 @@ class MattingManager:
         for callback in self.callbacks:
             try:
                 callback(action, **kwargs)
+            except RuntimeError as e:
+                # Allow cancellation to propagate
+                if str(e) == "USER_CANCELLED":
+                    raise
+                print(f"Callback error: {e}")
             except Exception as e:
                 print(f"Callback error: {e}")
 
@@ -46,6 +52,7 @@ class MattingManager:
     def unload_matting_model(self):
         """Unload the matting model and clear cache"""
         self.processor = None
+        gc.collect()
         core.DeviceManager.clear_cache()
         print("Unloaded Matting model")
 
@@ -629,9 +636,15 @@ class VideoMaMaManager(MattingManager):
     def unload_matting_model(self):
         """Unload the VideoMaMa pipeline and free VRAM"""
         if self.pipeline is not None:
-            self.pipeline.unet = None
-            self.pipeline.vae = None
+            try:
+                if hasattr(self.pipeline, 'unet'):
+                    self.pipeline.unet = None
+                if hasattr(self.pipeline, 'vae'):
+                    self.pipeline.vae = None
+            except Exception as e:
+                print(f"Warning during pipeline teardown: {e}")
             self.pipeline = None
+        gc.collect()
         core.DeviceManager.clear_cache()
         print("Unloaded VideoMaMa model")
         
@@ -739,29 +752,34 @@ class VideoMaMaManager(MattingManager):
         progress_dialog, pbar = self._make_progress_dialog(parent_window, total_operations, unit="batch")
         operations_completed = 0
 
-        # Process each object separately
-        for object_id in object_ids:
-            if progress_dialog.wasCanceled():
-                break
+        try:
+            # Process each object separately
+            for object_id in object_ids:
+                if progress_dialog.wasCanceled():
+                    break
 
-            pbar.set_description(f"Object {object_id}")
-            print(f"Processing object {object_id}...")
+                pbar.set_description(f"Object {object_id}")
+                print(f"Processing object {object_id}...")
 
-            batches_completed = self._process_object(
-                object_id, start_frame, end_frame, overlap, batch_size, extension,
-                progress_dialog, pbar, operations_completed,
-                total_operations, parent_window, combine_ids=combine_ids,
-                enable_boundary_blend=enable_boundary_blend
-            )
+                batches_completed = self._process_object(
+                    object_id, start_frame, end_frame, overlap, batch_size, extension,
+                    progress_dialog, pbar, operations_completed,
+                    total_operations, parent_window, combine_ids=combine_ids,
+                    enable_boundary_blend=enable_boundary_blend
+                )
 
-            if batches_completed is None:  # cancelled or failed
-                break
+                if batches_completed is None:  # cancelled or failed
+                    break
 
-            operations_completed += batches_completed
+                operations_completed += batches_completed
 
-        pbar.close()
+        except Exception as e:
+            pbar.close()
+            progress_dialog.close()
+            raise
 
         # Final cleanup
+        pbar.close()
         core.DeviceManager.clear_cache()
 
         if progress_dialog.wasCanceled():
@@ -780,7 +798,7 @@ class VideoMaMaManager(MattingManager):
             return 1
 
     def _load_batch(self, abs_start, abs_end, object_id, extension,
-                    combine_ids=None):
+                    combine_ids=None, crop_rect=None):
         """
         Load a single batch window of frames and masks from disk, resized using
         the same proportional downscaling as MatAnyone (matany_res setting).
@@ -788,12 +806,18 @@ class VideoMaMaManager(MattingManager):
         If combine_ids is provided, masks for all IDs in that list are unioned
         in memory per frame rather than loading a single object mask from disk.
  
+        If crop_rect is provided, both frames and masks are cropped to that region
+        before being passed through _resize_image, so the model only processes the
+        relevant portion of the frame.
+
         Args:
-            abs_start: Absolute start frame (inclusive)
-            abs_end: Absolute end frame (exclusive)
-            object_id: Object ID for mask lookup (ignored when combine_ids is set)
-            extension: Frame file extension
+            abs_start:   Absolute start frame (inclusive)
+            abs_end:     Absolute end frame (exclusive)
+            object_id:   Object ID for mask lookup (ignored when combine_ids is set)
+            extension:   Frame file extension
             combine_ids: Optional list of object IDs to union into a single mask
+            crop_rect:   Optional (x1, y1, x2, y2) from core.compute_mask_bounding_box.
+                         When set, frames and masks are cropped before resizing.
  
         Returns:
             tuple: (cond_frames, mask_frames, valid)
@@ -813,6 +837,8 @@ class VideoMaMaManager(MattingManager):
             # Load and convert frame to RGB, then proportionally downscale via matany_res
             frame = cv2.imread(frame_path)
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            if crop_rect is not None:
+                frame = core.apply_crop(frame, crop_rect)
             frame = self._resize_image(frame)
             resized_h, resized_w = frame.shape[:2]
  
@@ -828,6 +854,9 @@ class VideoMaMaManager(MattingManager):
                         continue
                     union_mask = m if union_mask is None else np.maximum(union_mask, m)
                 if union_mask is not None:
+                    union_mask = core.apply_mask_postprocessing(union_mask)
+                    if crop_rect is not None:
+                        union_mask = core.apply_crop(union_mask, crop_rect)
                     mask = cv2.resize(union_mask, (resized_w, resized_h), interpolation=cv2.INTER_NEAREST)
                 else:
                     mask = np.zeros((resized_h, resized_w), dtype=np.uint8)
@@ -836,6 +865,8 @@ class VideoMaMaManager(MattingManager):
                 if os.path.exists(mask_path):
                     mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
                     mask = core.apply_mask_postprocessing(mask)
+                    if crop_rect is not None:
+                        mask = core.apply_crop(mask, crop_rect)
                     mask = cv2.resize(mask, (resized_w, resized_h), interpolation=cv2.INTER_NEAREST)
                 else:
                     mask = np.zeros((resized_h, resized_w), dtype=np.uint8)
@@ -919,6 +950,25 @@ class VideoMaMaManager(MattingManager):
         else:
             original_w = core.VideoInfo.width
             original_h = core.VideoInfo.height
+
+        # Compute a single crop rect covering all mask extents across the full frame range.
+        # This is done once before any batch processing so every batch uses an identical
+        # spatial region, keeping output consistent across chunk boundaries.
+        object_ids_for_bbox = combine_ids if combine_ids is not None else [object_id]
+        progress_dialog.setLabelText(f"Object {object_id}: Finding region of interest...")
+        QApplication.processEvents()
+
+        crop_rect = core.compute_mask_bounding_box(
+            frame_range=range(start_frame, end_frame + 1),
+            object_ids=object_ids_for_bbox,
+            combine_ids=combine_ids,
+        )
+        if crop_rect is not None:
+            cx1, cy1, cx2, cy2 = crop_rect
+            print(f"Object {object_id}: crop rect ({cx1}, {cy1}) -> ({cx2}, {cy2})  "
+                  f"[{cx2 - cx1 + 1}x{cy2 - cy1 + 1} of {original_w}x{original_h}]")
+        else:
+            print(f"Object {object_id}: no mask content found, processing full frame")
  
         windows = self._generate_windows(frames_to_process, batch_size, overlap)
         batches_completed = 0
@@ -948,7 +998,7 @@ class VideoMaMaManager(MattingManager):
  
             cond_frames, mask_frames, valid = self._load_batch(
                 abs_start, abs_end, object_id, extension,
-                combine_ids=combine_ids
+                combine_ids=combine_ids, crop_rect=crop_rect
             )
  
             if not valid:
@@ -973,6 +1023,8 @@ class VideoMaMaManager(MattingManager):
             def _on_pipeline_progress(step, total, desc):
                 progress_dialog.setLabelText(f"Batch {batch_idx + 1}/{len(windows)} — {desc}")
                 QApplication.processEvents()
+                if progress_dialog.wasCanceled():
+                    raise RuntimeError("USER_CANCELLED")
  
             try:
                 with torch.amp.autocast('cuda', enabled=False):
@@ -982,6 +1034,10 @@ class VideoMaMaManager(MattingManager):
                         seed=42,
                         progress_callback=_on_pipeline_progress,
                     )
+            except RuntimeError as e:
+                if str(e) == "USER_CANCELLED":
+                    return None  # signals cancel upstream
+                raise
             except Exception as e:
                 print(f"Error in VideoMaMa inference for batch {batch_idx}: {e}")
                 raise
@@ -1007,7 +1063,9 @@ class VideoMaMaManager(MattingManager):
             if enable_boundary_blend and not is_first_batch and prev_boundary_alphas is not None:
                 for i in range(min(overlap, len(prev_boundary_alphas), len(output_frames))):
                     new_alpha = cv2.cvtColor(output_frames[i], cv2.COLOR_RGB2GRAY)
-                    new_alpha = self._restore_image_size(new_alpha, (original_w, original_h))
+                    new_alpha = self._restore_image_size(new_alpha, (cx2 - cx1 + 1, cy2 - cy1 + 1) if crop_rect else (original_w, original_h))
+                    if crop_rect is not None:
+                        new_alpha = core.expand_to_full(new_alpha, crop_rect, original_w, original_h)
                     new_weight = (i + 1) / (overlap + 1)
                     blended = (
                         (1.0 - new_weight) * prev_boundary_alphas[i].astype(np.float32)
@@ -1024,9 +1082,17 @@ class VideoMaMaManager(MattingManager):
             current_boundary_alphas = []
             for i, frame_out in enumerate(committed_output):
                 abs_frame = abs_start + output_start_offset + i
- 
                 alpha = cv2.cvtColor(frame_out, cv2.COLOR_RGB2GRAY)
-                final_alpha = self._restore_image_size(alpha, (original_w, original_h))
+
+                # Restore to the cropped region's pixel dimensions first, then expand
+                # back into the full frame canvas so the saved matte is always full-size.
+                if crop_rect is not None:
+                    crop_w = cx2 - cx1 + 1
+                    crop_h = cy2 - cy1 + 1
+                    alpha = self._restore_image_size(alpha, (crop_w, crop_h))
+                    final_alpha = core.expand_to_full(alpha, crop_rect, original_w, original_h)
+                else:
+                    final_alpha = self._restore_image_size(alpha, (original_w, original_h))
 
                 if i >= len(committed_output) - overlap:
                     current_boundary_alphas.append(final_alpha.copy())

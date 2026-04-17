@@ -402,3 +402,140 @@ def change_gamma(mask, gamma_value):
     inv_gamma = 1.0 / gamma_value
     table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in range(256)]).astype("uint8")
     return cv2.LUT(mask, table)
+
+
+
+# .........................................................................................
+# Crop / bounding-box utilities
+# .........................................................................................
+
+def compute_mask_bounding_box(frame_range, object_ids, combine_ids=None, buffer=0.10):
+    """
+    Scan all mask files across a frame range and return a single crop rect that
+    covers every non-black pixel in every frame, plus a proportional buffer zone.
+    The rect is clamped to the frame dimensions and snapped to multiples of 8.
+
+    Args:
+        frame_range: iterable of absolute frame numbers to scan
+        object_ids:  list of object IDs whose masks should be considered.
+                     When combine_ids is set, object_ids is ignored and
+                     combine_ids is used instead (mirrors _load_batch logic).
+        combine_ids: optional list of object IDs to union per frame (combined mode)
+        buffer:      fractional padding added beyond the tight bounding box,
+                     relative to the cropped region's own width/height (default 0.10)
+
+    Returns:
+        (x1, y1, x2, y2) integers — pixel-inclusive crop rect aligned to multiples
+        of 8, or None if no non-black pixels were found in any mask.
+    """
+    ids_to_scan = combine_ids if combine_ids is not None else object_ids
+
+    global_x1 = None
+    global_y1 = None
+    global_x2 = None
+    global_y2 = None
+    frame_w = VideoInfo.width
+    frame_h = VideoInfo.height
+
+    for frame_num in frame_range:
+        # Build the union mask for this frame across all relevant object IDs
+        union_mask = None
+        for oid in ids_to_scan:
+            mask_path = os.path.join(mask_dir, f"{frame_num:05d}", f"{oid}.png")
+            if not os.path.exists(mask_path):
+                continue
+            m = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+            if m is None:
+                continue
+            union_mask = m if union_mask is None else np.maximum(union_mask, m)
+
+        if union_mask is None or not np.any(union_mask):
+            continue
+
+        union_mask = apply_mask_postprocessing(union_mask)
+
+        # Update frame dimensions from actual mask if VideoInfo isn't populated yet
+        h, w = union_mask.shape
+        if frame_w == 0:
+            frame_w = w
+        if frame_h == 0:
+            frame_h = h
+
+        # Find non-black pixel extents for this frame
+        rows = np.any(union_mask > 0, axis=1)
+        cols = np.any(union_mask > 0, axis=0)
+        y1 = int(np.argmax(rows))
+        y2 = int(len(rows) - 1 - np.argmax(rows[::-1]))
+        x1 = int(np.argmax(cols))
+        x2 = int(len(cols) - 1 - np.argmax(cols[::-1]))
+
+        global_x1 = x1 if global_x1 is None else min(global_x1, x1)
+        global_y1 = y1 if global_y1 is None else min(global_y1, y1)
+        global_x2 = x2 if global_x2 is None else max(global_x2, x2)
+        global_y2 = y2 if global_y2 is None else max(global_y2, y2)
+
+        # Early exit: if the bounding box already covers >= 90% of the frame
+        # in both dimensions, cropping won't save meaningful work.
+        if ((global_x2 - global_x1) >= frame_w * 0.9 and (global_y2 - global_y1) >= frame_h * 0.9):
+            return None
+
+    if global_x1 is None:
+        return None
+
+    # Add buffer relative to the size of the cropped region itself,
+    # with a minimum of 32px per side to ensure small objects have enough context.
+    crop_w = global_x2 - global_x1
+    crop_h = global_y2 - global_y1
+    pad_x = max(32, int(crop_w * buffer))
+    pad_y = max(32, int(crop_h * buffer))
+
+    global_x1 = max(0, global_x1 - pad_x)
+    global_y1 = max(0, global_y1 - pad_y)
+    global_x2 = min(frame_w - 1, global_x2 + pad_x)
+    global_y2 = min(frame_h - 1, global_y2 + pad_y)
+
+    # Snap to multiples of 8 (expand outward to avoid clipping content)
+    global_x1 = (global_x1 // 8) * 8
+    global_y1 = (global_y1 // 8) * 8
+    global_x2 = min(frame_w - 1, ((global_x2 + 7) // 8) * 8)
+    global_y2 = min(frame_h - 1, ((global_y2 + 7) // 8) * 8)
+
+    return (global_x1, global_y1, global_x2, global_y2)
+
+
+def apply_crop(image, crop_rect):
+    """
+    Crop an image to the given rect.
+
+    Args:
+        image:     numpy array (H, W) or (H, W, C)
+        crop_rect: (x1, y1, x2, y2) as returned by compute_mask_bounding_box
+
+    Returns:
+        Cropped numpy array.
+    """
+    x1, y1, x2, y2 = crop_rect
+    return image[y1:y2 + 1, x1:x2 + 1]
+
+
+def expand_to_full(image, crop_rect, full_w, full_h):
+    """
+    Paste a cropped image back into a black canvas of the original frame size.
+
+    Args:
+        image:     numpy array (H, W) or (H, W, C) — the cropped region
+        crop_rect: (x1, y1, x2, y2) as returned by compute_mask_bounding_box
+        full_w:    original frame width
+        full_h:    original frame height
+
+    Returns:
+        Full-size numpy array with the cropped content pasted at the correct position.
+    """
+    x1, y1, x2, y2 = crop_rect
+    if image.ndim == 3:
+        canvas = np.zeros((full_h, full_w, image.shape[2]), dtype=image.dtype)
+    else:
+        canvas = np.zeros((full_h, full_w), dtype=image.dtype)
+    canvas[y1:y2 + 1, x1:x2 + 1] = image
+    return canvas
+
