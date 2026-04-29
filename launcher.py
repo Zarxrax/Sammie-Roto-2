@@ -11,6 +11,7 @@ def show_splash(app):
     splash_pix = QPixmap(":/splash.webp")
     splash = QSplashScreen(splash_pix, Qt.SplashScreen)
     splash.showMessage("Loading Sammie-Roto...", Qt.AlignCenter | Qt.AlignBottom, Qt.white)
+    splash.setWindowFlags(Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
     splash.show()
     app.processEvents()
     return splash

@@ -976,6 +976,7 @@ def resume_session():
     if os.path.exists(core.temp_dir):
         if os.path.exists(core.frames_dir) and os.listdir(core.frames_dir):
             print("Resuming previous session...")
+            QApplication.processEvents()
             restore_video_info()
             return core.VideoInfo.total_frames
 

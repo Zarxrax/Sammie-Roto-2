@@ -1145,10 +1145,18 @@ class MainWindow(QMainWindow):
         self._update_point_editing_state()
         print(f"Sammie-Roto version {__version__}")
         self.update_checker.check_for_updates()
+
+        # Show the window immediately so it appears before model loading
+        self.show()
+
+        # Load the model and resume the session after window loads
+        QTimer.singleShot(0, self._deferred_init)
+
+    def _deferred_init(self):
+        """Heavy initialization deferred until after the window is shown"""
         core.DeviceManager.setup_device()
         self.sam_manager.load_segmentation_model(parent_window=self)
-        #self.matany_manager.load_matting_model(load_to_cpu=True)
-        
+        QApplication.processEvents()
         # Load file or resume session
         if self.initial_file:
             if os.path.exists(self.initial_file):
@@ -3014,7 +3022,7 @@ Examples:
     app.setWindowIcon(QIcon(":/icon.ico"))
 
     window = MainWindow(initial_file=file_to_load)
-    window.show()
+    #window.show() is now called inside __init__
     sys.exit(app.exec())
 
 if __name__ == "__main__":
