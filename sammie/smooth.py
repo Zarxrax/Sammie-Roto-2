@@ -1,8 +1,5 @@
-import os
 import torch
 from torch.cuda.amp import autocast
-from torchvision import transforms
-import cv2
 import numpy as np
 from sammie.srvgg_arch import SRVGGNetCompact
 

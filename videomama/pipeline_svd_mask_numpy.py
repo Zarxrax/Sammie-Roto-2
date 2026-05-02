@@ -205,10 +205,10 @@ class VideoInferencePipeline:
             if self.enable_model_cpu_offload:
                 self.unet.to(self.device)
 
-            generator = torch.Generator(device=self.device).manual_seed(seed)
-            noisy_latents = torch.randn(cond_latents.shape, generator=generator, device=self.device,
-                                        dtype=self.weight_dtype)
-            timesteps = torch.full((1,), 1.0, device=self.device, dtype=torch.long)
+            generator = torch.Generator(device="cpu").manual_seed(seed)
+            noisy_latents = torch.randn(cond_latents.shape, generator=generator, device="cpu",
+                                        dtype=self.weight_dtype).to(self.device)
+            timesteps = torch.full((1,), 1.0, device=self.device, dtype=torch.int32)
             added_time_ids = self._get_add_time_ids(fps, motion_bucket_id, noise_aug_strength, batch_size=1)
 
             unet_input = torch.cat([noisy_latents, cond_latents, mask_latents], dim=2)

@@ -75,7 +75,7 @@ class DeviceManager:
                     torch.autocast("cuda", dtype=torch.float16).__enter__()
 
         elif cls._device.type == "mps":
-            torch.autocast("mps", dtype=torch.float16).__enter__()
+            torch.autocast("mps", dtype=torch.bfloat16).__enter__()
         
         elif cls._device.type == "xpu":
             torch.autocast("xpu", dtype=torch.bfloat16).__enter__()
