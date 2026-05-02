@@ -9,16 +9,16 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QVBoxLayout, QHBoxLayout, 
     QGridLayout, QWidget, QPushButton, QLabel, QStatusBar, QSlider, 
     QTabWidget, QSpinBox, QComboBox, QSplitter, QGroupBox, QTextEdit,
-    QCheckBox, QLineEdit, QMessageBox, QProgressDialog, QDialog
+    QCheckBox, QLineEdit, QMessageBox, QDialog
 )
 from PySide6.QtGui import (
-    QPixmap, QAction, QShortcut, QKeySequence, QTextCursor, QIcon, QFont
+    QAction, QShortcut, QKeySequence, QTextCursor, QIcon, QFont
 )
 from PySide6.QtCore import Qt, QTimer
 
 # Import external logic functions
 from sammie import sammie
-from sammie import resources
+from sammie.resources import resources
 from sammie import core
 from sammie import matting
 from sammie import removal
@@ -1742,15 +1742,15 @@ class MainWindow(QMainWindow):
     
     def append_to_console(self, text, is_carriage_return=False):
         cursor = self.console.textCursor()
-        cursor.movePosition(QTextCursor.End)
 
         if is_carriage_return:
-            # Move to start of line, replace it with new text
-            cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.MoveAnchor)
-            cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
+            cursor.movePosition(QTextCursor.End)
+            cursor.movePosition(QTextCursor.StartOfBlock, QTextCursor.MoveAnchor)
+            cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
             cursor.removeSelectedText()
-            cursor.insertText(text)
+            cursor.insertText(text.strip())
         else:
+            cursor.movePosition(QTextCursor.End)
             cursor.insertText(text)
 
         self.console.setTextCursor(cursor)

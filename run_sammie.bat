@@ -1,2 +1,6 @@
-start .\python-3.12.8-embed-amd64\pythonw.exe launcher.py %*
+@echo off
+setlocal
+set "UV_DIR=%~dp0.uv"
+set "UV_EXE=%UV_DIR%\uv.exe"
+start /b "" uvw run --no-sync launcher.py %*
 exit
