@@ -5,7 +5,7 @@ import sys
 import argparse
 import os
 import traceback
-from sammie import resources
+from sammie.resources import resources
 
 def show_splash(app):
     splash_pix = QPixmap(":/splash.webp")
