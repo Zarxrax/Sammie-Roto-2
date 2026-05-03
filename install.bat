@@ -11,13 +11,13 @@ set "UV_CACHE_DIR=%UV_DIR%\uv_cache"
 if not exist "%UV_EXE%" (
     echo Downloading uv to isolated folder...
     if not exist "%UV_DIR%" mkdir "%UV_DIR%"
-    powershell -ExecutionPolicy Bypass -Command "$env:UV_INSTALL_DIR='%UV_DIR%'; $env:UV_UNMANAGED_INSTALL='1'; irm https://astral.sh/uv/install.ps1 | iex"
+    powershell -ExecutionPolicy Bypass -Command "$env:UV_INSTALL_DIR='%UV_DIR%'; irm https://astral.sh/uv/install.ps1 | iex"
 )
 
 :: Add the isolated folder to this session's PATH
 set "PATH=%UV_DIR%;%PATH%"
 
 echo Running installer...
-uv run --no-project --with dulwich~=1.2 python manage.py
+uv run --no-project --with dulwich~=1.2 --python 3.12 python manage.py
 
 pause

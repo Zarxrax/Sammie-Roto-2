@@ -145,6 +145,7 @@ def setup(reinstall=False):
     
     # Backend Selection
     # If fresh install or reinstall, always ask. 
+    sys.stdout.flush()
     backend = choose_backend()
     
     # Environment Sync
