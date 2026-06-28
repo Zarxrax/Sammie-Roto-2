@@ -963,12 +963,13 @@ class VideoMaMaManager(MattingManager):
             object_ids=object_ids_for_bbox,
             combine_ids=combine_ids,
         )
+
         if crop_rect is not None:
             cx1, cy1, cx2, cy2 = crop_rect
             print(f"Object {object_id}: crop rect ({cx1}, {cy1}) -> ({cx2}, {cy2})  "
                   f"[{cx2 - cx1 + 1}x{cy2 - cy1 + 1} of {original_w}x{original_h}]")
         else:
-            print(f"Object {object_id}: no mask content found, processing full frame")
+            print(f"Object {object_id}: Processing full frame")
  
         windows = self._generate_windows(frames_to_process, batch_size, overlap)
         batches_completed = 0
