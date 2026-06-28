@@ -1,9 +1,11 @@
 import sys
 import os
+import subprocess
 import argparse
 import json
 import traceback
 import webbrowser
+from pathlib import Path
 from datetime import datetime
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QVBoxLayout, QHBoxLayout, 
@@ -12,9 +14,9 @@ from PySide6.QtWidgets import (
     QCheckBox, QLineEdit, QMessageBox, QDialog
 )
 from PySide6.QtGui import (
-    QAction, QShortcut, QKeySequence, QTextCursor, QIcon, QFont
+    QAction, QShortcut, QKeySequence, QTextCursor, QIcon, QPixmap, QFont, QDesktopServices
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QUrl
 
 # Import external logic functions
 from sammie import sammie
@@ -202,10 +204,43 @@ class SegmentationTab(QWidget):
         """Create the Tracking group with tracking-related actions"""
         tracking_group = QGroupBox("Tracking")
         tracking_layout = QVBoxLayout(tracking_group)
-        
+
+        # Track Objects button (full propagation)
+        self.track_objects_btn = QPushButton(" Track Objects ")
+        self.track_objects_btn.setToolTip("Propagate segmentation masks to all frames using the added points as guidance")
+        self.track_objects_btn.setLayoutDirection(Qt.RightToLeft)  # Put icon on the right side of text
+        tracking_layout.addWidget(self.track_objects_btn)
+
+        # Directional tracking buttons - reuse the playback control icons.
+        # The backward icon is the play icon mirrored horizontally in code (no extra asset needed).
+        directional_layout = QHBoxLayout()
+        directional_layout.setSpacing(0)  # reduce space between buttons, matching playback controls
+
+        play_pixmap = QPixmap(":/icons/control-play.png")
+        play_pixmap_flipped = QPixmap.fromImage(play_pixmap.toImage().mirrored(True, False))
+
+        directional_button_configs = [
+            (QIcon(":/icons/control-step-left.png"), "track_one_frame_backward_btn",
+            "Track one frame backward from the current frame"),
+            (QIcon(play_pixmap_flipped), "track_backward_btn",
+            "Track backward from the current frame to the in point (or start of video)"),
+            (QIcon(play_pixmap), "track_forward_btn",
+            "Track forward from the current frame to the out point (or end of video)"),
+            (QIcon(":/icons/control-step-right.png"), "track_one_frame_forward_btn",
+            "Track one frame forward from the current frame"),
+        ]
+
+        for icon, attr_name, tooltip in directional_button_configs:
+            btn = QPushButton()
+            btn.setIcon(icon)
+            btn.setToolTip(tooltip)
+            directional_layout.addWidget(btn)
+            setattr(self, attr_name, btn)
+
+        tracking_layout.addLayout(directional_layout)
+
+        # Remaining tracking buttons
         button_configs = [
-            (" Track Objects ", "track_objects_btn", 
-            "Propagate segmentation masks to all frames using the added points as guidance"),
             ("Clear Tracking Data", "clear_tracking_data_btn", 
             "Remove all propagated masks but keep the point annotations"),
             (" Deduplicate Similar Masks ", "deduplicate_masks_btn", 
@@ -219,7 +254,6 @@ class SegmentationTab(QWidget):
             setattr(self, attr_name, btn)
         
         # Put icon on the right side of text
-        self.track_objects_btn.setLayoutDirection(Qt.RightToLeft)
         self.deduplicate_masks_btn.setLayoutDirection(Qt.RightToLeft)
 
         layout.addWidget(tracking_group)
@@ -1243,6 +1277,10 @@ class MainWindow(QMainWindow):
             seg_tab.clear_tracking_data_btn.clicked.connect(self.clear_tracking_data)
             seg_tab.clear_all_btn.clicked.connect(self.clear_all_points)
             seg_tab.track_objects_btn.clicked.connect(self.track_objects)
+            seg_tab.track_backward_btn.clicked.connect(self.track_backward)
+            seg_tab.track_one_frame_backward_btn.clicked.connect(self.track_one_frame_backward)
+            seg_tab.track_one_frame_forward_btn.clicked.connect(self.track_one_frame_forward)
+            seg_tab.track_forward_btn.clicked.connect(self.track_forward)
             seg_tab.deduplicate_masks_btn.clicked.connect(self.deduplicate_similar_masks)
 
             # Connect postprocessing tab sliders
@@ -1347,6 +1385,10 @@ class MainWindow(QMainWindow):
         help_actions = [
             ("Help", self.show_help),
             ("Shortcut Keys", self.show_hotkeys_help),
+            (None, None),  # Separator
+            ("Open Sammie-Roto Folder", self.open_folder),
+            (None, None),  # Separator
+            ("Changelog", self.show_changelog),
             ("About", self.show_about)
         ]
         
@@ -2176,6 +2218,72 @@ class MainWindow(QMainWindow):
             print("Points must be added before tracking")
             self._update_current_frame_display()
     
+    def track_forward(self):
+        """Track objects forward from the current frame to the out point (or end of video)"""
+        self.settings_mgr.save_session_settings()
+        count = len(self.point_manager.points)
+        if count > 0:
+            self.sam_manager.replay_points(self.point_manager.get_all_points())
+            current_frame = self.frame_slider.value()
+            if self.sam_manager.track_forward(parent_window=self, current_frame=current_frame) == 0: # if cancelled
+                self.sam_manager.replay_points(self.point_manager.get_all_points())
+            sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
+            self.update_tracking_status()
+            self._update_current_frame_display()
+            self.settings_mgr.save_session_settings()
+        else:
+            print("Points must be added before tracking")
+            self._update_current_frame_display()
+
+    def track_backward(self):
+        """Track objects backward from the current frame to the in point (or start of video)"""
+        self.settings_mgr.save_session_settings()
+        count = len(self.point_manager.points)
+        if count > 0:
+            self.sam_manager.replay_points(self.point_manager.get_all_points())
+            current_frame = self.frame_slider.value()
+            if self.sam_manager.track_backward(parent_window=self, current_frame=current_frame) == 0: # if cancelled
+                self.sam_manager.replay_points(self.point_manager.get_all_points())
+            sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
+            self.update_tracking_status()
+            self._update_current_frame_display()
+            self.settings_mgr.save_session_settings()
+        else:
+            print("Points must be added before tracking")
+            self._update_current_frame_display()
+
+    def track_one_frame_forward(self):
+        """Track objects one frame forward from the current frame"""
+        count = len(self.point_manager.points)
+        if count > 0:
+            current_frame = self.frame_slider.value()
+            new_frame = self.sam_manager.track_one_frame_forward(parent_window=self, current_frame=current_frame)
+            sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
+            self.update_tracking_status()
+            if new_frame != current_frame:
+                self.frame_slider.setValue(new_frame)  # also refreshes the display
+            else:
+                self._update_current_frame_display()
+        else:
+            print("Points must be added before tracking")
+            self._update_current_frame_display()
+
+    def track_one_frame_backward(self):
+        """Track objects one frame backward from the current frame"""
+        count = len(self.point_manager.points)
+        if count > 0:
+            current_frame = self.frame_slider.value()
+            new_frame = self.sam_manager.track_one_frame_backward(parent_window=self, current_frame=current_frame)
+            sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
+            self.update_tracking_status()
+            if new_frame != current_frame:
+                self.frame_slider.setValue(new_frame)  # also refreshes the display
+            else:
+                self._update_current_frame_display()
+        else:
+            print("Points must be added before tracking")
+            self._update_current_frame_display()
+
     def clear_tracking_data(self):
         """Clear tracking data"""
         self.sam_manager.clear_tracking()  # This already handles the clearing both propagated and deduplicated
@@ -2913,7 +3021,7 @@ class MainWindow(QMainWindow):
     def on_update_available(self, current_version, latest_version):
         """Handle update available signal from background thread"""
         # Print to console
-        print(f"🔔 A new version of Sammie-roto is available! ({latest_version}) It can be downloaded from the File menu.")
+        print(f"🔔 A new version of Sammie-roto is available! ({latest_version}) It can be installed from the File menu.")
         
         # Add menu item to file menu if it doesn't already exist
         if self.update_menu_action is None:
@@ -2921,9 +3029,9 @@ class MainWindow(QMainWindow):
             self.file_menu.addSeparator()
             
             # Create update menu action
-            self.update_menu_action = QAction(f"Update Available ({latest_version})", self)
+            self.update_menu_action = QAction(f"Exit and Update ({latest_version})", self)
             self.update_menu_action.triggered.connect(
-                lambda: self.open_update_url(latest_version)
+                lambda: self.run_install_script()
             )
             
             # Find the Exit action and insert before it
@@ -2953,6 +3061,36 @@ class MainWindow(QMainWindow):
                 self.file_menu.addSeparator()
                 self.file_menu.addAction(self.update_menu_action)
     
+    def run_install_script(self):
+        """Launch the platform-appropriate install script and close the application"""
+        script_dir = Path(__file__).resolve().parent
+
+        if sys.platform == "win32":
+            install_script = script_dir / "install.bat"
+            if not install_script.exists():
+                QMessageBox.critical(self, "Update Error", f"Install script not found:\n{install_script}")
+                return
+            # Launch via cmd so the batch file runs in its own window after this process exits
+            subprocess.Popen(
+                ["cmd", "/c", "start", "", str(install_script)],
+                cwd=str(script_dir),
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+        else:
+            install_script = script_dir / "install.sh"
+            if not install_script.exists():
+                QMessageBox.critical(self, "Update Error", f"Install script not found:\n{install_script}")
+                return
+            # Ensure the script is executable
+            install_script.chmod(install_script.stat().st_mode | 0o111)
+            subprocess.Popen(
+                ["/bin/sh", str(install_script)],
+                cwd=str(script_dir),
+            )
+
+        # Close the application so the installer can replace files
+        QApplication.quit()
+
     def open_update_url(self, version):
         """Open the GitHub releases page"""
         url = "https://github.com/Zarxrax/Sammie-Roto-2/releases"
@@ -2962,6 +3100,16 @@ class MainWindow(QMainWindow):
         """Open the GitHub wiki page"""
         url = "https://github.com/Zarxrax/Sammie-Roto-2/wiki"
         webbrowser.open(url)
+
+    def show_changelog(self):
+        """Open the GitHub changelog page"""
+        url = "https://github.com/Zarxrax/Sammie-Roto-2/releases"
+        webbrowser.open(url)
+
+    def open_folder(self):
+        """Open the sammie-roto folder in the file explorer"""
+        script_dir = Path(__file__).resolve().parent
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(script_dir)))
 
     def show_about(self):
         """Show about dialog"""
