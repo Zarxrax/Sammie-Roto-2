@@ -140,6 +140,7 @@ if __name__ == "__main__":
         sys.exit(0)
     # Keep lock_file alive so it isn't garbage collected
     app.lock_file = lock_file
+    app.aboutToQuit.connect(lambda: lock_file.unlock())
     splash = show_splash(app)
 
     def load():
