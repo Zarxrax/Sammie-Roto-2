@@ -8,10 +8,15 @@ RAW_PYPROJECT_URL = "https://raw.githubusercontent.com/Zarxrax/Sammie-Roto-2/mai
 
 # ===== UTILS =====
 def run_command(cmd):
-    """Wrapper to handle uv commands."""
+    """Wrapper to handle uv commands.
+    Clears VIRTUAL_ENV from the environment before each call to prevent uv's
+    internal build isolation environment from leaking into child processes and
+    causing 'does not match project environment path' warnings."""
     print(">", " ".join(cmd))
+    env = os.environ.copy()
+    env.pop("VIRTUAL_ENV", None)
     try:
-        subprocess.check_call(cmd)
+        subprocess.check_call(cmd, env=env)
     except subprocess.CalledProcessError as e:
         print(f"\nError executing command: {e}")
         sys.exit(1)
@@ -472,6 +477,10 @@ def main():
     # Check if app is running before doing anything
 
     if not os.path.exists(".venv"):
+        if os.path.exists("python-3.12.8-embed-amd64"):
+            print("ERROR: It appears you are trying to install over an older Sammie-Roto installation.")
+            print("Please delete the existing folder then extract the files to a new folder and try again.")
+            sys.exit(1)
         setup()
     else:
         if is_app_running():
