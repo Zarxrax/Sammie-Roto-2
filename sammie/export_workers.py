@@ -329,7 +329,7 @@ class SequenceExportWorker(BaseExportWorker):
                         return_numpy=True, object_id_filter=obj_id
                     )
                     
-                    if mask_array is not None:
+                    if mask_array is not None and mask_array.max() > 0:
                         # Convert to grayscale if needed
                         if len(mask_array.shape) == 3 and mask_array.shape[2] > 1:
                             mask_array = mask_array[:, :, 0]
@@ -344,9 +344,9 @@ class SequenceExportWorker(BaseExportWorker):
                         object_name = object_names.get(str(obj_id), "")
                         if object_name:
                             sanitized_name = self._sanitize_name(object_name)
-                            layer_name = f'{obj_id}_{sanitized_name}'
+                            layer_name = f'{obj_id}_{sanitized_name}.Y'
                         else:
-                            layer_name = f'{obj_id}'
+                            layer_name = f'Object_{obj_id}.Y'
                         
                         exr_data[layer_name] = mask_array
                 
@@ -366,11 +366,11 @@ class SequenceExportWorker(BaseExportWorker):
                         
                         # Split RGB channels
                         if len(original_array.shape) == 3 and original_array.shape[2] >= 3:
-                            exr_data['original.R'] = original_array[:, :, 0]
-                            exr_data['original.G'] = original_array[:, :, 1]
-                            exr_data['original.B'] = original_array[:, :, 2]
+                            exr_data['R'] = original_array[:, :, 0]
+                            exr_data['G'] = original_array[:, :, 1]
+                            exr_data['B'] = original_array[:, :, 2]
                         else:
-                            exr_data['original'] = original_array
+                            exr_data['Y'] = original_array
                 
                 # Write EXR file
                 if exr_data:
@@ -451,8 +451,9 @@ class SequenceExportWorker(BaseExportWorker):
             self.finished.emit(True, f"Successfully exported {len(exported_files)} PNG frames{frame_range_msg} to {output_dir}")
     
     @staticmethod
-    def _write_exr_file(filepath: str, data_dict: dict):
+    def _write_exr_file(filepath: str, data_dict: dict, color_space: int = 1):
         """Write EXR file with multiple layers"""
+
         try:
             first_layer = next(iter(data_dict.values()))
             height, width = first_layer.shape
@@ -461,11 +462,10 @@ class SequenceExportWorker(BaseExportWorker):
             FLOAT = Imath.PixelType(Imath.PixelType.FLOAT)
             
             # Declare channels
-            for name in data_dict.keys():
-                header['channels'][name] = Imath.Channel(FLOAT)
+            header['channels'] = {name: Imath.Channel(FLOAT) for name in data_dict.keys()}
             
-            # Enable PIZ compression
-            header['compression'] = Imath.Compression(Imath.Compression.PIZ_COMPRESSION)
+            # Enable ZIP compression
+            header['compression'] = Imath.Compression(Imath.Compression.ZIP_COMPRESSION)
             
             out = OpenEXR.OutputFile(filepath, header)
             
