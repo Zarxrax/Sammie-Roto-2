@@ -33,6 +33,51 @@ def get_remote_version():
         print(f"[Warning: Could not check remote version: {e}]")
         return None
 
+def parse_version(v):
+    """Splits a dotted version string into (release_tuple, is_prerelease).
+    The release tuple is the leading numeric part of each dot-separated segment,
+    e.g. '2.0.0b1' -> ((2, 0, 0), True), '1.10.2' -> ((1, 10, 2), False).
+    Any non-digit characters after the leading digits of a segment (a, alpha,
+    b, beta, rc, c, dev, etc.) mark the version as a pre-release."""
+    release = []
+    prerelease = False
+    for segment in v.strip().lower().split("."):
+        digits = ""
+        i = 0
+        while i < len(segment) and segment[i].isdigit():
+            digits += segment[i]
+            i += 1
+        release.append(int(digits) if digits else 0)
+        if i < len(segment):
+            prerelease = True
+    return tuple(release), prerelease
+
+def is_newer_version(remote_v, local_v):
+    """Returns True if remote_v is a strictly newer *final* release than local_v.
+
+    Pre-release versions are never offered as updates: if remote_v is itself a
+    pre-release (e.g. an alpha/beta accidentally left on main), this returns
+    False regardless of local_v. But a user currently running a pre-release
+    will still be offered the matching final release once one is published,
+    since a final release always outranks a pre-release of the same release
+    number (e.g. '2.0.0' is newer than '2.0.0b2')."""
+    r_release, r_pre = parse_version(remote_v)
+    l_release, l_pre = parse_version(local_v)
+
+    if r_pre:
+        return False
+
+    length = max(len(r_release), len(l_release))
+    r_release += (0,) * (length - len(r_release))
+    l_release += (0,) * (length - len(l_release))
+
+    if r_release != l_release:
+        return r_release > l_release
+
+    # Same release number and remote is confirmed final (checked above) —
+    # it's newer only if the local install is itself a pre-release.
+    return l_pre
+
 def get_installed_backend():
     """Detects which torch extra is currently installed (used for updates)."""
     if platform.system() == "Darwin":
@@ -57,17 +102,27 @@ def get_installed_backend():
     return None
 
 # ===== GIT LOGIC =====
+def init_git_tracking():
+    """Initializes git tracking for the install (adds an 'origin' remote
+    pointing at REPO_URL) without fetching or touching any local files.
+    Safe to call any time — does nothing if .git already exists."""
+    from dulwich.repo import Repo
+    from dulwich import porcelain
+
+    if os.path.exists(".git"):
+        return
+
+    print("[Initializing Git tracking...]")
+    repo = Repo.init(".")
+    porcelain.remote_add(repo, "origin", REPO_URL)
+
 def pull_latest_code(hard_reset=False):
     """Ensures the local files match the repository."""
     from dulwich import porcelain
     from dulwich.repo import Repo
 
-    if not os.path.exists(".git"):
-        print("[Initializing Git tracking...]")
-        repo = Repo.init(".")
-        porcelain.remote_add(repo, "origin", REPO_URL)
-    else:
-        repo = Repo(".")
+    init_git_tracking()
+    repo = Repo(".")
 
     print("[Fetching latest code from GitHub...]")
     porcelain.fetch(repo, "origin")
@@ -115,50 +170,131 @@ def sync_env(backend, reinstall=False):
 
 # ===== CORE ACTIONS =====
 def handle_update():
-    local_v = get_local_version()
+    # Read the local version, with recovery if pyproject.toml is missing
+    # or unreadable — a likely sign of a failed or partial install.
+    try:
+        local_v = get_local_version()
+    except Exception as e:
+        print(f"[Could not read local version: {e}]")
+        print("[pyproject.toml may be missing or corrupt — this can happen after a failed install.]")
+        recover = input("Pull latest code from GitHub to recover? (Y/n): ").strip().lower()
+        if recover != "n":
+            pull_latest_code(hard_reset=True)
+            backend = get_installed_backend()
+            if not backend:
+                if platform.system() != "Darwin":
+                    print("[Could not determine your previously installed backend — please reselect it to continue recovery.]")
+                backend = choose_backend()
+            sync_env(backend)
+            print("[Recovery complete!]")
+        else:
+            print("[No changes made. Consider using Reinstall/Repair from the main menu.]")
+        return
+
     remote_v = get_remote_version()
 
-    if remote_v and remote_v > local_v:
-        print(f"[Update found: {remote_v} (Local: {local_v})]")
+    if remote_v is None:
+        print("[Could not check for updates. Check your internet connection and try again.]")
+        return
+
+    if is_newer_version(remote_v, local_v):
+        print(f"\nUpdate available: {remote_v} (current: {local_v})")
+        confirm = input("Install update now? (Y/n): ").strip().lower()
+        if confirm == "n":
+            print("Update skipped.")
+            return
         pull_latest_code(hard_reset=True)
         backend = get_installed_backend()
         if not backend:
+            if platform.system() != "Darwin":
+                print("[Could not determine your previously installed backend — please reselect it to continue the update.]")
             backend = choose_backend()
         sync_env(backend)
-        #if platform.system() == "Windows":
-        #    create_windows_shortcut()
-        #if platform.system() == "Darwin":
-        #    create_mac_app()
-        #if platform.system() == "Linux":
-        #    create_linux_desktop_entry()
+
+        # Recreate shortcuts
+        if platform.system() == "Windows":
+            create_windows_shortcut()
+        if platform.system() == "Darwin":
+            create_mac_app()
+        if platform.system() == "Linux":
+            create_linux_desktop_entry()
+
         print("\nUpdate complete!")
     else:
         print(f"[Already up to date (Version {local_v}).]")
 
 def setup(reinstall=False):
-    # Fetch/Restore files if it's a reinstall
+    # Git tracking is initialized as soon as setup() runs (fresh install or
+    # reinstall), so future "Check for Updates" runs can fetch/reset
+    # cleanly. This only adds the 'origin' remote -- it never touches files.
+    init_git_tracking()
+
+    # -- Gather all choices upfront ----------------------------------------
+    # Ask every question before doing any work, so we can summarise and
+    # confirm before anything irreversible happens. The user can walk away
+    # after confirming and let the whole process complete unattended.
+
+    # 1. Pull latest code?
     if reinstall:
+        prompt = (
+            "\nAlso pull the latest code from GitHub? This will overwrite "
+            "any local changes to program files. (y/N): "
+        )
+        pull_code = input(prompt).strip().lower() == "y"
+    else:
+        prompt = (
+            "\nPull the latest code from GitHub now? Recommended if you're "
+            "not sure the downloaded files are the newest release. (Y/n): "
+        )
+        pull_code = input(prompt).strip().lower() != "n"
+
+    # 2. Backend selection (with re-prompt on invalid input)
+    backend = choose_backend()
+
+    # 3. Model download -- fresh install only
+    download_models_now = False
+    if not reinstall:
+        print("\nModel download:")
+        print("1) Download models as needed (default -- models download the first time they are used)")
+        print("2) Download all models now (~10GB)")
+        model_choice = input("> ").strip()
+        download_models_now = model_choice == "2"
+
+    # -- Summarise and confirm ----------------------------------------------
+    backend_labels = {
+        "cu130": "NVIDIA CUDA 13.0",
+        "cu126": "NVIDIA CUDA 12.6",
+        "xpu":   "Intel Arc/Xe",
+        "rocm":  "AMD ROCm",
+        "cpu":   "CPU",
+        None:    "CPU/Apple Silicon/MPS",
+    }
+
+    print("\n--- Setup summary ---")
+    print(f"  Pull latest code : {'Yes' if pull_code else 'No'}")
+    if platform.system() != "Darwin":
+        print(f"  PyTorch backend  : {backend_labels.get(backend, backend)}")
+    if not reinstall:
+        print(f"  Download models  : {'Download all now (~10GB)' if download_models_now else 'Download as needed'}")
+    print("---------------------")
+
+    confirm = input("\nProceed with setup? (Y/n): ").strip().lower()
+    if confirm == "n":
+        print("Setup cancelled.")
+        sys.exit(0)
+
+    # -- Execute ------------------------------------------------------------
+    if pull_code:
         pull_latest_code(hard_reset=True)
 
-    # Python Check
     run_command(["uv", "python", "install", "--no-bin", PYTHON_VERSION])
-    
-    # Backend Selection
-    # If fresh install or reinstall, always ask. 
-    sys.stdout.flush()
-    backend = choose_backend()
-    
-    # Environment Sync
+
     sync_env(backend, reinstall=reinstall)
-    
-    # Git tracking (initial setup only)
-    if not os.path.exists(".git"):
-        pull_latest_code(hard_reset=False)
 
     # Create desktop shortcut on Windows
     if platform.system() == "Windows":
         create_windows_shortcut()
-        
+
     # Create .app bundle on macOS
     if platform.system() == "Darwin":
         create_mac_app()
@@ -172,8 +308,14 @@ def setup(reinstall=False):
         run_sh = "run_sammie.sh"
         if os.path.exists(run_sh):
             os.chmod(run_sh, os.stat(run_sh).st_mode | 0o755)
-    
+
     print("\nSetup Complete!")
+
+    # Run the model downloader last so all dependencies are in place.
+    if download_models_now:
+        print("\nDownloading all models...")
+        run_command(["uv", "run", os.path.join("sammie", "model_downloader.py")])
+
 
 # ===== CREATE SHORTCUTS =====
 def create_mac_app():
@@ -297,13 +439,48 @@ def create_windows_shortcut():
         print(f"[Warning: Could not create Windows shortcut: {e}]")
 
 # ===== ENTRY =====
+def is_app_running():
+    """Checks whether Sammie-Roto is currently running by reading the PID
+    from Qt's lock file and verifying the process is actually alive."""
+    lock_path = os.path.join(
+        os.environ.get("TEMP", os.environ.get("TMP", "")) if platform.system() == "Windows" else "/tmp",
+        "sammie-roto.lock"
+    )
+    if not os.path.exists(lock_path):
+        return False
+    try:
+        with open(lock_path, "r") as f:
+            pid = int(f.readline().strip())
+    except (ValueError, OSError):
+        return False  # Unreadable or malformed — treat as stale
+
+    if platform.system() == "Windows":
+        result = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+            capture_output=True, text=True
+        )
+        return str(pid) in result.stdout
+    else:
+        try:
+            os.kill(pid, 0)
+            return True
+        except ProcessLookupError:
+            return False  # Process doesn't exist — stale lock
+        except PermissionError:
+            return True   # Process exists but we can't signal it — assume running
 def main():
     # Check if app is running before doing anything
 
     if not os.path.exists(".venv"):
         setup()
     else:
-        print("\nPlease ensure that Sammie-Roto-2 is not running before continuing.")
+        if is_app_running():
+            print("\n[Warning: Sammie-Roto-2 appears to be running.]")
+            print("[Please close it before continuing to avoid corrupting your installation.]")
+            confirm = input("Continue anyway? (y/N): ").strip().lower()
+            if confirm != "y":
+                sys.exit(0)
+
         print("\nSammie-Roto-2 Manager")
         print("1) Check for Updates")
         print("2) Reinstall/Repair")
