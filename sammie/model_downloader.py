@@ -34,26 +34,18 @@ from __future__ import annotations
 
 import hashlib
 import os
+import sys
+from tqdm import tqdm
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 
 import requests
 from PySide6.QtCore import (
-    QObject,
-    QThread,
-    Signal,
-    Slot,
+    QObject, QThread, Signal, Slot
 )
 from PySide6.QtWidgets import (
-    QDialog,
-    QDialogButtonBox,
-    QLabel,
-    QProgressBar,
-    QPushButton,
-    QSizePolicy,
-    QVBoxLayout,
-    QWidget,
+    QDialog, QDialogButtonBox, QLabel, QProgressBar, QVBoxLayout, QWidget
 )
 
 
@@ -514,27 +506,51 @@ MODEL_REGISTRY: "dict[str, DownloadSpec]" = {
     ),
 }
 
-
 # ---------------------------------------------------------------------------
-# Quick test / demo
+# CLI entrypoint  —  python model_downloader.py [KEY …]
 # ---------------------------------------------------------------------------
-
+ 
 if __name__ == "__main__":
-    import sys
-    from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton
-
-    app = QApplication(sys.argv)
-
-    win = QMainWindow()
-    btn = QPushButton("Download SAM2 Models")
-
-    def launch():
-        ok = ensure_models(["Base", "Large"], parent=win, title="Downloading SAM2 Models")
-        print("All models ready:", ok)
-
-    btn.clicked.connect(launch)
-    win.setCentralWidget(btn)
-    win.resize(300, 100)
-    win.show()
-
-    sys.exit(app.exec())
+ 
+    keys = sys.argv[1:]
+    if keys:
+        unknown = [k for k in keys if k not in MODEL_REGISTRY]
+        if unknown:
+            print(f"Unknown model key(s): {unknown}", file=sys.stderr)
+            print(f"Available: {list(MODEL_REGISTRY)}", file=sys.stderr)
+            sys.exit(1)
+        specs = [MODEL_REGISTRY[k] for k in keys]
+    else:
+        specs = list(MODEL_REGISTRY.values())  # all models
+ 
+    for spec in specs:
+        if spec.already_downloaded():
+            print(f"{spec.filename} already downloaded.")
+            continue
+ 
+        os.makedirs(spec.dest_dir, exist_ok=True)
+        print(f"Downloading {spec.filename} to {spec.dest_dir}...")
+ 
+        r = requests.get(spec.url, stream=True)
+        total_size = int(r.headers.get("content-length", 0))
+        t = tqdm(total=total_size, unit="iB", unit_scale=True)
+        with open(spec.part_path, "wb") as f:
+            for data in r.iter_content(1024 * 1024):
+                t.update(len(data))
+                f.write(data)
+        t.close()
+        if total_size != 0 and t.n != total_size:
+            spec.part_path.unlink(missing_ok=True)
+            sys.exit(f"Error while downloading {spec.filename}")
+ 
+        actual_md5 = _md5(spec.part_path)
+        if actual_md5 != spec.md5:
+            spec.part_path.unlink(missing_ok=True)
+            sys.exit(
+                f"Checksum mismatch for {spec.filename}.\n"
+                f"  Expected : {spec.md5}\n"
+                f"  Got      : {actual_md5}"
+            )
+ 
+        spec.part_path.rename(spec.final_path)
+ 
