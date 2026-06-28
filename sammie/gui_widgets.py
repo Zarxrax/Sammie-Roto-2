@@ -155,7 +155,7 @@ class UpdateChecker(QObject):
     def __init__(self):
         super().__init__()
     
-    def check_for_updates(self, repo="Zarxrax/Sammie-Roto", timeout=5):
+    def check_for_updates(self, repo="Zarxrax/Sammie-Roto-2", timeout=5):
         """Check for updates in a background thread"""
         def background_check():
             try:
