@@ -1,6 +1,6 @@
 [project]
 name = "Sammie-Roto-2"
-version = "2.3.3"
+version = "2.3.4.a1"
 description = "Sammie Roto 2 application"
 requires-python = ">=3.10"
 

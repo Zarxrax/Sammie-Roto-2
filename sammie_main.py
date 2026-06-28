@@ -38,7 +38,7 @@ from sammie.gui_widgets import (
 
 # ==================== VERSION ====================
 
-__version__ = "2.3.3"
+__version__ = "2.3.4.a1"
 
 # ==================== LOGGING HELPER ====================
 
