@@ -143,7 +143,7 @@ def replace_similar_matte_frames(parent_window, dedupe_min_threshold):
         return False
 
     progress = tqdm(total=frames_amount, desc="Deduplicating mask frames...")
-    progress_dialog = QProgressDialog("Deduplicating...", "", 0, 100, parent_window)
+    progress_dialog = QProgressDialog("Deduplicating...", None, 0, 100, parent_window)
     progress_dialog.setWindowTitle("Progress")
     progress_dialog.setWindowModality(Qt.WindowModal)
     progress_dialog.setAutoClose(True)
