@@ -3,6 +3,7 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 UV_DIR="$SCRIPT_DIR/.uv"
 UV_EXE="$UV_DIR/uv"
+UV_VERSION="0.11.28"
 
 # Set environment variables for isolation
 export UV_PYTHON_INSTALL_DIR="$UV_DIR/python"
@@ -13,7 +14,7 @@ if [ ! -f "$UV_EXE" ]; then
     echo "Downloading uv to isolated folder..."
     mkdir -p "$UV_DIR"
     # Use the official shell installer script
-    curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR="$UV_DIR" sh
+    curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | UV_INSTALL_DIR="$UV_DIR" sh
 fi
 
 # Add the isolated folder to this session's PATH

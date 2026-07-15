@@ -6,12 +6,13 @@ set "UV_DIR=%~dp0.uv"
 set "UV_EXE=%UV_DIR%\uv.exe"
 set "UV_PYTHON_INSTALL_DIR=%UV_DIR%\python"
 set "UV_CACHE_DIR=%UV_DIR%\uv_cache"
+set "UV_VERSION=0.11.28"
 
 :: Install uv locally if missing
 if not exist "%UV_EXE%" (
     echo Downloading uv to isolated folder...
     if not exist "%UV_DIR%" mkdir "%UV_DIR%"
-    powershell -ExecutionPolicy Bypass -Command "$env:UV_INSTALL_DIR='%UV_DIR%'; irm https://astral.sh/uv/install.ps1 | iex"
+    powershell -ExecutionPolicy Bypass -Command "$env:UV_INSTALL_DIR='%UV_DIR%'; irm https://astral.sh/uv/%UV_VERSION%/install.ps1 | iex"
 )
 
 :: Add the isolated folder to this session's PATH

@@ -160,7 +160,7 @@ def choose_backend():
 
 def sync_env(backend, reinstall=False):
     """Uses uv sync to update or reinstall the environment."""
-    cmd = ["uv", "sync"]
+    cmd = ["uv", "sync", "--frozen"]
     if backend:
         cmd.extend(["--extra", backend])
     
@@ -326,10 +326,10 @@ def setup(reinstall=False):
 def create_mac_app():
     """Creates a double-clickable .app bundle on macOS."""
 
-    app_name = "Sammie-Roto-2.app"
     app_dir = os.path.abspath(os.path.dirname(__file__))
-    macos_dir = os.path.join(app_name, "Contents", "MacOS")
-    resources_dir = os.path.join(app_name, "Contents", "Resources")
+    app_bundle = os.path.join(app_dir, "Sammie-Roto-2.app")
+    macos_dir = os.path.join(app_bundle, "Contents", "MacOS")
+    resources_dir = os.path.join(app_bundle, "Contents", "Resources")
     os.makedirs(macos_dir, exist_ok=True)
     os.makedirs(resources_dir, exist_ok=True)
     version = get_local_version()  # pulls from pyproject.toml
@@ -350,7 +350,7 @@ def create_mac_app():
     os.chmod(launcher_path, os.stat(launcher_path).st_mode | 0o755)
 
     # Info.plist
-    plist_path = os.path.join(app_name, "Contents", "Info.plist")
+    plist_path = os.path.join(app_bundle, "Contents", "Info.plist")
     with open(plist_path, "w") as f:
         f.write(
             '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -379,13 +379,43 @@ def create_mac_app():
     # Clear quarantine flag so Gatekeeper doesn't block it
     try:
         subprocess.run(
-            ["xattr", "-dr", "com.apple.quarantine", app_name],
+            ["xattr", "-dr", "com.apple.quarantine", app_bundle],
             check=True, stderr=subprocess.DEVNULL
         )
     except subprocess.CalledProcessError:
         pass  # Not quarantined, nothing to clear
 
-    print(f"Created {app_name} — double-click it to launch!")
+    print(f"Created {app_bundle}")
+
+    # Create a symlink on the Desktop so the user has a convenient launch
+    # point, mirroring the Windows/Linux shortcuts, without moving the
+    # actual .app bundle (which must stay next to run_sammie.sh).
+    desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+    if os.path.isdir(desktop):
+        desktop_link = os.path.join(desktop, "Sammie-Roto-2.app")
+        try:
+            if os.path.islink(desktop_link) or os.path.exists(desktop_link):
+                os.remove(desktop_link)
+            os.symlink(app_bundle, desktop_link)
+            print(f"Created Desktop shortcut at: {desktop_link}")
+        except OSError as e:
+            print(f"[Warning: Could not create Desktop shortcut: {e}]")
+
+    # Also symlink into ~/Applications so Spotlight/Launchpad can find and
+    # launch it like a normal installed app, the same trick Homebrew Cask
+    # and Nix use for apps that live outside /Applications.
+    user_apps = os.path.join(os.path.expanduser("~"), "Applications")
+    try:
+        os.makedirs(user_apps, exist_ok=True)
+        apps_link = os.path.join(user_apps, "Sammie-Roto-2.app")
+        if os.path.islink(apps_link) or os.path.exists(apps_link):
+            os.remove(apps_link)
+        os.symlink(app_bundle, apps_link)
+        print(f"Added to your Applications folder: {apps_link}")
+    except OSError as e:
+        print(f"[Warning: Could not add to ~/Applications: {e}]")
+
+    print("Double-click the Desktop icon to launch, or find it via Spotlight!")
 
 
 def create_linux_desktop_entry():
