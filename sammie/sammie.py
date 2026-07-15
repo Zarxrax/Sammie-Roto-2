@@ -115,7 +115,17 @@ class SamManager:
         extension = core.get_frame_extension()
         frame_filename = os.path.join(core.frames_dir, f"{frame_number:05d}.{extension}")
         if os.path.exists(frame_filename):
-            #self.predictor.reset_state(self.inference_state)
+
+            # Remove the object from the inference state
+            obj_idx = self.inference_state["obj_id_to_idx"].get(object_id)
+            if obj_idx is not None:
+                self.inference_state["frames_tracked_per_obj"][obj_idx].pop(frame_number, None)
+                for d in (self.inference_state["output_dict_per_obj"][obj_idx],
+                        self.inference_state["temp_output_dict_per_obj"][obj_idx]):
+                    d["cond_frame_outputs"].pop(frame_number, None)
+                    d["non_cond_frame_outputs"].pop(frame_number, None)
+
+            # Run segmentation function
             _, out_obj_ids, out_mask_logits = self.predictor.add_new_points_or_box(
                 inference_state=self.inference_state,
                 frame_idx=frame_number,
