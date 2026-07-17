@@ -170,6 +170,7 @@ class SegmentationTab(QWidget):
         self.sam_model_combo.addItems(["Base", "Large", "Efficient"])
         self.sam_model_combo.setToolTip("Large model is slower but slightly more accurate.\nEfficient model is faster but less accurate.")
         self.sam_model_btn = QPushButton("Load Model")
+        self.sam_model_btn.setEnabled(False) # disabled until video is loaded
 
         model_layout_row.addWidget(self.sam_model_combo)
         model_layout_row.addWidget(self.sam_model_btn)
@@ -2809,6 +2810,9 @@ class MainWindow(QMainWindow):
                 
                 # Initialize the predictor
                 self.sam_manager.initialize_predictor()
+
+                # Enable load model button
+                self.sidebar.segmentation_tab.sam_model_btn.setEnabled(True)
                 
                 # Update frame slider range
                 self.frame_slider.setRange(0, framecount-1)
@@ -2839,6 +2843,8 @@ class MainWindow(QMainWindow):
             print(f"Loaded {framecount} frames")
             # initialize the predictor
             self.sam_manager.initialize_predictor()
+            # Enable load model button
+            self.sidebar.segmentation_tab.sam_model_btn.setEnabled(True)
             # Update frame slider range
             self.frame_slider.setRange(0, framecount-1)
             # Load points if session was loaded
