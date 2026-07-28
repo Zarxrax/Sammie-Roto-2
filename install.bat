@@ -1,6 +1,9 @@
 @echo off
 setlocal
 
+:: Ensure we run from the script's own directory
+cd /d "%~dp0"
+
 :: Define the local folder
 set "UV_DIR=%~dp0.uv"
 set "UV_EXE=%UV_DIR%\uv.exe"
