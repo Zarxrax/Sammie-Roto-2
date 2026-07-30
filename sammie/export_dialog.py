@@ -755,7 +755,7 @@ class ExportDialog(QDialog):
         settings_mgr = self.parent_window.settings_mgr
         
         # Save current UI values
-        settings_mgr.set_app_setting('export_format_id', self.current_format.format_id)
+        settings_mgr.set_app_setting('export_codec', self.current_format.format_id)
         settings_mgr.set_app_setting('export_output_type', self.output_type_combo.currentText())
         settings_mgr.set_app_setting('export_use_input_folder', self.use_input_folder_checkbox.isChecked())
         settings_mgr.set_app_setting('export_filename_template', self.filename_template_edit.text())
@@ -777,18 +777,19 @@ class ExportDialog(QDialog):
         settings_mgr = self.parent_window.settings_mgr
         
         # Load format
-        format_id = settings_mgr.get_app_setting('export_format_id', 'prores')
+        format_id = settings_mgr.get_app_setting('export_codec', 'prores')
         for i in range(self.format_combo.count()):
             if self.format_combo.itemData(i) == format_id:
                 self.format_combo.setCurrentIndex(i)
                 break
-        
-        # Load other settings
+
+        # Load output type
         output_type = settings_mgr.get_app_setting('export_output_type', 'Segmentation-Matte')
         output_index = self.output_type_combo.findText(output_type)
         if output_index >= 0:
             self.output_type_combo.setCurrentIndex(output_index)
-        
+
+        # Load other settings
         self.use_input_folder_checkbox.setChecked(
             settings_mgr.get_app_setting('export_use_input_folder', True)
         )
