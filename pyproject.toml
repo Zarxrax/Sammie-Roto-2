@@ -1,6 +1,6 @@
 [project]
 name = "Sammie-Roto-2"
-version = "2.3.4.a1"
+version = "2.3.5.a"
 description = "Sammie Roto 2 application"
 requires-python = ">=3.10"
 
@@ -15,6 +15,7 @@ dependencies = [
     "diffusers~=0.35",
     "accelerate~=1.11",
     "einops",
+    "dulwich~=1.2",
 ]
 
 [project.optional-dependencies]

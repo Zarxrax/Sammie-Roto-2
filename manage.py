@@ -13,6 +13,10 @@ def get_uv_exe():
     exe_name = "uv.exe" if platform.system() == "Windows" else "uv"
     return os.path.join(app_dir, ".uv", exe_name)
 
+def cleanup_cache():
+    """After a successful install/update, prunes stale cache entries."""
+    run_command([get_uv_exe(), "cache", "prune", "--force"])
+
 # ===== UTILS =====
 def run_command(cmd):
     """Wrapper to handle uv commands.
@@ -180,6 +184,7 @@ def perform_update(branch):
     pull_latest_code(branch)
     sync_env(resolve_backend())
     create_shortcuts()
+    cleanup_cache()
     print("\nUpdate complete!")
 
 # ===== CORE ACTIONS =====
@@ -195,6 +200,7 @@ def handle_update(branch):
         if recover != "n":
             pull_latest_code(branch)
             sync_env(resolve_backend("continue recovery"))
+            cleanup_cache()
             print("[Recovery complete!]")
         else:
             print("[No changes made. Consider using Reinstall/Repair from the main menu.]")
@@ -233,13 +239,13 @@ def setup(branch, reinstall=False):
     # 1. Pull latest code?
     if reinstall:
         prompt = (
-            "\nAlso pull the latest code from GitHub? This will overwrite "
+            "\nPull the latest code from GitHub? This will overwrite "
             "any local changes to program files. (y/N): "
         )
         pull_code = input(prompt).strip().lower() == "y"
     else:
         prompt = (
-            "\nPull the latest code from GitHub now? Recommended if you're "
+            "\nPull the latest code from GitHub? Recommended if you're "
             "not sure the downloaded files are the newest release. (Y/n): "
         )
         pull_code = input(prompt).strip().lower() != "n"
@@ -296,6 +302,7 @@ def setup(branch, reinstall=False):
         if os.path.exists(run_sh):
             os.chmod(run_sh, os.stat(run_sh).st_mode | 0o755)
 
+    cleanup_cache()
     print("\nSetup Complete!")
 
     # Run the model downloader last so all dependencies are in place.
