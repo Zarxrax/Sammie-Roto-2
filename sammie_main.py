@@ -3097,7 +3097,7 @@ class MainWindow(QMainWindow):
                 if not install_script.exists():
                     QMessageBox.critical(self, "Update Error", f"Install script not found:\n{install_script}")
                     return
-
+                install_script.chmod(install_script.stat().st_mode | 0o111)
                 # No reliable single way to auto-launch a terminal across Linux desktops 
                 # Copy the command to the clipboard and let the user run it themselves.
                 QApplication.clipboard().setText(str(install_script))
