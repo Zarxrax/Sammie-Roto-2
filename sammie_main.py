@@ -38,7 +38,7 @@ from sammie.gui_widgets import (
 
 # ==================== VERSION ====================
 
-__version__ = "2.3.4.a1"
+__version__ = "2.3.5.a"
 
 # ==================== LOGGING HELPER ====================
 
@@ -170,6 +170,7 @@ class SegmentationTab(QWidget):
         self.sam_model_combo.addItems(["Base", "Large", "Efficient"])
         self.sam_model_combo.setToolTip("Large model is slower but slightly more accurate.\nEfficient model is faster but less accurate.")
         self.sam_model_btn = QPushButton("Load Model")
+        self.sam_model_btn.setEnabled(False) # disabled until video is loaded
 
         model_layout_row.addWidget(self.sam_model_combo)
         model_layout_row.addWidget(self.sam_model_btn)
@@ -2809,6 +2810,9 @@ class MainWindow(QMainWindow):
                 
                 # Initialize the predictor
                 self.sam_manager.initialize_predictor()
+
+                # Enable load model button
+                self.sidebar.segmentation_tab.sam_model_btn.setEnabled(True)
                 
                 # Update frame slider range
                 self.frame_slider.setRange(0, framecount-1)
@@ -2839,6 +2843,8 @@ class MainWindow(QMainWindow):
             print(f"Loaded {framecount} frames")
             # initialize the predictor
             self.sam_manager.initialize_predictor()
+            # Enable load model button
+            self.sidebar.segmentation_tab.sam_model_btn.setEnabled(True)
             # Update frame slider range
             self.frame_slider.setRange(0, framecount-1)
             # Load points if session was loaded
@@ -3060,33 +3066,51 @@ class MainWindow(QMainWindow):
                 # Fallback: add at the end if Exit not found
                 self.file_menu.addSeparator()
                 self.file_menu.addAction(self.update_menu_action)
-    
+
     def run_install_script(self):
         """Launch the platform-appropriate install script and close the application"""
         script_dir = Path(__file__).resolve().parent
 
-        if sys.platform == "win32":
-            install_script = script_dir / "install.bat"
-            if not install_script.exists():
-                QMessageBox.critical(self, "Update Error", f"Install script not found:\n{install_script}")
-                return
-            # Launch via cmd so the batch file runs in its own window after this process exits
-            subprocess.Popen(
-                ["cmd", "/c", "start", "", str(install_script)],
-                cwd=str(script_dir),
-                creationflags=subprocess.CREATE_NO_WINDOW,
-            )
-        else:
-            install_script = script_dir / "install.sh"
-            if not install_script.exists():
-                QMessageBox.critical(self, "Update Error", f"Install script not found:\n{install_script}")
-                return
-            # Ensure the script is executable
-            install_script.chmod(install_script.stat().st_mode | 0o111)
-            subprocess.Popen(
-                ["/bin/sh", str(install_script)],
-                cwd=str(script_dir),
-            )
+        try:
+            if sys.platform == "win32":
+                install_script = script_dir / "install.bat"
+                if not install_script.exists():
+                    QMessageBox.critical(self, "Update Error", f"Install script not found:\n{install_script}")
+                    return
+                subprocess.Popen(
+                    ["cmd", "/c", "start", "", str(install_script)],
+                    cwd=str(script_dir),
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+
+            elif sys.platform == "darwin":
+                install_script = script_dir / "install.sh"
+                if not install_script.exists():
+                    QMessageBox.critical(self, "Update Error", f"Install script not found:\n{install_script}")
+                    return
+                install_script.chmod(install_script.stat().st_mode | 0o111)
+                # Launch Terminal.app to run the script directly 
+                subprocess.Popen(["open", "-a", "Terminal", str(install_script)])
+
+            else:
+                install_script = script_dir / "install.sh"
+                if not install_script.exists():
+                    QMessageBox.critical(self, "Update Error", f"Install script not found:\n{install_script}")
+                    return
+                install_script.chmod(install_script.stat().st_mode | 0o111)
+                # No reliable single way to auto-launch a terminal across Linux desktops 
+                # Copy the command to the clipboard and let the user run it themselves.
+                QApplication.clipboard().setText(str(install_script))
+                QMessageBox.information(
+                    self,
+                    "Manual Update Required",
+                    "The install script's path has been copied to your clipboard.\n"
+                    f"Please open a terminal, paste, and press Enter:\n\n{install_script}",
+                )
+
+        except Exception as e:
+            QMessageBox.critical(self, "Update Error", f"Failed to launch install script:\n{e}")
+            return
 
         # Close the application so the installer can replace files
         QApplication.quit()
