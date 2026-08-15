@@ -1,5 +1,4 @@
 import logging
-from omegaconf import DictConfig
 from typing import List, Optional, Iterable, Union,Tuple
 
 import os
@@ -11,7 +10,7 @@ import numpy as np
 from tqdm import tqdm
 from PIL import Image
 import torch.nn.functional as F
-
+from matanyone.config import MatAnyoneConfig
 from matanyone.inference.memory_manager import MemoryManager
 from matanyone.inference.object_manager import ObjectManager
 from matanyone.inference.image_feature_store import ImageFeatureStore
@@ -26,13 +25,13 @@ class InferenceCore:
 
     def __init__(self,
                  network: Union[MatAnyone,str],
-                 cfg: DictConfig = None,
+                 cfg: MatAnyoneConfig = None,
                  *,
                  image_feature_store: ImageFeatureStore = None,
                  device: Union[str, torch.device] = torch.device("cuda" if torch.cuda.is_available() else "cpu")
                  ):
-        if isinstance(network, str):
-            network = MatAnyone.from_pretrained(network)
+        if not isinstance(network, MatAnyone):
+            raise TypeError("network must be a MatAnyone instance")
         network.to(device)
         network.eval()
         self.network = network  
@@ -81,7 +80,7 @@ class InferenceCore:
         self.memory.clear_sensory_memory()
 
     def update_config(self, cfg):
-        self.mem_every = cfg['mem_every']
+        self.mem_every = cfg.mem_every
         self.memory.update_config(cfg)
     
     def clear_temp_mem(self):

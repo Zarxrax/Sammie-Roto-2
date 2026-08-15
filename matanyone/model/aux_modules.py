@@ -2,7 +2,6 @@
 For computing auxiliary outputs for auxiliary losses
 """
 from typing import Dict
-from omegaconf import DictConfig
 import torch
 import torch.nn as nn
 
@@ -38,7 +37,7 @@ class DirectPredictor(nn.Module):
 
 
 class AuxComputer(nn.Module):
-    def __init__(self, cfg: DictConfig):
+    def __init__(self, cfg):
         super().__init__()
 
         use_sensory_aux = cfg.model.aux_loss.sensory.enabled

@@ -1,5 +1,4 @@
 import logging
-from omegaconf import DictConfig
 from typing import List, Dict
 import torch
 import cv2
@@ -16,7 +15,7 @@ class MemoryManager:
     """
     Manages all three memory stores and the transition between working/long-term memory
     """
-    def __init__(self, cfg: DictConfig, object_manager: ObjectManager):
+    def __init__(self, cfg, object_manager: ObjectManager):
         self.object_manager = object_manager
         self.sensory_dim = cfg.model.sensory_dim
         self.top_k = cfg.top_k
@@ -57,9 +56,9 @@ class MemoryManager:
         self.config_stale = True
         self.engaged = False
 
-    def update_config(self, cfg: DictConfig) -> None:
+    def update_config(self, cfg) -> None:
         self.config_stale = True
-        self.top_k = cfg['top_k']
+        self.top_k = cfg.top_k
 
         assert self.use_long_term == cfg.use_long_term, 'cannot update this'
         assert self.count_long_term_usage == cfg.long_term.count_usage, 'cannot update this'
