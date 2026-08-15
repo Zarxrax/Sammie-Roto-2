@@ -13,21 +13,24 @@ def get_uv_exe():
     exe_name = "uv.exe" if platform.system() == "Windows" else "uv"
     return os.path.join(app_dir, ".uv", exe_name)
 
+def get_uv_env():
+    """Environment for every uv subprocess manage.py invokes itself.
+    Clears VIRTUAL_ENV so uv's internal build-isolation environment
+    doesn't leak into child processes."""
+    env = os.environ.copy()
+    env.pop("VIRTUAL_ENV", None)
+    return env
+
 def cleanup_cache():
-    """After a successful install/update, prunes stale cache entries."""
-    run_command([get_uv_exe(), "cache", "prune", "--force"])
+    """After a successful install/reinstall/update, prunes the project cache."""
+    run_command([get_uv_exe(), "cache", "prune"])
 
 # ===== UTILS =====
 def run_command(cmd):
-    """Wrapper to handle uv commands.
-    Clears VIRTUAL_ENV from the environment before each call to prevent uv's
-    internal build isolation environment from leaking into child processes and
-    causing 'does not match project environment path' warnings."""
+    """Wrapper to handle uv commands."""
     print(">", " ".join(cmd))
-    env = os.environ.copy()
-    env.pop("VIRTUAL_ENV", None)
     try:
-        subprocess.check_call(cmd, env=env)
+        subprocess.check_call(cmd, env=get_uv_env())
     except subprocess.CalledProcessError as e:
         print(f"\nError executing command: {e}")
         sys.exit(1)
@@ -82,7 +85,7 @@ def get_installed_backend():
     try:
         result = subprocess.check_output(
             [get_uv_exe(), "pip", "show", "torch", "--python", ".venv"], 
-            text=True, stderr=subprocess.DEVNULL
+            text=True, stderr=subprocess.DEVNULL, env=get_uv_env()
         )
         version_line = next((l for l in result.splitlines() if l.startswith("Version:")), "").lower()
         for backend in ["cu130", "cu126", "rocm", "xpu", "cpu"]:
@@ -184,8 +187,8 @@ def perform_update(branch):
     pull_latest_code(branch)
     sync_env(resolve_backend())
     create_shortcuts()
-    cleanup_cache()
     print("\nUpdate complete!")
+    cleanup_cache()
 
 # ===== CORE ACTIONS =====
 def handle_update(branch):
@@ -200,8 +203,8 @@ def handle_update(branch):
         if recover != "n":
             pull_latest_code(branch)
             sync_env(resolve_backend("continue recovery"))
-            cleanup_cache()
             print("[Recovery complete!]")
+            cleanup_cache()
         else:
             print("[No changes made. Consider using Reinstall/Repair from the main menu.]")
         return
@@ -236,22 +239,22 @@ def setup(branch, reinstall=False):
 
     # -- Gather all choices upfront ----------------------------------------
 
-    # 1. Pull latest code?
+    # 1. Backend selection (with re-prompt on invalid input)
+    backend = choose_backend()
+
+    # 2. Pull latest code?
     if reinstall:
         prompt = (
-            "\nPull the latest code from GitHub? This will overwrite "
+            "\nAlso pull the latest code from GitHub? This will overwrite "
             "any local changes to program files. (y/N): "
         )
         pull_code = input(prompt).strip().lower() == "y"
     else:
         prompt = (
-            "\nPull the latest code from GitHub? Recommended if you're "
+            "\nPull the latest code from GitHub now? Recommended if you're "
             "not sure the downloaded files are the newest release. (Y/n): "
         )
         pull_code = input(prompt).strip().lower() != "n"
-
-    # 2. Backend selection (with re-prompt on invalid input)
-    backend = choose_backend()
 
     # 3. Model download -- fresh install only
     download_models_now = False
@@ -302,8 +305,8 @@ def setup(branch, reinstall=False):
         if os.path.exists(run_sh):
             os.chmod(run_sh, os.stat(run_sh).st_mode | 0o755)
 
-    cleanup_cache()
     print("\nSetup Complete!")
+    cleanup_cache()
 
     # Run the model downloader last so all dependencies are in place.
     if download_models_now:

@@ -6,7 +6,7 @@ cd "$SCRIPT_DIR"
 
 UV_DIR="$SCRIPT_DIR/.uv"
 UV_EXE="$UV_DIR/uv"
-UV_VERSION="0.12.0"
+UV_VERSION="0.12.5"
 
 mkdir -p "$UV_DIR"
 
@@ -38,7 +38,6 @@ fi
 # Install uv locally if missing
 if [ ! -f "$UV_EXE" ]; then
     echo "Downloading uv to isolated folder..."
-    mkdir -p "$UV_DIR"
     # Use the official shell installer script
     curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | UV_INSTALL_DIR="$UV_DIR" sh
 
@@ -53,9 +52,28 @@ if [ ! -f "$UV_EXE" ]; then
     fi
 fi
 
+# One-time bootstrap venv for running manage.py itself (needs dulwich for git operations).
+BOOTSTRAP_DIR="$UV_DIR/bootstrap"
+BOOTSTRAP_PY="$BOOTSTRAP_DIR/bin/python"
+if [ ! -f "$BOOTSTRAP_PY" ]; then
+    echo "Setting up installer environment..."
+    "$UV_EXE" venv --python 3.12 "$BOOTSTRAP_DIR"
+    if [ $? -ne 0 ]; then
+        echo "Failed to create installer environment."
+        exit 1
+    fi
+
+    "$UV_EXE" pip install --python "$BOOTSTRAP_PY" "dulwich~=1.2"
+    if [ $? -ne 0 ]; then
+        echo "Failed to install installer dependencies."
+        rm -rf "$BOOTSTRAP_DIR"
+        exit 1
+    fi
+fi
+
 echo "Running installer..."
 # Run the application with required dependencies
-"$UV_EXE" run --no-project --with "dulwich~=1.2" --python 3.12 python manage.py "$@"
+"$BOOTSTRAP_PY" manage.py "$@"
 
 # Catch error from install script
 MANAGE_EXIT=$?
@@ -63,7 +81,7 @@ if [ "$MANAGE_EXIT" -ne 0 ]; then
     echo "Setup did not finish cleanly (exit code $MANAGE_EXIT)."
 fi
 
-# Pause
+# Only pause if stdin is a real terminal
 if [ -t 0 ]; then
     read -rp "Press Enter to close..." _
 fi
