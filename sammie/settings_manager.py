@@ -48,7 +48,7 @@ class ApplicationSettings:
     default_matany_combined: bool = False
 
     # Object Removal Processing defaults
-    default_removal_method: str = "Minimax-Remover"
+    default_removal_method: str = "MiniMax-Remover"
     default_inpaint_method: str = "Telea"
     default_inpaint_radius: int = 3
     default_inpaint_grow: int = 5
@@ -122,6 +122,7 @@ class SessionSettings:
     matany_combined: bool = False
 
     # Object removal parameters
+    removal_method: str = "MiniMax-Remover"
     inpaint_method: str = "Telea"
     inpaint_radius: int = 3
     inpaint_grow: int = 0
@@ -285,6 +286,7 @@ class SettingsManager:
             matany_overlap=self.app_settings.default_matany_overlap,
             matany_chunk=self.app_settings.default_matany_chunk,
             matany_combined=self.app_settings.default_matany_combined,
+            removal_method=self.app_settings.default_removal_method,
             inpaint_method=self.app_settings.default_inpaint_method,
             inpaint_radius=self.app_settings.default_inpaint_radius,
             inpaint_grow=self.app_settings.default_inpaint_grow,

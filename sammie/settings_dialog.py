@@ -122,36 +122,6 @@ class SettingsDialog(QDialog):
         mat_group = QGroupBox("Matting Defaults")
         mat_layout = QFormLayout(mat_group)
 
-        # Matting model selection
-        self.default_matting_model_combo = QComboBox()
-        self.default_matting_model_combo.addItems(["MatAnyone", "MatAnyone2", "VideoMaMa"])
-        self.default_matting_model_combo.setToolTip("VideoMaMa is higher quality but slower and uses more VRAM.")
-        mat_layout.addRow("Matting Model:", self.default_matting_model_combo)
-
-        # Matting Internal Resolution selection
-        self.default_matany_res_combo = QComboBox()
-        self.default_matany_res_combo.addItems(["352", "480", "576", "720", "1080", "1440", "2160", "Full"])
-        mat_layout.addRow("Matting Internal Resolution:", self.default_matany_res_combo)
-
-        # VideoMaMa overlap size
-        self.default_matany_overlap_combo = QComboBox()
-        self.default_matany_overlap_combo.addItems(["0", "2", "4"])
-        self.default_matany_overlap_combo.setToolTip(
-            "Number of overlapping frames between batches (VideoMaMa only)."
-        )
-        mat_layout.addRow("Overlap Frames:", self.default_matany_overlap_combo)
-
-        # VideoMaMa chunk size
-        self.default_matany_chunk_combo = QComboBox()
-        self.default_matany_chunk_combo.addItems(["16", "32", "64", "128", "256", "512"])
-        self.default_matany_chunk_combo.setToolTip("Number of frames per batch (VideoMaMa only).")
-        mat_layout.addRow("Frames per batch:", self.default_matany_chunk_combo)
-
-        # Matting Combined Mask
-        self.default_combined_mask_checkbox = QCheckBox()
-        self.default_combined_mask_checkbox.setToolTip("If checked, all objects will be merged and processed as a single object.")
-        mat_layout.addRow("Combine All Objects", self.default_combined_mask_checkbox)
-
         self.default_matany_gamma_spin = QDoubleSpinBox()
         self.default_matany_gamma_spin.setRange(0.1, 10.0)
         self.default_matany_gamma_spin.setSingleStep(0.1)
@@ -168,46 +138,11 @@ class SettingsDialog(QDialog):
         removal_group = QGroupBox("Object Removal Defaults")
         removal_layout = QFormLayout(removal_group)
         
-        self.default_removal_method_combo = QComboBox()
-        self.default_removal_method_combo.addItems(["MiniMax-Remover", "OpenCV"])
-        removal_layout.addRow("Method:", self.default_removal_method_combo)
-        
         self.default_inpaint_grow_spin = QSpinBox()
         self.default_inpaint_grow_spin.setRange(-20, 20)
         removal_layout.addRow("Default Shrink/Grow:", self.default_inpaint_grow_spin)
         
         layout.addWidget(removal_group)
-        
-        # OpenCV Removal defaults group
-        opencv_group = QGroupBox("OpenCV Removal Defaults")
-        opencv_layout = QFormLayout(opencv_group)
-        
-        self.default_opencv_algorithm_combo = QComboBox()
-        self.default_opencv_algorithm_combo.addItems(["Telea", "Navier Strokes"])
-        opencv_layout.addRow("Algorithm:", self.default_opencv_algorithm_combo)
-        
-        self.default_opencv_radius_spin = QSpinBox()
-        self.default_opencv_radius_spin.setRange(1, 10)
-        opencv_layout.addRow("Default Inpaint Radius:", self.default_opencv_radius_spin)
-        
-        layout.addWidget(opencv_group)
-        
-        # Minimax-Remover defaults group
-        minimax_group = QGroupBox("MiniMax-Remover Defaults")
-        minimax_layout = QFormLayout(minimax_group)
-        
-        self.default_minimax_res_combo = QComboBox()
-        self.default_minimax_res_combo.addItems(["352", "480", "720", "1080"])
-        minimax_layout.addRow("Internal Resolution:", self.default_minimax_res_combo)
-        
-        self.default_minimax_vae_tiling_cb = QCheckBox()
-        minimax_layout.addRow("Use VAE Tiling:", self.default_minimax_vae_tiling_cb)
-        
-        self.default_minimax_steps_spin = QSpinBox()
-        self.default_minimax_steps_spin.setRange(4, 12)
-        minimax_layout.addRow("Default Steps:", self.default_minimax_steps_spin)
-        
-        layout.addWidget(minimax_group)
         
         return tab
     
@@ -297,29 +232,9 @@ class SettingsDialog(QDialog):
         
         self.default_matany_gamma_spin.setValue(app_settings.default_matany_gamma)
         self.default_matany_grow_spin.setValue(app_settings.default_matany_grow)
-        self.default_matting_model_combo.setCurrentText(app_settings.default_matany_model)
-        self.default_combined_mask_checkbox.setChecked(app_settings.default_matany_combined)
-        self.default_matany_overlap_combo.setCurrentText(str(app_settings.default_matany_overlap))
-        self.default_matany_chunk_combo.setCurrentText(str(app_settings.default_matany_chunk))
-
-        # Set MatAnyone resolution combo box
-        if app_settings.default_matany_res == 0:
-            self.default_matany_res_combo.setCurrentText("Full")
-        else:
-            self.default_matany_res_combo.setCurrentText(str(app_settings.default_matany_res))
         
         # Object Removal defaults
-        self.default_removal_method_combo.setCurrentText(app_settings.default_removal_method)
         self.default_inpaint_grow_spin.setValue(app_settings.default_inpaint_grow)
-        
-        # OpenCV Removal defaults
-        self.default_opencv_algorithm_combo.setCurrentText(app_settings.default_inpaint_method)
-        self.default_opencv_radius_spin.setValue(app_settings.default_inpaint_radius)
-        
-        # Minimax-Remover defaults
-        self.default_minimax_res_combo.setCurrentText(str(app_settings.default_minimax_resolution))
-        self.default_minimax_vae_tiling_cb.setChecked(app_settings.default_minimax_vae_tiling)
-        self.default_minimax_steps_spin.setValue(app_settings.default_minimax_steps)
 
         # General tab
         self.force_cpu_cb.setChecked(app_settings.force_cpu)
@@ -345,30 +260,9 @@ class SettingsDialog(QDialog):
         app_settings.default_grow = self.default_grow_spin.value()
         app_settings.default_matany_gamma = self.default_matany_gamma_spin.value()
         app_settings.default_matany_grow = self.default_matany_grow_spin.value()
-        app_settings.default_matany_model = self.default_matting_model_combo.currentText()
-        app_settings.default_matany_combined = self.default_combined_mask_checkbox.isChecked()
-        app_settings.default_matany_overlap = int(self.default_matany_overlap_combo.currentText())
-        app_settings.default_matany_chunk = int(self.default_matany_chunk_combo.currentText())
-
-        # Handle MatAnyone resolution setting
-        matany_text = self.default_matany_res_combo.currentText()
-        if matany_text == "Full":
-            app_settings.default_matany_res = 0
-        else:
-            app_settings.default_matany_res = int(matany_text)
         
         # Object Removal defaults
-        app_settings.default_removal_method = self.default_removal_method_combo.currentText()
         app_settings.default_inpaint_grow = self.default_inpaint_grow_spin.value()
-        
-        # OpenCV Removal defaults
-        app_settings.default_inpaint_method = self.default_opencv_algorithm_combo.currentText()
-        app_settings.default_inpaint_radius = self.default_opencv_radius_spin.value()
-        
-        # Minimax-Remover defaults
-        app_settings.default_minimax_resolution = int(self.default_minimax_res_combo.currentText())
-        app_settings.default_minimax_vae_tiling = self.default_minimax_vae_tiling_cb.isChecked()
-        app_settings.default_minimax_steps = self.default_minimax_steps_spin.value()
 
         # General tab
         app_settings.force_cpu = self.force_cpu_cb.isChecked()
