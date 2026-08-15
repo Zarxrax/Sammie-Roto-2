@@ -190,8 +190,9 @@ class RemovalManager:
         # Run inference
         print("Running inference...")
         QApplication.processEvents()
+        device_type = core.DeviceManager.get_device().type
         try:
-            with torch.no_grad():
+            with torch.autocast(device_type=device_type, enabled=False), torch.no_grad():
                 output = self.pipe(
                     images=frames,
                     masks=masks,
