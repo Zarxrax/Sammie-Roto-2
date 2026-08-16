@@ -8,7 +8,7 @@ import os
 import warnings
 from threading import Thread
 
-import numpy as np
+from torchvision import transforms
 import torch
 from PIL import Image
 from tqdm import tqdm
@@ -90,16 +90,22 @@ def mask_to_box(masks: torch.Tensor):
 
 
 def _load_img_as_tensor(img_path, image_size):
-    img_pil = Image.open(img_path)
-    img_np = np.array(img_pil.convert("RGB").resize((image_size, image_size)))
-    if img_np.dtype == np.uint8:  # np.uint8 is expected for JPEG images
-        img_np = img_np / 255.0
-    else:
-        raise RuntimeError(f"Unknown image dtype: {img_np.dtype} on {img_path}")
-    img = torch.from_numpy(img_np).permute(2, 0, 1)
-    video_width, video_height = img_pil.size  # the original video size
-    return img, video_height, video_width
+    img_pil = Image.open(img_path).convert("RGB")
 
+    img = transforms.PILToTensor()(img_pil)
+    img = transforms.functional.resize(
+        img,
+        (image_size, image_size),
+        antialias=True,
+    )
+
+    if img.dtype == torch.uint8:
+        img = img / 255.0
+    else:
+        raise RuntimeError(f"Unknown image dtype: {img.dtype}")
+
+    video_width, video_height = img_pil.size
+    return img, video_height, video_width
 
 class AsyncVideoFrameLoader:
     """
