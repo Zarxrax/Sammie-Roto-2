@@ -111,19 +111,75 @@ class SamManager:
             video_path=core.frames_dir, async_loading_frames=True, offload_video_to_cpu=True
         )
 
+    def _clear_frame_if_tracked(self, object_id, frame_number):
+        """Reset frame_number to a blank slate if it is been tracked,
+        so new points generate a segment without using any memory from other frames
+        """
+        obj_idx = self.inference_state["obj_id_to_idx"].get(object_id)
+        if obj_idx is None:
+            return
+        tracked = self.inference_state["frames_tracked_per_obj"][obj_idx]
+        if frame_number not in tracked:
+            return
+        self.predictor.clear_all_prompts_in_frame(
+            self.inference_state, frame_number, object_id, need_output=False
+        )
+        tracked.pop(frame_number, None)
+        for d in (self.inference_state["output_dict_per_obj"][obj_idx],
+                  self.inference_state["temp_output_dict_per_obj"][obj_idx]):
+            d["non_cond_frame_outputs"].pop(frame_number, None)
+
+    def _snapshot_frame_state(self, object_id, frame_number):
+        """Capture everything _clear_frame_if_tracked (and add_new_points_or_box) could
+        touch for this frame/object, so a preview can be undone without a trace.
+        """
+        obj_idx = self.inference_state["obj_id_to_idx"].get(object_id)
+        if obj_idx is None:
+            return None
+        tracked = self.inference_state["frames_tracked_per_obj"][obj_idx]
+        output_dict = self.inference_state["output_dict_per_obj"][obj_idx]
+        temp_dict = self.inference_state["temp_output_dict_per_obj"][obj_idx]
+        return {
+            "obj_idx": obj_idx,
+            "was_tracked": frame_number in tracked,
+            "tracked_entry": tracked.get(frame_number),
+            "output_cond": output_dict["cond_frame_outputs"].get(frame_number),
+            "output_noncond": output_dict["non_cond_frame_outputs"].get(frame_number),
+            "temp_cond": temp_dict["cond_frame_outputs"].get(frame_number),
+            "temp_noncond": temp_dict["non_cond_frame_outputs"].get(frame_number),
+        }
+
+    def _restore_frame_state(self, frame_number, snapshot):
+        """Undo _snapshot_frame_state - restores frames_tracked_per_obj plus every
+        cond/non-cond entry exactly as it was, regardless of what happened in between."""
+        if snapshot is None:
+            return
+        obj_idx = snapshot["obj_idx"]
+        tracked = self.inference_state["frames_tracked_per_obj"][obj_idx]
+        output_dict = self.inference_state["output_dict_per_obj"][obj_idx]
+        temp_dict = self.inference_state["temp_output_dict_per_obj"][obj_idx]
+
+        if snapshot["was_tracked"]:
+            tracked[frame_number] = snapshot["tracked_entry"]
+        else:
+            tracked.pop(frame_number, None)
+
+        for d, cond_key, noncond_key in (
+            (output_dict, "output_cond", "output_noncond"),
+            (temp_dict, "temp_cond", "temp_noncond"),
+        ):
+            for storage_key, snap_key in (("cond_frame_outputs", cond_key), ("non_cond_frame_outputs", noncond_key)):
+                val = snapshot[snap_key]
+                if val is not None:
+                    d[storage_key][frame_number] = val
+                else:
+                    d[storage_key].pop(frame_number, None)
+
     def segment_image(self, frame_number, object_id, input_points, input_labels):
         extension = core.get_frame_extension()
         frame_filename = os.path.join(core.frames_dir, f"{frame_number:05d}.{extension}")
         if os.path.exists(frame_filename):
-
-            # Remove the object from the inference state
-            obj_idx = self.inference_state["obj_id_to_idx"].get(object_id)
-            if obj_idx is not None:
-                self.inference_state["frames_tracked_per_obj"][obj_idx].pop(frame_number, None)
-                for d in (self.inference_state["output_dict_per_obj"][obj_idx],
-                        self.inference_state["temp_output_dict_per_obj"][obj_idx]):
-                    d["cond_frame_outputs"].pop(frame_number, None)
-                    d["non_cond_frame_outputs"].pop(frame_number, None)
+            self._clear_frame_if_tracked(object_id, frame_number)
 
             # Run segmentation function
             _, out_obj_ids, out_mask_logits = self.predictor.add_new_points_or_box(
@@ -132,6 +188,7 @@ class SamManager:
                 obj_id=object_id,
                 points=input_points,
                 labels=input_labels,
+                clear_old_points=True,
             )
             # Save the segmentation masks
             for i, out_obj_id in enumerate(out_obj_ids):
@@ -145,10 +202,15 @@ class SamManager:
             self._notify('segmentation_complete', frame=frame_number, object_id=object_id, out_obj_ids=out_obj_ids)
 
     def preview_point(self, frame_number, object_id, all_points, preview_x, preview_y, is_positive):
-        """Run a preview using the real video predictor, then revert the state."""
+        """Run a preview using the video predictor, then revert the state."""
         if self.predictor is None or self.inference_state is None:
             return None
+
+        snapshot = self._snapshot_frame_state(object_id, frame_number)
+
         try:
+            self._clear_frame_if_tracked(object_id, frame_number)
+
             existing = [p for p in all_points
                         if p['frame'] == frame_number and p['object_id'] == object_id]
 
@@ -156,7 +218,7 @@ class SamManager:
             preview_points = np.array([[p['x'], p['y']] for p in existing] + [[preview_x, preview_y]], dtype=np.float32)
             preview_labels = np.array([1 if p['positive'] else 0 for p in existing] + [1 if is_positive else 0], dtype=np.int32)
 
-            # Step 1: run with preview point
+            # run with preview point
             _, out_obj_ids, out_mask_logits = self.predictor.add_new_points_or_box(
                 inference_state=self.inference_state,
                 frame_idx=frame_number,
@@ -174,26 +236,14 @@ class SamManager:
                     preview_mask = (mask * 255).astype(np.uint8)
                     break
 
-            # Step 2: revert by replaying the original points
-            if existing:
-                orig_points = np.array([[p['x'], p['y']] for p in existing], dtype=np.float32)
-                orig_labels = np.array([1 if p['positive'] else 0 for p in existing], dtype=np.int32)
-                self.predictor.add_new_points_or_box(
-                    inference_state=self.inference_state,
-                    frame_idx=frame_number,
-                    obj_id=object_id,
-                    points=orig_points,
-                    labels=orig_labels,
-                    clear_old_points=True,
-                )
-            else:
-                self.predictor.reset_state(self.inference_state)
-
             return preview_mask
 
         except Exception as e:
             print(f"Preview error: {e}")
             return None
+
+        finally:
+            self._restore_frame_state(frame_number, snapshot)
 
     def replay_points(self, points_list):
         """Replay all points incrementally to rebuild masks."""
@@ -211,6 +261,7 @@ class SamManager:
                     (p['x'], p['y'], p['positive'])
                     for p in frame_points if p['object_id'] == object_id
                 ]
+                out_obj_ids, out_mask_logits = [], []  # guards the save loop below if every add fails
                 for i in range(1, len(filtered_points) + 1):
                     subset = filtered_points[:i]
                     input_points = np.array([(x, y) for x, y, _ in subset], dtype=np.float32)
@@ -341,6 +392,10 @@ class SamManager:
         settings_mgr = get_settings_manager()
         out_point = settings_mgr.get_session_setting("out_point", None)
         last_frame = out_point if out_point is not None else core.VideoInfo.total_frames - 1
+        if current_frame >= last_frame:
+            print("Already at the last frame")
+            return 1
+
         max_frame_num_to_track = max(last_frame - current_frame, 0)
 
         last_frame_idx, cancelled = self._propagate(
@@ -359,6 +414,10 @@ class SamManager:
         in_point = settings_mgr.get_session_setting("in_point", None)
         if in_point is None:
             in_point = 0
+        if current_frame <= in_point:
+            print("Already at the first frame")
+            return 1
+
         max_frame_num_to_track = max(current_frame - in_point, 0)
 
         last_frame_idx, cancelled = self._propagate(
@@ -428,7 +487,7 @@ def load_smoothing_model():
 # View / display handlers
 # .........................................................................................
 
-def update_image(slider_value, view_options, points, return_numpy=False, object_id_filter=None, preview_mask=None):
+def update_image(slider_value, view_options, points, return_numpy=False, object_id_filter=None, preview_mask=None, preview_object_id=None):
     """Main image update function - delegates to specific view handlers
 
     Args:
@@ -437,6 +496,11 @@ def update_image(slider_value, view_options, points, return_numpy=False, object_
         points: List of point dictionaries
         return_numpy: If True, return numpy array; if False, return QPixmap
         object_id_filter: If specified, only process masks for this object ID
+        preview_mask: If specified, a live (uncommitted) mask to substitute
+            for preview_object_id's normal saved mask
+        preview_object_id: Which object preview_mask belongs to - every
+            other object's normal saved mask is still loaded and shown as
+            usual, unaffected by the preview
 
     Returns:
         QPixmap or numpy array depending on return_numpy parameter
@@ -444,7 +508,7 @@ def update_image(slider_value, view_options, points, return_numpy=False, object_
     view_mode = view_options.get("view_mode", "Segmentation-Edit")
 
     if view_mode == "Segmentation-Edit":
-        return _handle_segmentation_edit_view(slider_value, view_options, points, return_numpy, object_id_filter, preview_mask)
+        return _handle_segmentation_edit_view(slider_value, view_options, points, return_numpy, object_id_filter, preview_mask, preview_object_id)
     elif view_mode == "Segmentation-Matte":
         return _handle_segmentation_matte_view(slider_value, view_options, points, return_numpy, object_id_filter)
     elif view_mode == "Segmentation-BGcolor":
@@ -510,13 +574,13 @@ def _handle_none_view(frame_number, return_numpy=False):
         return _convert_to_qpixmap(image)
 
 
-def _handle_segmentation_edit_view(frame_number, view_options, points, return_numpy=False, object_id_filter=None, preview_mask=None):
+def _handle_segmentation_edit_view(frame_number, view_options, points, return_numpy=False, object_id_filter=None, preview_mask=None, preview_object_id=None):
     """Handle Segmentation-Edit view"""
     image = core.load_base_frame(frame_number)
     if image is None:
         return None
 
-    image = apply_postprocessing_to_display(image, frame_number, points, view_options, object_id_filter, preview_mask)
+    image = apply_postprocessing_to_display(image, frame_number, points, view_options, object_id_filter, preview_mask, preview_object_id)
 
     highlighted_points = view_options.get('highlighted_point', None)
 
@@ -773,7 +837,7 @@ def draw_points(image, frame_number, points, highlighted_points=None):
 
     return image
 
-def apply_postprocessing_to_display(image, frame_number, points, view_options, object_id_filter=None, preview_mask=None):
+def apply_postprocessing_to_display(image, frame_number, points, view_options, object_id_filter=None, preview_mask=None, preview_object_id=None):
     """Apply postprocessing to masks and draw them on the image for display"""
     raw_masks = core.load_masks_for_frame(
         frame_number, points, return_combined=False, object_id_filter=object_id_filter
@@ -787,8 +851,8 @@ def apply_postprocessing_to_display(image, frame_number, points, view_options, o
         processed_masks = {}
 
     # Substitute the preview mask for the selected object if provided
-    if preview_mask is not None and object_id_filter is not None:
-        processed_masks[object_id_filter] = core.apply_mask_postprocessing(preview_mask)
+    if preview_mask is not None and preview_object_id is not None:
+        processed_masks[preview_object_id] = core.apply_mask_postprocessing(preview_mask)
 
     if view_options.get("show_masks", True):
         image = draw_masks(image, processed_masks)
