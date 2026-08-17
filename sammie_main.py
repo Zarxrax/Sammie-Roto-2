@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QVBoxLayout, QHBoxLayout, 
     QGridLayout, QWidget, QPushButton, QLabel, QStatusBar, QSlider, 
     QTabWidget, QSpinBox, QComboBox, QSplitter, QGroupBox, QTextEdit,
-    QCheckBox, QLineEdit, QMessageBox, QDialog
+    QCheckBox, QLineEdit, QMessageBox, QDialog, QProgressDialog
 )
 from PySide6.QtGui import (
     QAction, QShortcut, QKeySequence, QTextCursor, QIcon, QPixmap, QFont, QDesktopServices
@@ -1204,6 +1204,11 @@ class MainWindow(QMainWindow):
 
     def _deferred_init(self):
         """Heavy initialization deferred until after the window is shown"""
+        progress = QProgressDialog("Loading...", None, 0, 0, self)
+        progress.setWindowTitle("Please Wait")
+        progress.setModal(True)
+        progress.show()
+        QApplication.processEvents()
         core.DeviceManager.setup_device()
         self.sam_manager.load_segmentation_model(parent_window=self)
         QApplication.processEvents()
@@ -1211,12 +1216,14 @@ class MainWindow(QMainWindow):
         if self.initial_file:
             if os.path.exists(self.initial_file):
                 print(f"Loading file from command line: {self.initial_file}")
+                QApplication.processEvents()
                 self.load_file(self.initial_file)
             else:
                 print(f"Error: Command line file not found: {self.initial_file}")
                 self.resume_prev_session()
         else:
             self.resume_prev_session()
+        progress.close()
     
     # ==================== INITIALIZATION ====================
     
@@ -2205,6 +2212,13 @@ class MainWindow(QMainWindow):
         if model == self.sam_manager.loaded_model_name:
             print("Model is already loaded")
             return
+
+        progress = QProgressDialog("Loading...", None, 0, 0, self)
+        progress.setWindowTitle("Please Wait")
+        progress.setModal(True)
+        progress.show()
+        QApplication.processEvents()
+
         self.sam_manager.unload_segmentation_model()
         QApplication.processEvents()
         if self.sam_manager.load_segmentation_model(model, parent_window=self):
@@ -2214,6 +2228,8 @@ class MainWindow(QMainWindow):
             settings_mgr.set_app_setting("default_sam_model", model)
         else:
             print("Failed to load segmentation model")
+
+        progress.close()
 
     def track_objects(self):
         """Run object tracking using current points"""
@@ -2367,8 +2383,13 @@ class MainWindow(QMainWindow):
         if count > 0:  
             #load models
             print(f"Loading {matting_model} model...")
+            progress = QProgressDialog("Loading...", None, 0, 0, self)
+            progress.setWindowTitle("Please Wait")
+            progress.setModal(True)
+            progress.show()
             QApplication.processEvents()
             self.sam_manager.offload_model_to_cpu()
+            QApplication.processEvents()
             try:
                 if self.matany_manager.BACKEND != matting_model: # if the existing matting manager backend is wrong, create a new one
                     self.matany_manager = matting.create_matting_manager()
@@ -2376,6 +2397,7 @@ class MainWindow(QMainWindow):
                     print(f"Failed to load { matting_model} model")
                     return
                 QApplication.processEvents()
+                progress.close()
                 self.matany_manager.run_matting(self.point_manager.points, parent_window=self, combined=combined)
             except Exception as e:
                 if "out of memory" in str(e):
@@ -2385,10 +2407,16 @@ class MainWindow(QMainWindow):
             finally:
                 self.update_matting_status()
                 self._update_current_frame_display()
+                progress = QProgressDialog("Loading...", None, 0, 0, self)
+                progress.setWindowTitle("Please Wait")
+                progress.setModal(True)
+                progress.show()
                 QApplication.processEvents()
                 self.settings_mgr.save_session_settings()
                 self.matany_manager.unload_matting_model()
+                QApplication.processEvents()
                 self.sam_manager.load_model_to_device()
+                progress.close()
         else:
             print("Points must be added on the Segmentation tab before matting")
 
@@ -2413,6 +2441,7 @@ class MainWindow(QMainWindow):
             try:
                 # offload sam model
                 self.sam_manager.offload_model_to_cpu()
+                QApplication.processEvents()
                 self.removal_manager.run_object_removal_minimax(self.point_manager.points, parent_window=self)
             except Exception as e:
                 if "out of memory" in str(e):
@@ -2420,8 +2449,15 @@ class MainWindow(QMainWindow):
                 else: 
                     print(f"An error occurred: {e}")
             finally:
-                self.removal_manager.unload_minimax_model()    
+                progress = QProgressDialog("Loading...", None, 0, 0, self)
+                progress.setWindowTitle("Please Wait")
+                progress.setModal(True)
+                progress.show()
+                QApplication.processEvents()
+                self.removal_manager.unload_minimax_model()
+                QApplication.processEvents()
                 self.sam_manager.load_model_to_device()
+                progress.close()
         else:
             self.removal_manager.run_object_removal_cv(self.point_manager.points, parent_window=self)
 
