@@ -93,7 +93,8 @@ class DeviceManager:
             torch.autocast("mps", dtype=cls._dtype).__enter__()
         
         elif cls._device.type == "xpu":
-            cls._dtype = torch.bfloat16
+            # A user confirmed that bf16 and fp16 gave broken masks on Arc A750
+            cls._dtype = torch.float32
             torch.autocast("xpu", dtype=cls._dtype).__enter__()
 
         return cls._device
