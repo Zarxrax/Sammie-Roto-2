@@ -519,6 +519,7 @@ class MattingTab(QWidget):
         self.instructions_text.setWordWrap(True)
         self.instructions_text.setTextFormat(Qt.RichText)
         self.instructions_text.setOpenExternalLinks(True)
+        self.instructions_text.setAlignment(Qt.AlignTop | Qt.AlignLeft)
 
         self.instructions_text.setStyleSheet("""
             QLabel {
@@ -625,18 +626,19 @@ class MattingTab(QWidget):
         if model in ("MatAnyone", "MatAnyone2"):
             instruction_content = """
             • Matting can be used to create mattes for objects with soft or poorly defined edges.<br>
+            • <b>Add points to at least one frame in the Segmentation tab</b>, then press Run Matting.<br>
             • The MatAnyone models are faster and require less VRAM than VideoMama, but may be less accurate.<br>
-            • Add points to at least one frame in the Segmentation tab, then press <b>Run Matting</b>.<br>
             • If you add points to multiple frames, matting will refresh at each keyframe, which may momentarily affect temporal stability.<br>
+            • MatAnyone is free for non-commercial use, requires <a href="https://github.com/pq-yang/MatAnyone?tab=License-1-ov-file">permission for commercial use</a>.<br>
             """
 
         elif model == "VideoMaMa":
             instruction_content = """
             • Matting can be used to create mattes for objects with soft or poorly defined edges.<br>
-            • First add points and run tracking in the Segmentation tab so that a mask is available on every frame, then press <b>Run Matting</b>.<br>
-            • VideoMaMa requires a minimum of about 8GB of VRAM.<br>
+            • <b>Add points and run tracking in the Segmentation tab</b> so that a mask is available on every frame, then press Run Matting.<br>
+            • VideoMaMa requires at least 8GB of VRAM.<br>
             • VideoMaMa processes the video frames in batches. There may be temporal instability at batch boundaries.<br>
-            • VideoMaMa is subject to the <a href="https://huggingface.co/stabilityai/stable-video-diffusion-img2vid/blob/main/LICENSE.md">Stability AI Community License</a> (limited commercial use allowed).<br>
+            • VideoMaMa is free for non-commercial use and <a href="https://huggingface.co/stabilityai/stable-video-diffusion-img2vid/blob/main/LICENSE.md">limited commercial use</a>.<br>
             """
 
         else:
@@ -793,7 +795,7 @@ class ObjectRemovalTab(QWidget):
         # Set the instruction content
         instruction_content = """
         • Object removal uses inpainting to fill in areas where objects have been removed.<br>
-        • You first need to run tracking in the Segmentation tab, so a mask is on every frame.<br>
+        • You first need to <b>run tracking in the Segmentation tab</b>, so a mask is on every frame.<br>
         • The OpenCV option is really bad, and is only provided as a fallback in case MiniMax-Remover can't be used.<br>
         """
         
