@@ -40,18 +40,16 @@ Sammie-Roto 2 is free and open source, but runs models produced by several exter
 - Download latest version from [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)
 - Extract the zip archive to any location that doesn't restrict write permissions (so not in Program Files)
 - Run 'install_dependencies.bat' and follow the prompt.
-- Run 'run_sammie.bat' to launch the software.
+- Run 'run_sammie.bat' to launch the software (or double click the desktop shortcut).
 
 Everything is self-contained in the Sammie-Roto folder. If you want to remove the application, simply delete this folder. You can also move the folder.
 
 ### Installation (Linux, Mac)
-- MacOS users: Make sure Homebrew is installed.
-- Ensure [Python](https://www.python.org/) is installed (version 3.10 or higher, 3.12 recommended)
 - Download latest version from [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)
 - Extract the zip archive.
 - Open a terminal and navigate to the Sammie-Roto folder that you just extracted from the zip.
-- Execute the following command: `bash install_dependencies.sh` then follow the prompt.
-- MacOS users: double-click "run_sammie.command" to launch the program. Linux users: `bash run_sammie.command` or execute the file however you prefer.
+- Execute the following command in the terminal: `bash install_dependencies.sh` then follow the prompt.
+- MacOS users: double-click the desktop icon to launch the program. Linux users: `bash run_sammie.sh` or find it in the applications menu.
 
 ### Acknowledgements
 * [SAM 2](https://github.com/facebookresearch/sam2)
