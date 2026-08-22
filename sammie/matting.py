@@ -1026,9 +1026,10 @@ class VideoMaMaManager(MattingManager):
                 QApplication.processEvents()
                 if progress_dialog.wasCanceled():
                     raise RuntimeError("USER_CANCELLED")
- 
+
+            device_type = core.DeviceManager.get_device().type 
             try:
-                with torch.amp.autocast('cuda', enabled=False):
+                with torch.amp.autocast(device_type=device_type, enabled=False):
                     output_frames = self.pipeline.run(
                         cond_frames=cond_frames,
                         mask_frames=mask_frames,

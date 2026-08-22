@@ -1,33 +1,31 @@
 [project]
 name = "Sammie-Roto-2"
-version = "2.3.5.a"
+version = "2.4.0"
 description = "Sammie Roto 2 application"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 
 dependencies = [
-    "opencv-python~=4.12",
+    "opencv-python~=4.14",
     "PySide6-essentials==6.9.3",
-    "hydra-core~=1.3.2",
-    "av~=15.1",
-    "requests~=2.32",
-    "tqdm~=4.67",
+    "av~=18.1",
+    "requests~=2.34",
+    "tqdm~=4.70",
     "OpenEXR~=3.4",
-    "diffusers~=0.35",
-    "accelerate~=1.11",
-    "einops",
-    "dulwich~=1.2",
+    "diffusers~=0.39",
+    "einops~=0.8",
 ]
 
 [project.optional-dependencies]
-cpu   = ["torch==2.11.0", "torchvision==0.26.0"]
-cu126 = ["torch==2.11.0", "torchvision==0.26.0"]
-cu130 = ["torch==2.11.0", "torchvision==0.26.0"]
+cpu   = ["torch==2.11.0", "torchvision==0.26.0", "accelerate~=1.14"]
+cu126 = ["torch==2.11.0", "torchvision==0.26.0", "accelerate~=1.14"]
+cu130 = ["torch==2.11.0", "torchvision==0.26.0", "accelerate~=1.14"]
 rocm  = [
     "torch==2.11.0 ; sys_platform == 'linux'",
     "torchvision==0.26.0 ; sys_platform == 'linux'",
-    "triton-rocm==3.6.0 ; sys_platform == 'linux'"
+    "triton-rocm==3.6.0 ; sys_platform == 'linux'",
+    "accelerate~=1.14"
 ]
-xpu   = ["torch==2.11.0", "torchvision==0.26.0", "triton-xpu==3.7.0"]
+xpu   = ["torch==2.11.0", "torchvision==0.26.0", "triton-xpu==3.7.0", "accelerate~=1.14"]
 
 [tool.uv]
 package = false

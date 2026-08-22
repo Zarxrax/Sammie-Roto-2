@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QVBoxLayout, QHBoxLayout, 
     QGridLayout, QWidget, QPushButton, QLabel, QStatusBar, QSlider, 
     QTabWidget, QSpinBox, QComboBox, QSplitter, QGroupBox, QTextEdit,
-    QCheckBox, QLineEdit, QMessageBox, QDialog
+    QCheckBox, QLineEdit, QMessageBox, QDialog, QProgressDialog
 )
 from PySide6.QtGui import (
     QAction, QShortcut, QKeySequence, QTextCursor, QIcon, QPixmap, QFont, QDesktopServices
@@ -38,7 +38,7 @@ from sammie.gui_widgets import (
 
 # ==================== VERSION ====================
 
-__version__ = "2.3.5.a"
+__version__ = "2.4.0"
 
 # ==================== LOGGING HELPER ====================
 
@@ -448,6 +448,7 @@ class MattingTab(QWidget):
         self.matany_model_combo = QComboBox()
         self.matany_model_combo.addItems(["MatAnyone", "MatAnyone2", "VideoMaMa"])
         self.matany_model_combo.setToolTip("VideoMaMa is higher quality but slower and uses more VRAM.")
+        self._update_instructions(self.matany_model_combo.currentText())
 
         res_label = QLabel("Internal Resolution:")
         self.matany_res_combo = QComboBox()
@@ -513,25 +514,14 @@ class MattingTab(QWidget):
         """Create the instructions section for the matting tab"""
         instructions_group = QGroupBox("Instructions")
         instructions_layout = QVBoxLayout(instructions_group)
-        
-        # Create the instruction text
-        instructions_text = QLabel()
-        instructions_text.setWordWrap(True)
-        instructions_text.setTextFormat(Qt.RichText)  # Allow HTML formatting
-        
-        # Set the instruction content
-        instruction_content = """
-        • Matting can be used to create mattes for objects with soft or poorly defined edges.<br>
-        • For MatAnyone, you first need to add points to at least one frame in the Segmentation tab, then press the 'Run Matting' button.<br>
-        • For MatAnyone, if you add points to multiple frames, the matting will 'refresh' at each keyframe, which may momentarily break temporal stability.<br>
-        • For VideoMaMa, you must also run tracking in the Segmentation tab.<br>
-        • For VideoMaMa, frames are processed in batches of 16 or more. Some videos may exhibit minor temporal instability at the batch boundaries. You can increase the batch size at the cost of more VRAM.<br>
-        """
-        
-        instructions_text.setText(instruction_content)
-        
-        # Style the text
-        instructions_text.setStyleSheet("""
+
+        self.instructions_text = QLabel()
+        self.instructions_text.setWordWrap(True)
+        self.instructions_text.setTextFormat(Qt.RichText)
+        self.instructions_text.setOpenExternalLinks(True)
+        self.instructions_text.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+
+        self.instructions_text.setStyleSheet("""
             QLabel {
                 background-color: palette(alternate-base);
                 padding: 10px;
@@ -541,8 +531,8 @@ class MattingTab(QWidget):
                 line-height: 1.3;
             }
         """)
-        
-        instructions_layout.addWidget(instructions_text)
+
+        instructions_layout.addWidget(self.instructions_text)
         layout.addWidget(instructions_group)
 
     def _create_parameter_sliders(self, layout):
@@ -629,11 +619,38 @@ class MattingTab(QWidget):
         """Update gamma value display (convert from int to decimal)"""
         gamma_val = value / 100.0
         self.gamma_value.setText(f"{gamma_val:.1f}")
+
+    def _update_instructions(self, model):
+        """Update the instructions based on the selected matting model"""
+
+        if model in ("MatAnyone", "MatAnyone2"):
+            instruction_content = """
+            • Matting can be used to create mattes for objects with soft or poorly defined edges.<br>
+            • <b>Add points to at least one frame in the Segmentation tab</b>, then press Run Matting.<br>
+            • The MatAnyone models are faster and require less VRAM than VideoMama, but may be less accurate.<br>
+            • If you add points to multiple frames, matting will refresh at each keyframe, which may momentarily affect temporal stability.<br>
+            • MatAnyone is free for non-commercial use, requires <a href="https://github.com/pq-yang/MatAnyone?tab=License-1-ov-file">permission for commercial use</a>.<br>
+            """
+
+        elif model == "VideoMaMa":
+            instruction_content = """
+            • Matting can be used to create mattes for objects with soft or poorly defined edges.<br>
+            • <b>Add points and run tracking in the Segmentation tab</b> so that a mask is available on every frame, then press Run Matting.<br>
+            • VideoMaMa requires at least 8GB of VRAM.<br>
+            • VideoMaMa processes the video frames in batches. There may be temporal instability at batch boundaries.<br>
+            • VideoMaMa is free for non-commercial use and <a href="https://huggingface.co/stabilityai/stable-video-diffusion-img2vid/blob/main/LICENSE.md">limited commercial use</a>.<br>
+            """
+
+        else:
+            instruction_content = ""
+
+        self.instructions_text.setText(instruction_content)
     
     def _save_model_setting(self, value):
         """Save model combo box value to session settings"""
         settings_mgr = get_settings_manager()
         settings_mgr.set_session_setting("matany_model", value)
+        self._update_instructions(value)
 
         # Show overlap and chunk size only for VideoMaMa
         if value == "VideoMaMa":
@@ -778,7 +795,7 @@ class ObjectRemovalTab(QWidget):
         # Set the instruction content
         instruction_content = """
         • Object removal uses inpainting to fill in areas where objects have been removed.<br>
-        • You first need to run tracking in the Segmentation tab, so a mask is on every frame.<br>
+        • You first need to <b>run tracking in the Segmentation tab</b>, so a mask is on every frame.<br>
         • The OpenCV option is really bad, and is only provided as a fallback in case MiniMax-Remover can't be used.<br>
         """
         
@@ -904,7 +921,7 @@ class ObjectRemovalTab(QWidget):
         self.opencv_algorithm_combo = QComboBox()
         self.opencv_algorithm_combo.addItems(["Telea", "Navier-Stokes"])
         
-        current_algorithm = settings_mgr.get_session_setting("inpaint_algorithm", "Telea")
+        current_algorithm = settings_mgr.get_session_setting("inpaint_method", "Telea")
         index = self.opencv_algorithm_combo.findText(current_algorithm)
         if index >= 0:
             self.opencv_algorithm_combo.setCurrentIndex(index)
@@ -1047,7 +1064,7 @@ class ObjectRemovalTab(QWidget):
     def _save_opencv_algorithm(self, algorithm):
         """Save OpenCV algorithm to session settings"""
         settings_mgr = get_settings_manager()
-        settings_mgr.set_session_setting("inpaint_algorithm", algorithm)
+        settings_mgr.set_session_setting("inpaint_method", algorithm)
 
     def _reset_slider_to_default(self, slider, default_value):
         """Reset a slider to its default value"""
@@ -1072,7 +1089,7 @@ class ObjectRemovalTab(QWidget):
         self._update_parameters_visibility()
     
         # Load OpenCV settings
-        algorithm = settings_mgr.get_session_setting("inpaint_algorithm", "Telea")
+        algorithm = settings_mgr.get_session_setting("inpaint_method", "Telea")
         index = self.opencv_algorithm_combo.findText(algorithm)
         if index >= 0:
             self.opencv_algorithm_combo.setCurrentIndex(index)
@@ -1189,6 +1206,11 @@ class MainWindow(QMainWindow):
 
     def _deferred_init(self):
         """Heavy initialization deferred until after the window is shown"""
+        progress = QProgressDialog("Loading...", None, 0, 0, self)
+        progress.setWindowTitle("Please Wait")
+        progress.setModal(True)
+        progress.show()
+        QApplication.processEvents()
         core.DeviceManager.setup_device()
         self.sam_manager.load_segmentation_model(parent_window=self)
         QApplication.processEvents()
@@ -1196,12 +1218,14 @@ class MainWindow(QMainWindow):
         if self.initial_file:
             if os.path.exists(self.initial_file):
                 print(f"Loading file from command line: {self.initial_file}")
+                QApplication.processEvents()
                 self.load_file(self.initial_file)
             else:
                 print(f"Error: Command line file not found: {self.initial_file}")
                 self.resume_prev_session()
         else:
             self.resume_prev_session()
+        progress.close()
     
     # ==================== INITIALIZATION ====================
     
@@ -1999,8 +2023,8 @@ class MainWindow(QMainWindow):
             return  # Don't try to update before video is loaded
         current_frame = self.frame_slider.value()
         view_options = self.get_view_options()
-        object_id = self.sidebar.segmentation_tab.get_selected_object_id() if preview_mask is not None else None
-        updated_image = sammie.update_image(current_frame, view_options, self.point_manager.points, object_id_filter=object_id, preview_mask=preview_mask)
+        preview_object_id = self.sidebar.segmentation_tab.get_selected_object_id() if preview_mask is not None else None
+        updated_image = sammie.update_image(current_frame, view_options, self.point_manager.points, preview_mask=preview_mask, preview_object_id=preview_object_id)
         if updated_image:
             self.viewer.update_image(updated_image)
             
@@ -2190,6 +2214,13 @@ class MainWindow(QMainWindow):
         if model == self.sam_manager.loaded_model_name:
             print("Model is already loaded")
             return
+
+        progress = QProgressDialog("Loading...", None, 0, 0, self)
+        progress.setWindowTitle("Please Wait")
+        progress.setModal(True)
+        progress.show()
+        QApplication.processEvents()
+
         self.sam_manager.unload_segmentation_model()
         QApplication.processEvents()
         if self.sam_manager.load_segmentation_model(model, parent_window=self):
@@ -2199,6 +2230,8 @@ class MainWindow(QMainWindow):
             settings_mgr.set_app_setting("default_sam_model", model)
         else:
             print("Failed to load segmentation model")
+
+        progress.close()
 
     def track_objects(self):
         """Run object tracking using current points"""
@@ -2342,18 +2375,31 @@ class MainWindow(QMainWindow):
             show_message_dialog(self, title="Error" , message="VideoMaMa is not supported on CPU. Please use MatAnyone instead.", type="warning")
             return
 
+        # Save current matting settings as the new defaults
+        self.settings_mgr.set_app_setting("default_matany_model", matting_model)
+        self.settings_mgr.set_app_setting("default_matany_combined", combined)
+        self.settings_mgr.set_app_setting("default_matany_res", self.settings_mgr.get_session_setting("matany_res", 1080))
+        self.settings_mgr.set_app_setting("default_matany_overlap", self.settings_mgr.get_session_setting("matany_overlap", 2))
+        self.settings_mgr.set_app_setting("default_matany_chunk", self.settings_mgr.get_session_setting("matany_chunk", 16))
+
         if count > 0:  
             #load models
             print(f"Loading {matting_model} model...")
+            progress = QProgressDialog("Loading...", None, 0, 0, self)
+            progress.setWindowTitle("Please Wait")
+            progress.setModal(True)
+            progress.show()
             QApplication.processEvents()
             self.sam_manager.offload_model_to_cpu()
-            if self.matany_manager.BACKEND != matting_model: # if the existing matting manager backend is wrong, create a new one
-                self.matany_manager = matting.create_matting_manager()
-            if not self.matany_manager.load_matting_model(parent_window=self): # load matting model
-                print(f"Failed to load { matting_model} model")
-                return
             QApplication.processEvents()
             try:
+                if self.matany_manager.BACKEND != matting_model: # if the existing matting manager backend is wrong, create a new one
+                    self.matany_manager = matting.create_matting_manager()
+                if not self.matany_manager.load_matting_model(parent_window=self): # load matting model
+                    print(f"Failed to load { matting_model} model")
+                    return
+                QApplication.processEvents()
+                progress.close()
                 self.matany_manager.run_matting(self.point_manager.points, parent_window=self, combined=combined)
             except Exception as e:
                 if "out of memory" in str(e):
@@ -2363,10 +2409,16 @@ class MainWindow(QMainWindow):
             finally:
                 self.update_matting_status()
                 self._update_current_frame_display()
+                progress = QProgressDialog("Loading...", None, 0, 0, self)
+                progress.setWindowTitle("Please Wait")
+                progress.setModal(True)
+                progress.show()
                 QApplication.processEvents()
                 self.settings_mgr.save_session_settings()
                 self.matany_manager.unload_matting_model()
+                QApplication.processEvents()
                 self.sam_manager.load_model_to_device()
+                progress.close()
         else:
             print("Points must be added on the Segmentation tab before matting")
 
@@ -2378,11 +2430,20 @@ class MainWindow(QMainWindow):
             show_message_dialog(self, title="Error" , message="MiniMax-Remover is not supported on CPU. Please use OpenCV instead.", type="warning")
             return
         self.settings_mgr.save_session_settings()
+
+        # Save current object removal settings as the new defaults
+        self.settings_mgr.set_app_setting("default_removal_method", self.removal_tab.method_combo.currentText())
+        self.settings_mgr.set_app_setting("default_inpaint_method", self.settings_mgr.get_session_setting("inpaint_method", "Telea"))
+        self.settings_mgr.set_app_setting("default_inpaint_radius", self.settings_mgr.get_session_setting("inpaint_radius", 3))
+        self.settings_mgr.set_app_setting("default_minimax_resolution", self.settings_mgr.get_session_setting("minimax_resolution", 480))
+        self.settings_mgr.set_app_setting("default_minimax_vae_tiling", self.settings_mgr.get_session_setting("minimax_vae_tiling", False))
+        self.settings_mgr.set_app_setting("default_minimax_steps", self.settings_mgr.get_session_setting("minimax_steps", 6))
         
         if self.removal_tab.method_combo.currentText() == 'MiniMax-Remover':
             try:
                 # offload sam model
                 self.sam_manager.offload_model_to_cpu()
+                QApplication.processEvents()
                 self.removal_manager.run_object_removal_minimax(self.point_manager.points, parent_window=self)
             except Exception as e:
                 if "out of memory" in str(e):
@@ -2390,8 +2451,15 @@ class MainWindow(QMainWindow):
                 else: 
                     print(f"An error occurred: {e}")
             finally:
-                self.removal_manager.unload_minimax_model()    
+                progress = QProgressDialog("Loading...", None, 0, 0, self)
+                progress.setWindowTitle("Please Wait")
+                progress.setModal(True)
+                progress.show()
+                QApplication.processEvents()
+                self.removal_manager.unload_minimax_model()
+                QApplication.processEvents()
                 self.sam_manager.load_model_to_device()
+                progress.close()
         else:
             self.removal_manager.run_object_removal_cv(self.point_manager.points, parent_window=self)
 

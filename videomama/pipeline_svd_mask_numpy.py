@@ -42,8 +42,8 @@ class VideoInferencePipeline:
 
         # Load models from pretrained paths
         try:
-            self.vae = AutoencoderKLTemporalDecoder.from_pretrained(base_model_path, subfolder="vae", variant="fp16")
-            self.unet = UNetSpatioTemporalConditionModel.from_pretrained(unet_checkpoint_path, subfolder="unet")
+            self.vae = AutoencoderKLTemporalDecoder.from_pretrained(base_model_path, subfolder="vae", variant="fp16", torch_dtype=weight_dtype)
+            self.unet = UNetSpatioTemporalConditionModel.from_pretrained(unet_checkpoint_path, subfolder="unet", torch_dtype=weight_dtype)
         except Exception as e:
             raise IOError(f"Fatal error loading models: {e}")
 
@@ -74,12 +74,12 @@ class VideoInferencePipeline:
         if self.enable_model_cpu_offload:
             # Keep models on CPU initially, move to GPU only when needed
             #print(f"--- Model CPU Offloading ENABLED (memory optimization) ---")
-            self.vae.to("cpu", dtype=self.weight_dtype)
-            self.unet.to("cpu", dtype=self.weight_dtype)
+            self.vae.to("cpu")
+            self.unet.to("cpu")
         else:
             # Move all models to GPU
-            self.vae.to(self.device, dtype=self.weight_dtype)
-            self.unet.to(self.device, dtype=self.weight_dtype)
+            self.vae.to(self.device)
+            self.unet.to(self.device)
 
         #print(f"--- Models Loaded Successfully on {self.device} ---")
         #print(f"--- VAE Encode Chunk Size: {self.vae_encode_chunk_size} frames ---")

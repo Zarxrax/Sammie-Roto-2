@@ -1,5 +1,4 @@
 from typing import Dict, Optional
-from omegaconf import DictConfig
 
 import torch
 import torch.nn as nn
@@ -10,7 +9,7 @@ from matanyone.model.transformer.transformer_layers import *
 
 
 class QueryTransformerBlock(nn.Module):
-    def __init__(self, model_cfg: DictConfig):
+    def __init__(self, model_cfg):
         super().__init__()
 
         this_cfg = model_cfg.object_transformer
@@ -74,7 +73,7 @@ class QueryTransformerBlock(nn.Module):
 
 
 class QueryTransformer(nn.Module):
-    def __init__(self, model_cfg: DictConfig):
+    def __init__(self, model_cfg):
         super().__init__()
 
         this_cfg = model_cfg.object_transformer

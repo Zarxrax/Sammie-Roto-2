@@ -24,7 +24,6 @@ PALETTE = [
     (128, 191, 0), (0, 64, 128), (128, 64, 128)
 ]
 
-
 class VideoInfo:
     width = 0
     height = 0
@@ -32,9 +31,9 @@ class VideoInfo:
     total_frames = 0
     color_space = 1
 
-
 class DeviceManager:
     _device = None
+    _dtype = torch.float32
 
     @classmethod
     def setup_device(cls):
@@ -60,25 +59,43 @@ class DeviceManager:
         if force_cpu:
             cls._device = torch.device("cpu")
 
-        print(f"Using device: {cls._device}")
+        if cls._device.type != "cuda":
+            print(f"Using device: {cls._device}")
 
         if cls._device.type == "cuda":
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", category=UserWarning)
-                print("CUDA Compute Capability: ", torch.cuda.get_device_capability())
+                props = torch.cuda.get_device_properties(0)
+                capability = (props.major, props.minor)
+                gpu_name = props.name
+                print(f"CUDA Device: {gpu_name}")
+                print(f"CUDA Capability: {capability[0]}.{capability[1]}")
+
                 # Enable bfloat16 for Ampere and newer
-                if torch.cuda.get_device_properties(0).major >= 8:
-                    torch.autocast("cuda", dtype=torch.bfloat16).__enter__()
+                if torch.cuda.is_bf16_supported():
+                    cls._dtype = torch.bfloat16
                     torch.backends.cuda.matmul.allow_tf32 = True
                     torch.backends.cudnn.allow_tf32 = True
+                # Turing and newer have FP16 support
+                elif capability >= (7, 5):
+                    # Don't let gtx 16 series use FP16
+                    if "gtx 16" in gpu_name.lower():
+                        cls._dtype = torch.float32
+                    else:
+                        cls._dtype = torch.float16
+                # Older NVIDIA GPUs: stay with FP32
                 else:
-                    torch.autocast("cuda", dtype=torch.float16).__enter__()
+                    cls._dtype = torch.float32
+                torch.autocast("cuda", dtype=cls._dtype).__enter__()
 
         elif cls._device.type == "mps":
-            torch.autocast("mps", dtype=torch.bfloat16).__enter__()
+            cls._dtype = torch.float16
+            torch.autocast("mps", dtype=cls._dtype).__enter__()
         
         elif cls._device.type == "xpu":
-            torch.autocast("xpu", dtype=torch.bfloat16).__enter__()
+            # A user confirmed that bf16 and fp16 gave broken masks on Arc A750
+            cls._dtype = torch.float32
+            torch.autocast("xpu", dtype=cls._dtype).__enter__()
 
         return cls._device
 
@@ -88,6 +105,13 @@ class DeviceManager:
         if cls._device is None:
             return cls.setup_device()
         return cls._device
+
+    @classmethod
+    def get_dtype(cls):
+        """Return the storage/compute dtype matching the active autocast setup"""
+        if cls._device is None:
+            cls.setup_device()
+        return cls._dtype
 
     @classmethod
     def clear_cache(cls):

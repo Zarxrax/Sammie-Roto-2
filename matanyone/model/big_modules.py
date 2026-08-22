@@ -9,7 +9,6 @@ The trailing number of a variable usually denotes the stride
 """
 
 from typing import Iterable
-from omegaconf import DictConfig
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -19,7 +18,7 @@ from matanyone.model.utils import resnet
 from matanyone.model.modules import SensoryDeepUpdater, SensoryUpdater_fullscale, DecoderFeatureProcessor, MaskUpsampleBlock
 
 class UncertPred(nn.Module):
-    def __init__(self, model_cfg: DictConfig):
+    def __init__(self, model_cfg):
         super().__init__()
         self.conv1x1_v2 = nn.Conv2d(model_cfg.pixel_dim*2 + 1 + model_cfg.value_dim, 64, kernel_size=1, stride=1, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
@@ -48,7 +47,7 @@ class UncertPred(nn.Module):
         return self
 
 class PixelEncoder(nn.Module):
-    def __init__(self, model_cfg: DictConfig):
+    def __init__(self, model_cfg):
         super().__init__()
 
         self.is_resnet = 'resnet' in model_cfg.pixel_encoder.type
@@ -95,7 +94,7 @@ class PixelEncoder(nn.Module):
 
 
 class KeyProjection(nn.Module):
-    def __init__(self, model_cfg: DictConfig):
+    def __init__(self, model_cfg):
         super().__init__()
         in_dim = model_cfg.pixel_encoder.ms_dims[0]
         mid_dim = model_cfg.pixel_dim
@@ -121,7 +120,7 @@ class KeyProjection(nn.Module):
 
 
 class MaskEncoder(nn.Module):
-    def __init__(self, model_cfg: DictConfig, single_object=False):
+    def __init__(self, model_cfg, single_object=False):
         super().__init__()
         pixel_dim = model_cfg.pixel_dim
         value_dim = model_cfg.value_dim
@@ -225,7 +224,7 @@ class MaskEncoder(nn.Module):
 
 
 class PixelFeatureFuser(nn.Module):
-    def __init__(self, model_cfg: DictConfig, single_object=False):
+    def __init__(self, model_cfg, single_object=False):
         super().__init__()
         value_dim = model_cfg.value_dim
         sensory_dim = model_cfg.sensory_dim
@@ -271,7 +270,7 @@ class PixelFeatureFuser(nn.Module):
 
 
 class MaskDecoder(nn.Module):
-    def __init__(self, model_cfg: DictConfig):
+    def __init__(self, model_cfg):
         super().__init__()
         embed_dim = model_cfg.embed_dim
         sensory_dim = model_cfg.sensory_dim

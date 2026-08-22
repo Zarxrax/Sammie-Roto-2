@@ -7,9 +7,7 @@ cd /d "%~dp0"
 :: Define environment variables
 set "UV_DIR=%~dp0.uv"
 set "UV_EXE=%UV_DIR%\uv.exe"
-::set "UV_PYTHON_INSTALL_DIR=%UV_DIR%\python"
-::set "UV_CACHE_DIR=%UV_DIR%\uv_cache"
-set "UV_VERSION=0.12.0"
+set "UV_VERSION=0.12.5"
 
 if not exist "%UV_DIR%" mkdir "%UV_DIR%"
 
@@ -35,7 +33,7 @@ if "%FS_SUPPORTS_LINKS%"=="1" (
     set "UV_PYTHON_INSTALL_DIR=%UV_DIR%\python"
     set "UV_CACHE_DIR=%UV_DIR%\uv_cache"
 ) else (
-    echo This drive's filesystem doesn't support the links uv needs ^(common on exFAT^) -- using local app data instead for Python/cache storage.
+    echo This drive's filesystem doesn't support the links uv needs ^(common on exFAT/FAT32^) -- using local app data instead for Python/cache storage.
     set "UV_PYTHON_INSTALL_DIR=%LOCALAPPDATA%\Sammie-Roto-2\uv-python"
     set "UV_CACHE_DIR=%LOCALAPPDATA%\Sammie-Roto-2\uv-cache"
     :: Cache is now on a different drive than .venv -- hardlinks can't
@@ -62,9 +60,30 @@ if not exist "%UV_EXE%" (
     )
 )
 
-:: Execute the install script through uv
+:: One-time bootstrap venv for running manage.py itself (needs dulwich for git operations).
+set "BOOTSTRAP_DIR=%UV_DIR%\bootstrap"
+set "BOOTSTRAP_PY=%BOOTSTRAP_DIR%\Scripts\python.exe"
+if not exist "%BOOTSTRAP_PY%" (
+    echo Setting up installer environment...
+    "%UV_EXE%" venv --python 3.12 "%BOOTSTRAP_DIR%"
+    if errorlevel 1 (
+        echo Failed to create installer environment.
+        pause
+        exit /b 1
+    )
+
+    "%UV_EXE%" pip install --python "%BOOTSTRAP_PY%" "dulwich~=1.2"
+    if errorlevel 1 (
+        echo Failed to install installer dependencies.
+        rmdir /s /q "%BOOTSTRAP_DIR%" >nul 2>&1
+        pause
+        exit /b 1
+    )
+)
+
+:: Execute the install script
 echo Running installer...
-"%UV_EXE%" run --no-project --with dulwich~=1.2 --python 3.12 python manage.py %*
+"%BOOTSTRAP_PY%" manage.py %*
 
 :: Catch error from install script
 set "MANAGE_EXIT=%ERRORLEVEL%"

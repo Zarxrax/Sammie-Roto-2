@@ -1,5 +1,4 @@
 from typing import Optional
-from omegaconf import DictConfig
 
 import torch
 import torch.nn as nn
@@ -24,7 +23,7 @@ def _weighted_pooling(masks: torch.Tensor, value: torch.Tensor,
 
 
 class ObjectSummarizer(nn.Module):
-    def __init__(self, model_cfg: DictConfig):
+    def __init__(self, model_cfg):
         super().__init__()
 
         this_cfg = model_cfg.object_summarizer

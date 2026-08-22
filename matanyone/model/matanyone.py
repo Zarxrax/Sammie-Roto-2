@@ -1,12 +1,9 @@
 from typing import List, Dict, Iterable, Tuple
 import logging
-from omegaconf import DictConfig
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from omegaconf import OmegaConf
-from huggingface_hub import PyTorchModelHubMixin
-
+from matanyone.config import MatAnyoneConfig
 from matanyone.model.big_modules import PixelEncoder, UncertPred, KeyProjection, MaskEncoder, PixelFeatureFuser, MaskDecoder
 from matanyone.model.aux_modules import AuxComputer
 from matanyone.model.utils.memory_utils import get_affinity, readout
@@ -15,19 +12,9 @@ from matanyone.model.transformer.object_summarizer import ObjectSummarizer
 from matanyone.utils.tensor_utils import aggregate
 
 log = logging.getLogger()
-class MatAnyone(nn.Module,
-                PyTorchModelHubMixin,
-                library_name="matanyone",
-                repo_url="https://github.com/pq-yang/MatAnyone",
-                coders={
-                    DictConfig: (
-                        lambda x: OmegaConf.to_container(x),
-                        lambda data: OmegaConf.create(data),
-                    )
-                },
-        ):
+class MatAnyone(nn.Module):
 
-    def __init__(self, cfg: DictConfig, *, single_object=False):
+    def __init__(self, cfg: MatAnyoneConfig, *, single_object=False):
         super().__init__()
         self.cfg = cfg
         model_cfg = cfg.model
