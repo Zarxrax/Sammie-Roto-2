@@ -135,18 +135,32 @@ class SamManager:
         """
         obj_idx = self.inference_state["obj_id_to_idx"].get(object_id)
         if obj_idx is None:
-            return None
+            # Object doesn't exist yet - add_new_points_or_box() will auto-register it
+            # as a side effect of running the preview (obj_id_to_idx/obj_idx_to_id/
+            # obj_ids, plus empty entries in every per-object dict below). Remember
+            # that so _restore_frame_state can undo the registration afterward,
+            # instead of leaving a brand-new, populated object behind permanently.
+            return {"object_id": object_id, "obj_idx": None, "was_registered": False}
+
         tracked = self.inference_state["frames_tracked_per_obj"][obj_idx]
         output_dict = self.inference_state["output_dict_per_obj"][obj_idx]
         temp_dict = self.inference_state["temp_output_dict_per_obj"][obj_idx]
+        point_inputs = self.inference_state["point_inputs_per_obj"][obj_idx]
+        mask_inputs = self.inference_state["mask_inputs_per_obj"][obj_idx]
         return {
+            "object_id": object_id,
             "obj_idx": obj_idx,
+            "was_registered": True,
             "was_tracked": frame_number in tracked,
             "tracked_entry": tracked.get(frame_number),
             "output_cond": output_dict["cond_frame_outputs"].get(frame_number),
             "output_noncond": output_dict["non_cond_frame_outputs"].get(frame_number),
             "temp_cond": temp_dict["cond_frame_outputs"].get(frame_number),
             "temp_noncond": temp_dict["non_cond_frame_outputs"].get(frame_number),
+            "had_point_inputs": frame_number in point_inputs,
+            "point_inputs": point_inputs.get(frame_number),
+            "had_mask_inputs": frame_number in mask_inputs,
+            "mask_inputs": mask_inputs.get(frame_number),
         }
 
     def _restore_frame_state(self, frame_number, snapshot):
@@ -154,10 +168,35 @@ class SamManager:
         cond/non-cond entry exactly as it was, regardless of what happened in between."""
         if snapshot is None:
             return
+
+        object_id = snapshot["object_id"]
+
+        if not snapshot["was_registered"]:
+            # The object didn't exist before the preview ran - undo whatever
+            # auto-registration add_new_points_or_box() performed as a side effect,
+            # rather than leaving a phantom object (with real prompt/output data for
+            # this frame) sitting in inference_state for the rest of the session.
+            obj_idx = self.inference_state["obj_id_to_idx"].pop(object_id, None)
+            if obj_idx is not None:
+                self.inference_state["obj_idx_to_id"].pop(obj_idx, None)
+                obj_ids = self.inference_state.get("obj_ids")
+                if obj_ids is not None and object_id in obj_ids:
+                    obj_ids.remove(object_id)
+                for dict_name in (
+                    "output_dict_per_obj", "temp_output_dict_per_obj",
+                    "frames_tracked_per_obj", "point_inputs_per_obj", "mask_inputs_per_obj",
+                ):
+                    d = self.inference_state.get(dict_name)
+                    if d is not None:
+                        d.pop(obj_idx, None)
+            return
+
         obj_idx = snapshot["obj_idx"]
         tracked = self.inference_state["frames_tracked_per_obj"][obj_idx]
         output_dict = self.inference_state["output_dict_per_obj"][obj_idx]
         temp_dict = self.inference_state["temp_output_dict_per_obj"][obj_idx]
+        point_inputs = self.inference_state["point_inputs_per_obj"][obj_idx]
+        mask_inputs = self.inference_state["mask_inputs_per_obj"][obj_idx]
 
         if snapshot["was_tracked"]:
             tracked[frame_number] = snapshot["tracked_entry"]
@@ -175,6 +214,16 @@ class SamManager:
                 else:
                     d[storage_key].pop(frame_number, None)
 
+        if snapshot["had_point_inputs"]:
+            point_inputs[frame_number] = snapshot["point_inputs"]
+        else:
+            point_inputs.pop(frame_number, None)
+
+        if snapshot["had_mask_inputs"]:
+            mask_inputs[frame_number] = snapshot["mask_inputs"]
+        else:
+            mask_inputs.pop(frame_number, None)
+
     def segment_image(self, frame_number, object_id, input_points, input_labels):
         extension = core.get_frame_extension()
         frame_filename = os.path.join(core.frames_dir, f"{frame_number:05d}.{extension}")
@@ -190,8 +239,10 @@ class SamManager:
                 labels=input_labels,
                 clear_old_points=True,
             )
-            # Save the segmentation masks
+            # Save the segmentation mask for the object we actually edited.
             for i, out_obj_id in enumerate(out_obj_ids):
+                if out_obj_id != object_id:
+                    continue
                 mask_filename = os.path.join(core.mask_dir, f"{frame_number:05d}", f"{out_obj_id}.png")
                 mask = (out_mask_logits[i] > 0.0).cpu().numpy().squeeze()
                 mask = (mask * 255).astype(np.uint8)
@@ -263,6 +314,13 @@ class SamManager:
                 ]
                 out_obj_ids, out_mask_logits = [], []  # guards the save loop below if every add fails
                 for i in range(1, len(filtered_points) + 1):
+                    # Replay one click at a time, in the order they were made - matches
+                    # how segment_image() was actually called during live editing
+                    # (each click resubmits the full point set so far as its own
+                    # separate call). This matters for fidelity: e.g. undoing the
+                    # last point needs to reproduce the mask state that existed right
+                    # before that point was added, not the mask a single batched call
+                    # with the remaining points would produce - those aren't the same.
                     subset = filtered_points[:i]
                     input_points = np.array([(x, y) for x, y, _ in subset], dtype=np.float32)
                     input_labels = np.array([1 if pos else 0 for _, _, pos in subset], dtype=np.int32)
@@ -279,8 +337,10 @@ class SamManager:
                         print(f"Error during prediction for frame {frame_number}, object {object_id}, point {i}: {e}")
                         continue
 
-                # Save masks only after the final point for this object
+                # Save the mask for the object we just replayed only
                 for j, out_obj_id in enumerate(out_obj_ids):
+                    if out_obj_id != object_id:
+                        continue
                     mask_filename = os.path.join(core.mask_dir, f"{frame_number:05d}", f"{out_obj_id}.png")
                     mask = (out_mask_logits[j] > 0.0).cpu().numpy().squeeze()
                     mask = (mask * 255).astype(np.uint8)
