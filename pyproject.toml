@@ -2,7 +2,7 @@
 name = "Sammie-Roto-2"
 version = "2.4.0"
 description = "Sammie Roto 2 application"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 
 dependencies = [
     "opencv-python~=4.14",
@@ -23,6 +23,12 @@ rocm  = [
     "torch==2.11.0 ; sys_platform == 'linux'",
     "torchvision==0.26.0 ; sys_platform == 'linux'",
     "triton-rocm==3.6.0 ; sys_platform == 'linux'",
+    "torch==2.9.1+rocm7.2.1 ; sys_platform == 'win32'",
+    "torchvision==0.24.1+rocm7.2.1 ; sys_platform == 'win32'",
+    "rocm-sdk-core==7.2.1 ; sys_platform == 'win32'",
+    "rocm-sdk-devel==7.2.1 ; sys_platform == 'win32'",
+    "rocm-sdk-libraries-custom==7.2.1 ; sys_platform == 'win32'",
+    "rocm==7.2.1 ; sys_platform == 'win32'",
     "accelerate~=1.14"
 ]
 xpu   = ["torch==2.11.0", "torchvision==0.26.0", "triton-xpu==3.7.0", "accelerate~=1.14"]
@@ -44,6 +50,7 @@ torch = [
   { index = "pytorch-cu130", extra = "cu130" },
   { index = "pytorch-cu126", extra = "cu126" },
   { index = "pytorch-rocm",  extra = "rocm", marker = "sys_platform == 'linux'" },
+  { url = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/torch-2.9.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl", extra = "rocm", marker = "sys_platform == 'win32'" },
   { index = "pytorch-xpu",   extra = "xpu" },
   { index = "pytorch-cpu",   extra = "cpu" },
 ]
@@ -51,6 +58,7 @@ torchvision = [
   { index = "pytorch-cu130", extra = "cu130" },
   { index = "pytorch-cu126", extra = "cu126" },
   { index = "pytorch-rocm",  extra = "rocm", marker = "sys_platform == 'linux'"  },
+  { url = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/torchvision-0.24.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl", extra = "rocm", marker = "sys_platform == 'win32'" },
   { index = "pytorch-xpu",   extra = "xpu" },
   { index = "pytorch-cpu",   extra = "cpu" },
 ]
@@ -59,6 +67,18 @@ triton-rocm = [
 ]
 triton-xpu = [
   { index = "pytorch-xpu" },
+]
+rocm-sdk-core = [
+  { url = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm_sdk_core-7.2.1-py3-none-win_amd64.whl", extra = "rocm", marker = "sys_platform == 'win32'" },
+]
+rocm-sdk-devel = [
+  { url = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm_sdk_devel-7.2.1-py3-none-win_amd64.whl", extra = "rocm", marker = "sys_platform == 'win32'" },
+]
+rocm-sdk-libraries-custom = [
+  { url = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm_sdk_libraries_custom-7.2.1-py3-none-win_amd64.whl", extra = "rocm", marker = "sys_platform == 'win32'" },
+]
+rocm = [
+  { url = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm-7.2.1.tar.gz", extra = "rocm", marker = "sys_platform == 'win32'" },
 ]
 
 [[tool.uv.index]]
