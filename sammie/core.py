@@ -45,9 +45,15 @@ class DeviceManager:
         os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
         print("PyTorch version:", torch.__version__)
 
+        is_rocm = "rocm" in torch.__version__.lower()
+
+        # Prevent MIOpen from recompiling kernels on every run 
+        if is_rocm:
+            os.environ.setdefault("MIOPEN_FIND_MODE", "FAST")
+
         # On Windows, redirect MIOpen's (AMD ROCm) db/cache files 
         # into this app's own folder instead of the user's global profile 
-        if os.name == "nt" and "rocm" in torch.__version__.lower():
+        if os.name == "nt" and is_rocm:
             miopen_cache_root = Path(__file__).resolve().parents[1] / ".runtime_cache" / "miopen"
             miopen_db_path = miopen_cache_root / "db"
             miopen_kernel_cache_path = miopen_cache_root / "cache"
