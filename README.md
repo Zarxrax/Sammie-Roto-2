@@ -42,6 +42,7 @@ Everything is self-contained in the Sammie-Roto folder. If you want to remove th
 
 ### Updates
 **Full Changelog can be seen under [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)**
+- [09/05/2026] 2.4.1 - Premilinary support for AMD GPUs on Windows, some bugfixes.
 - [08/22/2026] 2.4.0 - New installer/updater, additional segmentation tracking options, many small fixes and improvements.
 - [04/17/2026] 2.3.3 - Several large performance optimizations, and colorspace conversions are now handled correctly.
 - [04/10/2026] 2.3.2 - Improved temporal stability for VideoMaMa.

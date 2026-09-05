@@ -127,24 +127,28 @@ def pull_latest_code(branch):
     porcelain.reset(repo, "hard", f"origin/{branch}")
 
 # ===== BACKEND SELECTION =====
+BACKEND_OPTIONS = [
+    ("cu130", "NVIDIA CUDA 13.0 (RTX, newer GPUs)"),
+    ("cu126", "NVIDIA CUDA 12.6 (GTX, older GPUs)"),
+    ("xpu",   "Intel Arc/Xe (XPU)"),
+    ("rocm",  "AMD ROCm"),
+    ("cpu",   "CPU (Slow)"),
+]
+
 def choose_backend():
     """Manually prompt the user for their hardware backend."""
     if platform.system() == "Darwin":
         return None
 
     print("\nSelect PyTorch backend:")
-    print("1) NVIDIA CUDA 13.0 (RTX, newer GPUs)")
-    print("2) NVIDIA CUDA 12.6 (GTX, older GPUs)")
-    print("3) Intel Arc/Xe (XPU)")
-    if platform.system() == "Linux":
-        print("4) AMD ROCm")
-    print("5) CPU (Slow)")
+    for i, (_, label) in enumerate(BACKEND_OPTIONS, 1):
+        print(f"{i}) {label}")
 
     choice = input("> ").strip()
-    mapping = {"1": "cu130", "2": "cu126", "3": "xpu", "4": "rocm", "5": "cpu"}
-    if platform.system() == "Windows" and mapping.get(choice) == "rocm":
+    try:
+        return BACKEND_OPTIONS[int(choice) - 1][0]
+    except (ValueError, IndexError):
         return "cpu"
-    return mapping.get(choice, "cpu")
 
 def sync_env(backend, reinstall=False):
     """Uses uv sync to update or reinstall the environment."""
@@ -266,14 +270,8 @@ def setup(branch, reinstall=False):
         download_models_now = model_choice == "2"
 
     # -- Summarise and confirm ----------------------------------------------
-    backend_labels = {
-        "cu130": "NVIDIA CUDA 13.0",
-        "cu126": "NVIDIA CUDA 12.6",
-        "xpu":   "Intel Arc/Xe",
-        "rocm":  "AMD ROCm",
-        "cpu":   "CPU",
-        None:    "CPU/Apple Silicon/MPS",
-    }
+    backend_labels = dict(BACKEND_OPTIONS)
+    backend_labels[None] = "CPU/Apple Silicon/MPS"
 
     print("\n--- Setup summary ---")
     print(f"  Branch           : {branch}")

@@ -4,6 +4,7 @@ import os
 import numpy as np
 import torch
 import warnings
+from pathlib import Path
 from sammie.settings_manager import get_settings_manager
 
 # .........................................................................................
@@ -44,6 +45,23 @@ class DeviceManager:
         os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
         print("PyTorch version:", torch.__version__)
 
+        is_rocm = "rocm" in torch.__version__.lower()
+
+        # Prevent MIOpen from recompiling kernels on every run 
+        if is_rocm:
+            os.environ.setdefault("MIOPEN_FIND_MODE", "FAST")
+
+        # On Windows, redirect MIOpen's (AMD ROCm) db/cache files 
+        # into this app's own folder instead of the user's global profile 
+        if os.name == "nt" and is_rocm:
+            miopen_cache_root = Path(__file__).resolve().parents[1] / ".runtime_cache" / "miopen"
+            miopen_db_path = miopen_cache_root / "db"
+            miopen_kernel_cache_path = miopen_cache_root / "cache"
+            miopen_db_path.mkdir(parents=True, exist_ok=True)
+            miopen_kernel_cache_path.mkdir(parents=True, exist_ok=True)
+            os.environ.setdefault("MIOPEN_USER_DB_PATH", str(miopen_db_path))
+            os.environ.setdefault("MIOPEN_CUSTOM_CACHE_DIR", str(miopen_kernel_cache_path))
+
         settings_mgr = get_settings_manager()
         force_cpu = settings_mgr.get_app_setting("force_cpu", 0)
 
@@ -63,29 +81,39 @@ class DeviceManager:
             print(f"Using device: {cls._device}")
 
         if cls._device.type == "cuda":
+            is_rocm = torch.version.hip is not None
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", category=UserWarning)
                 props = torch.cuda.get_device_properties(0)
-                capability = (props.major, props.minor)
                 gpu_name = props.name
-                print(f"CUDA Device: {gpu_name}")
-                print(f"CUDA Capability: {capability[0]}.{capability[1]}")
 
-                # Enable bfloat16 for Ampere and newer
-                if torch.cuda.is_bf16_supported():
-                    cls._dtype = torch.bfloat16
-                    torch.backends.cuda.matmul.allow_tf32 = True
-                    torch.backends.cudnn.allow_tf32 = True
-                # Turing and newer have FP16 support
-                elif capability >= (7, 5):
-                    # Don't let gtx 16 series use FP16
-                    if "gtx 16" in gpu_name.lower():
-                        cls._dtype = torch.float32
+                if is_rocm:
+                    print(f"ROCm Device: {gpu_name}")
+                    print(f"ROCm/HIP version: {torch.version.hip}")
+                    if torch.cuda.is_bf16_supported():
+                        cls._dtype = torch.bfloat16
                     else:
                         cls._dtype = torch.float16
-                # Older NVIDIA GPUs: stay with FP32
                 else:
-                    cls._dtype = torch.float32
+                    capability = (props.major, props.minor)
+                    print(f"CUDA Device: {gpu_name}")
+                    print(f"CUDA Capability: {capability[0]}.{capability[1]}")
+
+                    # Enable bfloat16 for Ampere and newer
+                    if torch.cuda.is_bf16_supported():
+                        cls._dtype = torch.bfloat16
+                        torch.backends.cuda.matmul.allow_tf32 = True
+                        torch.backends.cudnn.allow_tf32 = True
+                    # Turing and newer have FP16 support
+                    elif capability >= (7, 5):
+                        # Don't let gtx 16 series use FP16
+                        if "gtx 16" in gpu_name.lower():
+                            cls._dtype = torch.float32
+                        else:
+                            cls._dtype = torch.float16
+                    # Older NVIDIA GPUs: stay with FP32
+                    else:
+                        cls._dtype = torch.float32
                 torch.autocast("cuda", dtype=cls._dtype).__enter__()
 
         elif cls._device.type == "mps":

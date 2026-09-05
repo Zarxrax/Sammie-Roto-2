@@ -392,7 +392,7 @@ class MatAnyManager(MattingManager):
 
         # Special case for single frame
         if len(images) == 1:
-            return self._process_single_frame(images[0], mask, object_id, original_size, device)
+            return self._process_single_frame(images[0], mask, object_id, original_size, device, frame_number=start_frame)
 
         current_operations = operations_completed
 
@@ -436,7 +436,7 @@ class MatAnyManager(MattingManager):
 
         return True
 
-    def _process_single_frame(self, frame_path, mask, object_id, original_size, device):
+    def _process_single_frame(self, frame_path, mask, object_id, original_size, device, frame_number=0):
         """Process a single frame for matting"""
         try:
             img = cv2.imread(frame_path)
@@ -454,7 +454,7 @@ class MatAnyManager(MattingManager):
             mat = (mat * 255).astype(np.uint8)
             mat = self._restore_image_size(mat, original_size)
 
-            mat_filename = os.path.join(core.matting_dir, f"00000", f"{object_id}.png")
+            mat_filename = os.path.join(core.matting_dir, f"{frame_number:05d}", f"{object_id}.png")
             os.makedirs(os.path.dirname(mat_filename), exist_ok=True)
             cv2.imwrite(mat_filename, mat)
             return True
