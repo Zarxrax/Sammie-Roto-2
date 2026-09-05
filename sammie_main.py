@@ -38,7 +38,7 @@ from sammie.gui_widgets import (
 
 # ==================== VERSION ====================
 
-__version__ = "2.4.0"
+__version__ = "2.4.1"
 
 # ==================== LOGGING HELPER ====================
 
@@ -796,6 +796,7 @@ class ObjectRemovalTab(QWidget):
         instruction_content = """
         • Object removal uses inpainting to fill in areas where objects have been removed.<br>
         • You first need to <b>run tracking in the Segmentation tab</b>, so a mask is on every frame.<br>
+        • MiniMax-Remover uses VRAM proportionally to the number of frames in the video. Keep clips to a few seconds.<br>
         • The OpenCV option is really bad, and is only provided as a fallback in case MiniMax-Remover can't be used.<br>
         """
         
