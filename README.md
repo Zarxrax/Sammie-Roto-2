@@ -16,8 +16,33 @@ Sammie-Roto 2 is an easy-to-use, cross-platform desktop application for AI assis
 
 Sammie-Roto 2 is free and open source, but runs models produced by several external projects and organizations. Some models may have restrictions on commercial usage. Please check with the relevant model provider if you have questions regarding licensing.
 
+### Documentation and Tutorials:
+## [Wiki Documentation and usage guide](https://github.com/Zarxrax/Sammie-Roto-2/wiki)
+
+[![Quick Start Video](https://img.youtube.com/vi/m0iZpxsZJcE/0.jpg)](https://www.youtube.com/watch?v=m0iZpxsZJcE)
+
+*This video does not cover new features and changes added since version 2.0
+
+## Need more help? [Join the Discord](https://discord.gg/jb5qrFyGFF)!
+
+### Installation (Windows):
+- Download latest version from [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)
+- Extract the zip archive to any location that doesn't restrict write permissions (don't put it in Program Files)
+- Run 'install.bat' and follow the prompt.
+- Run 'run_sammie.bat' to launch the software (or double click the desktop shortcut).
+
+Everything is self-contained in the Sammie-Roto folder. If you want to remove the application, simply delete this folder.
+
+### Installation (Linux, Mac)
+- Download latest version from [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)
+- Extract the zip archive.
+- Open a terminal and navigate to the Sammie-Roto folder that you just extracted from the zip.
+- Execute the following command in the terminal: `bash install.sh` then follow the prompt.
+- MacOS users: double-click the desktop icon to launch the program. Linux users: `bash run_sammie.sh` or find it in the applications menu.
+
 ### Updates
 **Full Changelog can be seen under [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)**
+- [09/05/2026] 2.4.1 - Premilinary support for AMD GPUs on Windows, some bugfixes.
 - [08/22/2026] 2.4.0 - New installer/updater, additional segmentation tracking options, many small fixes and improvements.
 - [04/17/2026] 2.3.3 - Several large performance optimizations, and colorspace conversions are now handled correctly.
 - [04/10/2026] 2.3.2 - Improved temporal stability for VideoMaMa.
@@ -28,30 +53,6 @@ Sammie-Roto 2 is free and open source, but runs models produced by several exter
 - [12/16/2025] 2.1.0 - Added In/Out markers. Modifying points no longer deletes tracking data. Enabled half-precision for much faster segmentation. Added EfficientTAM model.
 - [11/23/2025] 2.0.0 - First stable release. Includes several new features and bugfixes. New quick-start video tutorial and [Discord server](https://discord.gg/jb5qrFyGFF).
 - [10/31/2025] Release of Sammie-Roto 2 Beta.
-
-### Documentation and Tutorials:
-## [Wiki Documentation and usage guide](https://github.com/Zarxrax/Sammie-Roto-2/wiki)
-
-[![Quick Start Video](https://img.youtube.com/vi/m0iZpxsZJcE/0.jpg)](https://www.youtube.com/watch?v=m0iZpxsZJcE)
-
-*This video does not cover new features and changes added since version 2.0
-
-### Installation (Windows):
-- Download latest version from [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)
-- Extract the zip archive to any location that doesn't restrict write permissions (so not in Program Files)
-- Run 'install_dependencies.bat' and follow the prompt.
-- Run 'run_sammie.bat' to launch the software.
-
-Everything is self-contained in the Sammie-Roto folder. If you want to remove the application, simply delete this folder. You can also move the folder.
-
-### Installation (Linux, Mac)
-- MacOS users: Make sure Homebrew is installed.
-- Ensure [Python](https://www.python.org/) is installed (version 3.10 or higher, 3.12 recommended)
-- Download latest version from [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)
-- Extract the zip archive.
-- Open a terminal and navigate to the Sammie-Roto folder that you just extracted from the zip.
-- Execute the following command: `bash install_dependencies.sh` then follow the prompt.
-- MacOS users: double-click "run_sammie.command" to launch the program. Linux users: `bash run_sammie.command` or execute the file however you prefer.
 
 ### Acknowledgements
 * [SAM 2](https://github.com/facebookresearch/sam2)
