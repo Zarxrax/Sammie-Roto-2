@@ -39,7 +39,7 @@ fi
 if [ ! -f "$UV_EXE" ]; then
     echo "Downloading uv to isolated folder..."
     # Use the official shell installer script
-    curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | UV_INSTALL_DIR="$UV_DIR" sh
+    curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | UV_INSTALL_DIR="$UV_DIR" UV_NO_MODIFY_PATH=1 sh
 
     if [ $? -ne 0 ]; then
         echo "Failed to install uv."
