@@ -13,6 +13,11 @@ dependencies = [
     "OpenEXR~=3.4",
     "diffusers~=0.39",
     "einops~=0.8",
+    # macOS gets standard torch and torchvision, 
+    # other platforms require extras defined in the optional-dependencies
+    "torch==2.11.0 ; sys_platform == 'darwin'",
+    "torchvision==0.26.0 ; sys_platform == 'darwin'",
+    "accelerate~=1.14 ; sys_platform == 'darwin'",
 ]
 
 [project.optional-dependencies]
