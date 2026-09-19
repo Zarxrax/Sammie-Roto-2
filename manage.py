@@ -152,7 +152,7 @@ def choose_backend():
 
 def sync_env(backend, reinstall=False):
     """Uses uv sync to update or reinstall the environment."""
-    cmd = [get_uv_exe(), "sync", "--frozen"]
+    cmd = [get_uv_exe(), "sync", "--frozen", "--python", PYTHON_VERSION, "--python-preference", "only-managed"]
     if backend:
         cmd.extend(["--extra", backend])
     

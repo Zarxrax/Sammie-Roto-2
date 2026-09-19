@@ -2,7 +2,7 @@
 name = "Sammie-Roto-2"
 version = "2.4.1"
 description = "Sammie Roto 2 application"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 
 dependencies = [
     "opencv-python~=4.14",
