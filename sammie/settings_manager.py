@@ -48,6 +48,7 @@ class ApplicationSettings:
     default_videomama_memory_gib: int = 32
     default_videomama_memory_enabled: bool = True
     default_matany_combined: bool = False
+    matting_auto_export: bool = False
 
     # Object Removal Processing defaults
     default_removal_method: str = "MiniMax-Remover"

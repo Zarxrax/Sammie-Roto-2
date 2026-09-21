@@ -2443,6 +2443,7 @@ class MainWindow(QMainWindow):
             QApplication.processEvents()
             self.sam_manager.offload_model_to_cpu()
             QApplication.processEvents()
+            matting_succeeded = False
             try:
                 if self.matany_manager.BACKEND != matting_model: # if the existing matting manager backend is wrong, create a new one
                     self.matany_manager = matting.create_matting_manager()
@@ -2451,7 +2452,9 @@ class MainWindow(QMainWindow):
                     return
                 QApplication.processEvents()
                 progress.close()
-                self.matany_manager.run_matting(self.point_manager.points, parent_window=self, combined=combined)
+                matting_succeeded = self.matany_manager.run_matting(
+                    self.point_manager.points, parent_window=self, combined=combined
+                ) == 1
             except Exception as e:
                 if "out of memory" in str(e):
                     show_message_dialog(self, title="Error", message="An out of memory error occurred. Please try again with lower settings." , type="warning")
@@ -2470,6 +2473,8 @@ class MainWindow(QMainWindow):
                 QApplication.processEvents()
                 self.sam_manager.load_model_to_device()
                 progress.close()
+            if matting_succeeded and self.settings_mgr.get_app_setting("matting_auto_export", False):
+                self.export_video(auto=True)
         else:
             print("Points must be added on the Segmentation tab before matting")
 
@@ -3056,7 +3061,7 @@ class MainWindow(QMainWindow):
                 print("Failed to load project")
                 return
 
-    def export_video(self):
+    def export_video(self, auto=False):
         """Open export dialog"""
         self.settings_mgr.save_session_settings()
         self.settings_mgr.save_points(self.point_manager.get_all_points())
@@ -3064,7 +3069,7 @@ class MainWindow(QMainWindow):
             show_message_dialog(self, title="Export Error", message="No video data available. Please load a video first.", type="warning")
             return
         
-        dialog = ExportDialog(self)
+        dialog = ExportDialog(self, auto=auto)
         dialog.exec()
     
     def export_image(self):
