@@ -1,5 +1,5 @@
 # sammie/removal.py
-import cv2
+from sammie import image_ops
 import os
 import math
 import numpy as np
@@ -223,8 +223,8 @@ class MinimaxRemovalManager(RemovalManager):
             frame_number = start_frame + i
             composited = self.composite_removal_over_original(frame, frame_number, points)
             output_path = os.path.join(core.removal_dir, f"{frame_number:05d}.{extension}")
-            frame_bgr = cv2.cvtColor(composited, cv2.COLOR_RGB2BGR)
-            cv2.imwrite(output_path, frame_bgr)
+            frame_bgr = image_ops.cvtColor(composited, image_ops.COLOR_RGB2BGR)
+            image_ops.imwrite(output_path, frame_bgr)
 
         if frame_count == frames_to_process:  # only set propagated if the whole video was processed
             self.propagated = True
@@ -268,17 +268,17 @@ class MinimaxRemovalManager(RemovalManager):
             frame_path = os.path.join(core.frames_dir, f"{frame_number:05d}.{extension}")
 
             # Load frame
-            frame = cv2.imread(frame_path)
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame = image_ops.imread(frame_path)
+            frame = image_ops.cvtColor(frame, image_ops.COLOR_BGR2RGB)
 
             # Combine masks for all objects on this frame
             combined_mask = np.zeros(frame.shape[:2], np.uint8)
             for object_id in object_ids:
                 mask_path = os.path.join(core.mask_dir, f"{frame_number:05d}", f"{object_id}.png")
                 if os.path.exists(mask_path):
-                    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+                    mask = image_ops.imread(mask_path, image_ops.IMREAD_GRAYSCALE)
                     if mask is not None:
-                        combined_mask = cv2.bitwise_or(combined_mask, mask)
+                        combined_mask = image_ops.bitwise_or(combined_mask, mask)
 
             # Apply segmentation postprocessing (holes, dots, border_fix, grow)
             combined_mask = core.apply_mask_postprocessing(combined_mask)
@@ -314,16 +314,16 @@ class MinimaxRemovalManager(RemovalManager):
             np.ndarray: Composited RGB frame at original resolution
         """
         settings_mgr = get_settings_manager()
-        original_size = (core.VideoInfo.width, core.VideoInfo.height)  # (width, height) for cv2.resize
+        original_size = (core.VideoInfo.width, core.VideoInfo.height)  # (width, height) for image_ops.resize
 
         # Load original full-resolution image
         original_frame = core.load_base_frame(frame_number)
         if original_frame is None:
             print(f"Warning: Could not load original frame {frame_number}, using processed frame only")
-            return cv2.resize(processed_frame, original_size, interpolation=cv2.INTER_LINEAR)
+            return image_ops.resize(processed_frame, original_size, interpolation=image_ops.INTER_LINEAR)
 
         # Resize processed frame to original size
-        frame_restored = cv2.resize(processed_frame, original_size, interpolation=cv2.INTER_LINEAR)
+        frame_restored = image_ops.resize(processed_frame, original_size, interpolation=image_ops.INTER_LINEAR)
 
         # Load original masks
         original_mask = core.load_masks_for_frame(frame_number, points, return_combined=True)
@@ -343,7 +343,7 @@ class MinimaxRemovalManager(RemovalManager):
 
         # Apply feathering to the mask for smoother transitions
         feather_radius = 10
-        mask_feathered = cv2.GaussianBlur(original_mask, (feather_radius * 2 + 1, feather_radius * 2 + 1), 0)
+        mask_feathered = image_ops.GaussianBlur(original_mask, (feather_radius * 2 + 1, feather_radius * 2 + 1), 0)
 
         # Convert mask to 3-channel and normalize to [0, 1]
         mask_3channel = np.stack([mask_feathered] * 3, axis=-1).astype(np.float32) / 255.0
@@ -383,7 +383,7 @@ class MinimaxRemovalManager(RemovalManager):
 
         # Only resize if necessary
         if (new_w, new_h) != (w, h):
-            interpolation = cv2.INTER_NEAREST if mask else cv2.INTER_AREA
-            image = cv2.resize(image, (new_w, new_h), interpolation=interpolation)
+            interpolation = image_ops.INTER_NEAREST if mask else image_ops.INTER_AREA
+            image = image_ops.resize(image, (new_w, new_h), interpolation=interpolation)
 
         return image

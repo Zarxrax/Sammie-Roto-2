@@ -94,7 +94,7 @@ class SAM2AutomaticMaskGenerator:
             list is used in the nth crop layer. Exclusive with points_per_side.
           min_mask_region_area (int): If >0, postprocessing will be applied
             to remove disconnected regions and holes in masks with area smaller
-            than min_mask_region_area. Requires opencv.
+            than min_mask_region_area.
           output_mode (str): The form masks are returned in. Can be 'binary_mask',
             'uncompressed_rle', or 'coco_rle'. 'coco_rle' requires pycocotools.
             For large resolutions, 'binary_mask' may consume large amounts of

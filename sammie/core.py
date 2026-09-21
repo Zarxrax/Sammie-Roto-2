@@ -1,5 +1,5 @@
 # sammie/core.py
-import cv2
+from sammie import image_ops
 import os
 import numpy as np
 import torch
@@ -298,8 +298,8 @@ def load_base_frame(frame_number):
     extension = get_frame_extension()
     frame_filename = os.path.join(frames_dir, f"{frame_number:05d}.{extension}")
     if os.path.exists(frame_filename):
-        image = cv2.imread(frame_filename)
-        return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = image_ops.imread(frame_filename)
+        return image_ops.cvtColor(image, image_ops.COLOR_BGR2RGB)
     else:
         print(f"{frame_filename} not found")
         return None
@@ -339,7 +339,7 @@ def load_masks_for_frame(frame_number, points, return_combined=True, object_id_f
     for object_id in object_ids:
         mask_filename = os.path.join(folder, f"{frame_number:05d}", f"{object_id}.png")
         if os.path.exists(mask_filename):
-            mask = cv2.imread(mask_filename, cv2.IMREAD_GRAYSCALE)
+            mask = image_ops.imread(mask_filename, image_ops.IMREAD_GRAYSCALE)
             if mask is not None:
                 individual_masks[object_id] = mask
         else:
@@ -401,24 +401,23 @@ def apply_matany_postprocessing(mask):
 
 def fill_small_holes(mask, holes_value):
     max_hole_area = holes_value ** 2
+    _, labels, stats, _ = image_ops.connectedComponentsWithStats(mask == 0, connectivity=8)
+    border_labels = np.unique(np.concatenate((labels[0], labels[-1], labels[:, 0], labels[:, -1])))
+    fill_labels = np.flatnonzero(stats[:, image_ops.CC_STAT_AREA] <= max_hole_area)
+    fill_labels = fill_labels[~np.isin(fill_labels, border_labels)]
+    small = np.isin(labels, fill_labels)
     filled_mask = mask.copy()
-    contours, hierarchy = cv2.findContours(mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
-
-    for i, contour in enumerate(contours):
-        area = cv2.contourArea(contour)
-        if area <= max_hole_area and hierarchy[0][i][3] != -1:  # Check if it's a hole (child contour)
-            cv2.drawContours(filled_mask, [contour], -1, 255, thickness=cv2.FILLED)
-
+    filled_mask[small] = 255
     return filled_mask
 
 
 def remove_small_dots(mask, dots_value):
     max_dot_area = dots_value ** 2
-    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    num_labels, labels, stats, _ = image_ops.connectedComponentsWithStats(mask, connectivity=8)
 
     cleaned_mask = np.zeros_like(mask)
     for label in range(1, num_labels):  # skip background
-        if stats[label, cv2.CC_STAT_AREA] > max_dot_area:
+        if stats[label, image_ops.CC_STAT_AREA] > max_dot_area:
             cleaned_mask[labels == label] = 255
 
     return cleaned_mask
@@ -427,9 +426,9 @@ def remove_small_dots(mask, dots_value):
 def grow_shrink(mask, grow_value):
     kernel = np.ones((abs(grow_value) + 1, abs(grow_value) + 1), np.uint8)
     if grow_value > 0:
-        return cv2.dilate(mask, kernel, iterations=1)
+        return image_ops.dilate(mask, kernel, iterations=1)
     elif grow_value < 0:
-        return cv2.erode(mask, kernel, iterations=1)
+        return image_ops.erode(mask, kernel, iterations=1)
     else:
         return mask
 
@@ -442,10 +441,10 @@ def apply_border_fix(mask, border_size):
     y_end = height - border_size
     x_start = border_size
     x_end = width - border_size
-    return cv2.copyMakeBorder(
+    return image_ops.copyMakeBorder(
         mask[y_start:y_end, x_start:x_end],
         border_size, border_size, border_size, border_size,
-        cv2.BORDER_REPLICATE,
+        image_ops.BORDER_REPLICATE,
         value=None
     )
 
@@ -453,7 +452,7 @@ def apply_border_fix(mask, border_size):
 def change_gamma(mask, gamma_value):
     inv_gamma = 1.0 / gamma_value
     table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in range(256)]).astype("uint8")
-    return cv2.LUT(mask, table)
+    return image_ops.LUT(mask, table)
 
 
 
@@ -496,7 +495,7 @@ def compute_mask_bounding_box(frame_range, object_ids, combine_ids=None, buffer=
             mask_path = os.path.join(mask_dir, f"{frame_num:05d}", f"{oid}.png")
             if not os.path.exists(mask_path):
                 continue
-            m = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+            m = image_ops.imread(mask_path, image_ops.IMREAD_GRAYSCALE)
             if m is None:
                 continue
             union_mask = m if union_mask is None else np.maximum(union_mask, m)
@@ -590,4 +589,3 @@ def expand_to_full(image, crop_rect, full_w, full_h):
         canvas = np.zeros((full_h, full_w), dtype=image.dtype)
     canvas[y1:y2 + 1, x1:x2 + 1] = image
     return canvas
-

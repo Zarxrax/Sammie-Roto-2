@@ -2,13 +2,12 @@ import logging
 from typing import List, Optional, Iterable, Union,Tuple
 
 import os
-import cv2
+from sammie import image_ops
 import torch
 #import imageio
 import tempfile
 import numpy as np
 from tqdm import tqdm
-from PIL import Image
 import torch.nn.functional as F
 from matting.matanyone.vendor.config import MatAnyoneConfig
 from matting.matanyone.vendor.inference.memory_manager import MemoryManager
@@ -482,7 +481,7 @@ class InferenceCore:
             os.makedirs(f"{output_path}/{video_name}/pha", exist_ok=True)
             os.makedirs(f"{output_path}/{video_name}/fgr", exist_ok=True)
 
-        mask = np.array(Image.open(mask_path).convert("L"))
+        mask = image_ops.imread(mask_path, image_ops.IMREAD_GRAYSCALE)
         if r_dilate > 0:
             mask = gen_dilate(mask, r_dilate, r_dilate)
         if r_erode > 0:
@@ -523,11 +522,11 @@ class InferenceCore:
                 fgrs.append(com_np)
                 phas.append(pha)
                 if save_image:
-                    cv2.imwrite(
+                    image_ops.imwrite(
                         f"{output_path}/{video_name}/pha/{str(ti - n_warmup).zfill(5)}.png",
                         pha,
                     )
-                    cv2.imwrite(
+                    image_ops.imwrite(
                         f"{output_path}/{video_name}/fgr/{str(ti - n_warmup).zfill(5)}.png",
                         com_np[..., [2, 1, 0]],
                     )

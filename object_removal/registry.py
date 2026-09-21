@@ -37,6 +37,8 @@ def get_engine_specs():
 
 
 def get_engine(engine_id):
+    if engine_id == "OpenCV":  # Existing saved sessions
+        engine_id = "OIIO Fill"
     return next((spec for spec in get_engine_specs() if spec.id == engine_id), None)
 
 

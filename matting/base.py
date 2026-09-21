@@ -1,4 +1,4 @@
-import cv2
+from sammie import image_ops
 import os
 import numpy as np
 import torch
@@ -72,12 +72,12 @@ class MattingManager:
             new_w = (int(w * scale) // 8) * 8
             
             # 3. Always resize, even if scale is 1.0, to catch those extra pixels
-            return cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_AREA)
+            return image_ops.resize(image, (new_w, new_h), interpolation=image_ops.INTER_AREA)
     
     def _restore_image_size(self, image, original_size):
-        """Restore image to original size. original_size must be (w, h) as expected by cv2."""
+        """Restore image to original size. original_size must be (w, h) as expected by image_ops."""
         original_w, original_h = original_size
-        restored_image = cv2.resize(image, (original_w, original_h), interpolation=cv2.INTER_LINEAR)
+        restored_image = image_ops.resize(image, (original_w, original_h), interpolation=image_ops.INTER_LINEAR)
         return restored_image
 
     def _load_mask_for_matting(self, object_id, frame_number, device, combine_ids=None):
@@ -104,7 +104,7 @@ class MattingManager:
                 mask_filename = os.path.join(core.mask_dir, f"{frame_number:05d}", f"{oid}.png")
                 if not os.path.exists(mask_filename):
                     continue
-                m = cv2.imread(mask_filename, cv2.IMREAD_GRAYSCALE)
+                m = image_ops.imread(mask_filename, image_ops.IMREAD_GRAYSCALE)
                 if m is None:
                     continue
                 if original_size is None:
@@ -122,7 +122,7 @@ class MattingManager:
             print(f"Mask not found for object {object_id} at frame {frame_number}: {mask_filename}")
             return None, None
 
-        mask = cv2.imread(mask_filename, cv2.IMREAD_GRAYSCALE)
+        mask = image_ops.imread(mask_filename, image_ops.IMREAD_GRAYSCALE)
         if mask is None or not np.any(mask):
             print(f"Mask is blank or invalid for object {object_id} at frame {frame_number}")
             return None, None

@@ -14,6 +14,8 @@ Sammie-Roto 2 is an easy-to-use, cross-platform desktop application for AI assis
 - Video Matting using [MatAnyone](https://github.com/pq-yang/MatAnyone), [MatAnyone 2](https://github.com/pq-yang/MatAnyone2), and [VideoMaMa](https://github.com/cvlab-kaist/VideoMaMa)
 - Video Object Removal using [MiniMax-Remover](https://github.com/zibojia/MiniMax-Remover)
 
+Still images and image sequences are read with [OpenImageIO](https://github.com/AcademySoftwareFoundation/OpenImageIO), including EXR and the other image formats enabled in the installed OpenImageIO build. Imported source files retain their original format in the working frame cache. Model inputs and the interactive preview are converted to 8-bit RGB; HDR values and source alpha are not preserved through model inference.
+
 Sammie-Roto 2 is free and open source, but runs models produced by several external projects and organizations. Some models may have restrictions on commercial usage. Please check with the relevant model provider if you have questions regarding licensing.
 
 ### Documentation and Tutorials:
@@ -42,7 +44,8 @@ Everything is self-contained in the Sammie-Roto folder. If you want to remove th
 
 ### Updates
 **Full Changelog can be seen under [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)**
-- [09/05/2026] 2.4.1 - Premilinary support for AMD GPUs on Windows, some bugfixes.
+- [09/21/2026] 2.5.0 - Added a configurable memory budget with tiled VideoMaMa processing on MPS and CUDA, plus optional automatic matting export. Refactored matting, segmentation, and object removal into self-contained engines. Switched image loading and processing to OpenImageIO and NumPy, adding EXR and other supported image formats, multilayer EXR export, and OIIO Fill object removal. Fixed SAM2 frame loading and updated shortcuts: F to fit, H for 100% zoom, and Left/Right arrows to change frames.
+- [09/05/2026] 2.4.1 - Preliminary support for AMD GPUs on Windows, some bugfixes.
 - [08/22/2026] 2.4.0 - New installer/updater, additional segmentation tracking options, many small fixes and improvements.
 - [04/17/2026] 2.3.3 - Several large performance optimizations, and colorspace conversions are now handled correctly.
 - [04/10/2026] 2.3.2 - Improved temporal stability for VideoMaMa.

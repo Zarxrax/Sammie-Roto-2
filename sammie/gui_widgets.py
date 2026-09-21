@@ -720,10 +720,8 @@ class ImageViewer(QGraphicsView):
             if urls:
                 file_path = urls[0].toLocalFile()
                 # Check if it's a supported file type
-                supported_extensions = [
-                    '.mp4', '.m4v', '.mkv', '.mov', '.avi', '.webm',
-                    '.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif', '.webp'
-                ]
+                from sammie import image_ops
+                supported_extensions = {'.mp4', '.m4v', '.mkv', '.mov', '.avi', '.webm'} | image_ops.supported_extensions()
                 if any(file_path.lower().endswith(ext) for ext in supported_extensions):
                     event.acceptProposedAction()
                     return

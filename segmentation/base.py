@@ -1,7 +1,7 @@
 """Shared prompt, tracking, and mask state for segmentation engines."""
 import os
 import shutil
-import cv2
+from sammie import image_ops
 import numpy as np
 from tqdm import tqdm
 from PySide6.QtCore import Qt
@@ -213,7 +213,7 @@ class SamManager:
                 mask = (out_mask_logits[i] > 0.0).cpu().numpy().squeeze()
                 mask = (mask * 255).astype(np.uint8)
                 os.makedirs(os.path.dirname(mask_filename), exist_ok=True)
-                cv2.imwrite(mask_filename, mask)
+                image_ops.imwrite(mask_filename, mask)
 
             # Notify that segmentation is complete
             self._notify('segmentation_complete', frame=frame_number, object_id=object_id, out_obj_ids=out_obj_ids)
@@ -312,7 +312,7 @@ class SamManager:
                     mask = (mask * 255).astype(np.uint8)
                     try:
                         os.makedirs(os.path.dirname(mask_filename), exist_ok=True)
-                        cv2.imwrite(mask_filename, mask)
+                        image_ops.imwrite(mask_filename, mask)
                     except Exception as e:
                         print(f"Error saving mask for frame {frame_number}, object {out_obj_id}: {e}")
 
@@ -359,7 +359,7 @@ class SamManager:
                 mask = (out_mask_logits[i] > 0.0).cpu().numpy().squeeze()
                 mask = (mask * 255).astype(np.uint8)
                 os.makedirs(os.path.dirname(mask_filename), exist_ok=True)
-                cv2.imwrite(mask_filename, mask)
+                image_ops.imwrite(mask_filename, mask)
 
             last_frame_idx = out_frame_idx
 

@@ -1,5 +1,5 @@
-"""OpenCV frame inpainting engine."""
-import cv2
+"""OpenImageIO push-pull object removal engine."""
+from sammie import image_ops
 import os
 import numpy as np
 from tqdm import tqdm
@@ -9,16 +9,16 @@ from sammie import core
 from sammie.settings_manager import get_settings_manager
 from object_removal.base import RemovalManager
 
-class OpenCVRemovalManager(RemovalManager):
+class OIIOFillRemovalManager(RemovalManager):
     def run(self, points, parent_window=None):
-        return self.run_object_removal_cv(points, parent_window)
+        return self.run_object_removal(points, parent_window)
 
     def unload(self):
         pass
 
-    def run_object_removal_cv(self, points_list, parent_window):
+    def run_object_removal(self, points_list, parent_window):
         """
-        Run OpenCV object removal (inpainting) on all frames with points.
+        Fill removed regions using OpenImageIO on all frames with points.
         Processes per frame instead of per object and combines masks for all objects.
 
         Args:
@@ -43,21 +43,10 @@ class OpenCVRemovalManager(RemovalManager):
         print(f"Processing removal from frame {start_frame} to {end_frame} ({frames_to_process} frames)")
 
         # Get settings
-        inpaint_method = settings_mgr.get_session_setting("inpaint_method", "Telea")
-        inpaint_radius = settings_mgr.get_session_setting("inpaint_radius", 3)
         grow = settings_mgr.get_session_setting("grow", 0)  # segmentation grow
         inpaint_grow = settings_mgr.get_session_setting("inpaint_grow", 0)  # object removal grow
         inpaint_grow = inpaint_grow + grow
         display_update_frequency = settings_mgr.get_app_setting("display_update_frequency", 5)
-
-        # Convert method string to OpenCV constant
-        if inpaint_method == "Telea":
-            cv2_method = cv2.INPAINT_TELEA
-        elif inpaint_method == "Navier-Stokes":
-            cv2_method = cv2.INPAINT_NS
-        else:
-            print(f"Unknown inpaint method: {inpaint_method}, defaulting to Telea")
-            cv2_method = cv2.INPAINT_TELEA
 
         # Get unique object IDs
         object_ids = sorted(list(set(p['object_id'] for p in points_list if 'object_id' in p)))
@@ -94,7 +83,7 @@ class OpenCVRemovalManager(RemovalManager):
                 QApplication.processEvents()
                 continue
 
-            frame = cv2.imread(frame_filename)
+            frame = image_ops.imread(frame_filename)
             if frame is None:
                 operations_completed += 1
                 tqdm_bar.update(1)
@@ -107,15 +96,15 @@ class OpenCVRemovalManager(RemovalManager):
             for object_id in object_ids:
                 mask_filename = os.path.join(core.mask_dir, f"{frame_number:05d}", f"{object_id}.png")
                 if os.path.exists(mask_filename):
-                    mask = cv2.imread(mask_filename, cv2.IMREAD_GRAYSCALE)
+                    mask = image_ops.imread(mask_filename, image_ops.IMREAD_GRAYSCALE)
                     if mask is not None:
-                        combined_mask = cv2.bitwise_or(combined_mask, mask)
+                        combined_mask = image_ops.bitwise_or(combined_mask, mask)
 
             # Skip if no mask present, copy original frame
             if not np.any(combined_mask):
                 output_filename = os.path.join(core.removal_dir, f"{frame_number:05d}.png")
                 os.makedirs(os.path.dirname(output_filename), exist_ok=True)
-                cv2.imwrite(output_filename, frame)
+                image_ops.imwrite(output_filename, frame)
                 operations_completed += 1
                 tqdm_bar.update(1)
                 progress_dialog.setValue(operations_completed)
@@ -133,16 +122,16 @@ class OpenCVRemovalManager(RemovalManager):
 
             # Run inpainting
             try:
-                result = cv2.inpaint(frame, combined_mask, inpaint_radius, cv2_method)
+                result = image_ops.inpaint(frame, combined_mask)
                 output_filename = os.path.join(core.removal_dir, f"{frame_number:05d}.png")
                 os.makedirs(os.path.dirname(output_filename), exist_ok=True)
-                cv2.imwrite(output_filename, result)
+                image_ops.imwrite(output_filename, result)
 
             except Exception as e:
                 print(f"Error inpainting frame {frame_number}: {e}")
                 output_filename = os.path.join(core.removal_dir, f"{frame_number:05d}.png")
                 os.makedirs(os.path.dirname(output_filename), exist_ok=True)
-                cv2.imwrite(output_filename, frame)
+                image_ops.imwrite(output_filename, frame)
 
             operations_completed += 1
             tqdm_bar.update(1)

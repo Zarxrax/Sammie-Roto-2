@@ -3,11 +3,9 @@
 Export worker threads for different export modes.
 """
 import os
-import cv2
+from sammie import image_ops
 import av
 import numpy as np
-import OpenEXR
-import Imath
 from fractions import Fraction
 from PySide6.QtCore import QThread, Signal
 from sammie import sammie
@@ -427,12 +425,12 @@ class SequenceExportWorker(BaseExportWorker):
                     elif not has_alpha and frame_array.shape[2] == 4:
                         frame_array = frame_array[:, :, :3]
 
-                    # Save PNG with OpenCV
+                    # Save PNG through OpenImageIO
                     if has_alpha:
-                        bgra = cv2.cvtColor(frame_array, cv2.COLOR_RGBA2BGRA)
+                        bgra = image_ops.cvtColor(frame_array, image_ops.COLOR_RGBA2BGRA)
                     else:
-                        bgra = cv2.cvtColor(frame_array, cv2.COLOR_RGB2BGR)
-                    cv2.imwrite(frame_path, bgra, [cv2.IMWRITE_PNG_COMPRESSION, 4])
+                        bgra = image_ops.cvtColor(frame_array, image_ops.COLOR_RGB2BGR)
+                    image_ops.imwrite(frame_path, bgra, [image_ops.IMWRITE_PNG_COMPRESSION, 4])
                 
                 progress = int((i + 1) / self.export_frame_count * 100)
                 self.progress_updated.emit(progress)
@@ -453,35 +451,7 @@ class SequenceExportWorker(BaseExportWorker):
     @staticmethod
     def _write_exr_file(filepath: str, data_dict: dict, color_space: int = 1):
         """Write EXR file with multiple layers"""
-
-        try:
-            first_layer = next(iter(data_dict.values()))
-            height, width = first_layer.shape
-            
-            header = OpenEXR.Header(width, height)
-            FLOAT = Imath.PixelType(Imath.PixelType.FLOAT)
-            
-            # Declare channels
-            header['channels'] = {name: Imath.Channel(FLOAT) for name in data_dict.keys()}
-            
-            # Enable ZIP compression
-            header['compression'] = Imath.Compression(Imath.Compression.ZIP_COMPRESSION)
-            
-            out = OpenEXR.OutputFile(filepath, header)
-            
-            # Prepare channel data
-            channels = {}
-            for name, arr in data_dict.items():
-                if arr.dtype != np.float32:
-                    arr = arr.astype(np.float32)
-                arr = np.ascontiguousarray(arr)
-                channels[name] = arr.tobytes()
-            
-            out.writePixels(channels)
-            out.close()
-            
-        except Exception as e:
-            raise RuntimeError(f"Failed to write EXR file: {e}")
+        image_ops.write_exr_layers(filepath, data_dict)
     
     @staticmethod
     def _cleanup_files(file_paths: list):

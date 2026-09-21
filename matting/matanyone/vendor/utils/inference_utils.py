@@ -1,12 +1,12 @@
 import os
-import cv2
+from sammie import image_ops
 import random
 import numpy as np
 
 import torch
 import torchvision
 
-IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG')
+IMAGE_EXTENSIONS = tuple(image_ops.supported_extensions())
 VIDEO_EXTENSIONS = ('.mp4', '.mov', '.avi', '.MP4', '.MOV', '.AVI')
 
 def read_frame_from_videos(frame_root):
@@ -19,7 +19,9 @@ def read_frame_from_videos(frame_root):
         frames = []
         fr_lst = sorted(os.listdir(frame_root))
         for fr in fr_lst:
-            frame = cv2.imread(os.path.join(frame_root, fr))[...,[2,1,0]] # RGB, HWC
+            if not image_ops.is_supported_image(fr):
+                continue
+            frame = image_ops.read_rgb(os.path.join(frame_root, fr))
             frames.append(frame)
         fps = 24  # default
         frames = torch.Tensor(np.array(frames)).permute(0, 3, 1, 2).contiguous() # TCHW
@@ -41,14 +43,14 @@ def str_to_list(value):
 
 def gen_dilate(alpha, min_kernel_size, max_kernel_size): 
     kernel_size = random.randint(min_kernel_size, max_kernel_size)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size,kernel_size))
+    kernel = image_ops.getStructuringElement(image_ops.MORPH_ELLIPSE, (kernel_size,kernel_size))
     fg_and_unknown = np.array(np.not_equal(alpha, 0).astype(np.float32))
-    dilate = cv2.dilate(fg_and_unknown, kernel, iterations=1)*255
+    dilate = image_ops.dilate(fg_and_unknown, kernel, iterations=1)*255
     return dilate.astype(np.float32)
 
 def gen_erosion(alpha, min_kernel_size, max_kernel_size): 
     kernel_size = random.randint(min_kernel_size, max_kernel_size)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size,kernel_size))
+    kernel = image_ops.getStructuringElement(image_ops.MORPH_ELLIPSE, (kernel_size,kernel_size))
     fg = np.array(np.equal(alpha, 255).astype(np.float32))
-    erode = cv2.erode(fg, kernel, iterations=1)*255
+    erode = image_ops.erode(fg, kernel, iterations=1)*255
     return erode.astype(np.float32)

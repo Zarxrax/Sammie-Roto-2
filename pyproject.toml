@@ -1,16 +1,15 @@
 [project]
 name = "Sammie-Roto-2"
-version = "2.4.1"
+version = "2.5.0"
 description = "Sammie Roto 2 application"
 requires-python = ">=3.12"
 
 dependencies = [
-    "opencv-python~=4.14",
+    "OpenImageIO>=3.1,<4",
     "PySide6-essentials==6.9.3",
     "av~=18.1",
     "requests~=2.34",
     "tqdm~=4.70",
-    "OpenEXR~=3.4",
     "diffusers~=0.39",
     "einops~=0.8",
     # macOS gets standard torch and torchvision, 

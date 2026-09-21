@@ -264,7 +264,7 @@ def sample_one_point_from_error_center(gt_masks, pred_masks, padding=True):
     - points: [B, 1, 2], dtype=torch.float, contains (x, y) coordinates of each sampled point
     - labels: [B, 1], dtype=torch.int32, where 1 means positive clicks and 0 means negative clicks
     """
-    import cv2
+    from sammie import image_ops
 
     if pred_masks is None:
         pred_masks = torch.zeros_like(gt_masks)
@@ -292,8 +292,8 @@ def sample_one_point_from_error_center(gt_masks, pred_masks, padding=True):
             fn_mask = np.pad(fn_mask, ((1, 1), (1, 1)), "constant")
             fp_mask = np.pad(fp_mask, ((1, 1), (1, 1)), "constant")
         # compute the distance of each point in FN/FP region to its boundary
-        fn_mask_dt = cv2.distanceTransform(fn_mask.astype(np.uint8), cv2.DIST_L2, 0)
-        fp_mask_dt = cv2.distanceTransform(fp_mask.astype(np.uint8), cv2.DIST_L2, 0)
+        fn_mask_dt = image_ops.distanceTransform(fn_mask.astype(np.uint8), image_ops.DIST_L2, 0)
+        fp_mask_dt = image_ops.distanceTransform(fp_mask.astype(np.uint8), image_ops.DIST_L2, 0)
         if padding:
             fn_mask_dt = fn_mask_dt[1:-1, 1:-1]
             fp_mask_dt = fp_mask_dt[1:-1, 1:-1]

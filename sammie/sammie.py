@@ -1,5 +1,5 @@
 # sammie/sammie.py
-import cv2
+from sammie import image_ops
 import os
 import numpy as np
 import shutil
@@ -93,8 +93,8 @@ def load_removal_frame(frame_number):
     """
     frame_filename = os.path.join(core.removal_dir, f"{frame_number:05d}.png")
     if os.path.exists(frame_filename):
-        image = cv2.imread(frame_filename)
-        return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = image_ops.imread(frame_filename)
+        return image_ops.cvtColor(image, image_ops.COLOR_BGR2RGB)
     else:
         return core.load_base_frame(frame_number)
 
@@ -202,7 +202,7 @@ def _handle_segmentation_bgcolor_view(frame_number, view_options, points, return
     bgcolor = view_options.get("bgcolor", (0, 255, 0))
     bg = np.full_like(image, bgcolor)
     alpha = mask_3channel[:, :, 0].astype(np.float32) / 255.0
-    image = cv2.blendLinear(image, bg, alpha, 1.0 - alpha)
+    image = image_ops.blendLinear(image, bg, alpha, 1.0 - alpha)
 
     if return_numpy:
         return image
@@ -232,7 +232,7 @@ def _handle_segmentation_alpha_view(frame_number, view_options, points, return_n
             mask_3channel = run_smoothing_model(mask_3channel, smoothing_model, device)
             mask = mask_3channel[:, :, 0]
 
-    image_rgba = cv2.merge([image[:, :, 0], image[:, :, 1], image[:, :, 2], mask])
+    image_rgba = image_ops.merge([image[:, :, 0], image[:, :, 1], image[:, :, 2], mask])
 
     if return_numpy:
         return image_rgba
@@ -272,7 +272,7 @@ def _handle_matting_bgcolor_view(frame_number, view_options, points, return_nump
     bgcolor = view_options.get("bgcolor", (0, 255, 0))
     bg = np.full_like(image, bgcolor)
     alpha = mask.astype(np.float32) / 255.0
-    image = cv2.blendLinear(image, bg, alpha, 1.0 - alpha)
+    image = image_ops.blendLinear(image, bg, alpha, 1.0 - alpha)
 
     if return_numpy:
         return image
@@ -292,7 +292,7 @@ def _handle_matting_alpha_view(frame_number, view_options, points, return_numpy=
         return _convert_to_qpixmap(image_rgba) if not return_numpy else image_rgba
 
     mask = core.apply_matany_postprocessing(mask)
-    image_rgba = cv2.merge([image[:, :, 0], image[:, :, 1], image[:, :, 2], mask])
+    image_rgba = image_ops.merge([image[:, :, 0], image[:, :, 1], image[:, :, 2], mask])
 
     if return_numpy:
         return image_rgba
@@ -341,7 +341,7 @@ def draw_masks(image, processed_masks):
 
     if np.any(mask_binary):
         overlay = image.copy()
-        overlay[mask_binary] = cv2.addWeighted(
+        overlay[mask_binary] = image_ops.addWeighted(
             image[mask_binary], 0.5,
             combined_colored_mask[mask_binary], 0.5, 0
         )
@@ -354,7 +354,7 @@ def draw_removal_overlay(image, mask):
     """Draw masked overlay on the current frame for object removal"""
     color_layer = np.full_like(image, 255, dtype=np.uint8)
     alpha = mask.astype(np.float32) / 255.0
-    return cv2.blendLinear(image, color_layer, 1.0 - (alpha * 0.5), alpha * 0.5)
+    return image_ops.blendLinear(image, color_layer, 1.0 - (alpha * 0.5), alpha * 0.5)
 
 def draw_contours(image, processed_masks):
     """Draw colored contours on the current frame (expects preprocessed masks)"""
@@ -365,7 +365,7 @@ def draw_contours(image, processed_masks):
     kernel = np.ones((3, 3), np.uint8)
 
     for object_id, mask in processed_masks.items():
-        edges = cv2.morphologyEx(mask, cv2.MORPH_GRADIENT, kernel)
+        edges = image_ops.morphologyEx(mask, image_ops.MORPH_GRADIENT, kernel)
         border_color = core.PALETTE[object_id % len(core.PALETTE)]
         overlay[edges > 0] = border_color
 
@@ -387,9 +387,9 @@ def draw_points(image, frame_number, points, highlighted_points=None):
         center = (point['x'], point['y'])
         point_color = (0, 255, 0) if point['positive'] else (255, 0, 0)
         if is_highlighted:
-            cv2.circle(image, center, 9, (0, 128, 255), 3)
-        cv2.circle(image, center, 5, (255, 255, 0), 2)
-        cv2.circle(image, center, 4, point_color, -1)
+            image_ops.circle(image, center, 9, (0, 128, 255), 3)
+        image_ops.circle(image, center, 5, (255, 255, 0), 2)
+        image_ops.circle(image, center, 4, point_color, -1)
 
     return image
 
@@ -484,7 +484,7 @@ def load_video(video_file, parent_window):
                 break
             path, frame = item
             try:
-                cv2.imwrite(path, frame)
+                image_ops.imwrite(path, frame)
             except Exception as e:
                 print(f"Error writing {path}: {e}")
             save_q.task_done()
@@ -507,8 +507,8 @@ def load_video(video_file, parent_window):
                 dst_color_range=2,  # always output full range for PNG
             ).to_ndarray()
 
-            # cv2.imwrite expects BGR
-            frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
+            # image_ops.imwrite expects BGR
+            frame_bgr = image_ops.cvtColor(frame_rgb, image_ops.COLOR_RGB2BGR)
 
             frame_filename = os.path.join(core.frames_dir, f"{frame_count:05d}.{frame_format}")
             save_q.put((frame_filename, frame_bgr))
@@ -654,9 +654,7 @@ def load_image_sequence(image_path, parent_window):
     progress_dialog.show()
 
     settings_mgr = get_settings_manager()
-    app_frame_format = settings_mgr.get_app_setting("frame_format", "png")
-
-    first_image = cv2.imread(files_to_load[0])
+    first_image = image_ops.imread(files_to_load[0])
     if first_image is None:
         progress_dialog.close()
         show_message_dialog(parent_window, title="Error",
@@ -668,19 +666,14 @@ def load_image_sequence(image_path, parent_window):
     core.VideoInfo.total_frames = len(files_to_load)
 
     for frame_count, source_path in enumerate(files_to_load):
-        image = cv2.imread(source_path)
+        image = image_ops.imread(source_path)
         if image is None:
             print(f"Warning: Could not load {source_path}, skipping...")
             continue
 
         source_ext = os.path.splitext(source_path)[1].lower()
-        if source_ext in ['.png', '.jpg', '.jpeg']:
-            output_ext = source_ext.lstrip('.')
-            frame_filename = os.path.join(core.frames_dir, f"{frame_count:05d}.{output_ext}")
-            shutil.copy2(source_path, frame_filename)
-        else:
-            frame_filename = os.path.join(core.frames_dir, f"{frame_count:05d}.{app_frame_format}")
-            cv2.imwrite(frame_filename, image)
+        frame_filename = os.path.join(core.frames_dir, f"{frame_count:05d}{source_ext}")
+        shutil.copy2(source_path, frame_filename)
 
         progress_dialog.setValue((frame_count + 1) * 100 // len(files_to_load))
         QApplication.processEvents()

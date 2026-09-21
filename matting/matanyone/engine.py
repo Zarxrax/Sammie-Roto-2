@@ -1,4 +1,4 @@
-import cv2
+from sammie import image_ops
 import os
 import numpy as np
 import torch
@@ -266,8 +266,8 @@ class MatAnyManager(MattingManager):
     def _process_single_frame(self, frame_path, mask, object_id, original_size, device, frame_number=0):
         """Process a single frame for matting"""
         try:
-            img = cv2.imread(frame_path)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img = image_ops.imread(frame_path)
+            img = image_ops.cvtColor(img, image_ops.COLOR_BGR2RGB)
             img = self._resize_image(img)
             img = torch.tensor(img / 255., dtype=torch.float32, device=device).permute(2, 0, 1)
 
@@ -283,7 +283,7 @@ class MatAnyManager(MattingManager):
 
             mat_filename = os.path.join(core.matting_dir, f"{frame_number:05d}", f"{object_id}.png")
             os.makedirs(os.path.dirname(mat_filename), exist_ok=True)
-            cv2.imwrite(mat_filename, mat)
+            image_ops.imwrite(mat_filename, mat)
             return True
 
         except Exception as e:
@@ -333,8 +333,8 @@ class MatAnyManager(MattingManager):
                     continue
 
                 frame_path = images[array_idx]
-                img = cv2.imread(frame_path)
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                img = image_ops.imread(frame_path)
+                img = image_ops.cvtColor(img, image_ops.COLOR_BGR2RGB)
                 img = self._resize_image(img)
                 img = torch.tensor(img / 255., dtype=torch.float32, device=device).permute(2, 0, 1)
 
@@ -357,7 +357,7 @@ class MatAnyManager(MattingManager):
                 # Save matte
                 mat_filename = os.path.join(core.matting_dir, f"{frame_number:05d}", f"{object_id}.png")
                 os.makedirs(os.path.dirname(mat_filename), exist_ok=True)
-                cv2.imwrite(mat_filename, mat)
+                image_ops.imwrite(mat_filename, mat)
                 core.DeviceManager.clear_cache()
 
                 # Update display at the specified frequency
@@ -400,8 +400,8 @@ class MatAnyManager(MattingManager):
                     continue
 
                 frame_path = images[array_idx]
-                img = cv2.imread(frame_path)
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                img = image_ops.imread(frame_path)
+                img = image_ops.cvtColor(img, image_ops.COLOR_BGR2RGB)
                 img = self._resize_image(img)
                 img = torch.tensor(img / 255., dtype=torch.float32, device=device).permute(2, 0, 1)
 
@@ -424,7 +424,7 @@ class MatAnyManager(MattingManager):
                 # Save matte
                 mat_filename = os.path.join(core.matting_dir, f"{frame_number:05d}", f"{object_id}.png")
                 os.makedirs(os.path.dirname(mat_filename), exist_ok=True)
-                cv2.imwrite(mat_filename, mat)
+                image_ops.imwrite(mat_filename, mat)
                 core.DeviceManager.clear_cache()
 
                 # Update display at the specified frequency

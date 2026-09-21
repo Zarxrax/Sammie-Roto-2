@@ -90,7 +90,8 @@ def mask_to_box(masks: torch.Tensor):
 
 
 def _load_img_as_tensor(img_path, image_size):
-    img_pil = Image.open(img_path).convert("RGB")
+    from sammie import image_ops
+    img_pil = Image.fromarray(image_ops.read_rgb(img_path))
 
     img = transforms.PILToTensor()(img_pil)
     img = transforms.functional.resize(
@@ -211,9 +212,7 @@ def load_video_frames(
             compute_device=compute_device,
         )
     else:
-        raise NotImplementedError(
-            "Only MP4 video and JPEG folder are supported at this moment"
-        )
+        raise NotImplementedError("Only an MP4 or a directory of numbered image frames is supported")
 
 
 def load_video_frames_from_jpg_images(
@@ -225,31 +224,16 @@ def load_video_frames_from_jpg_images(
     async_loading_frames=False,
     compute_device=torch.device("cuda"),
 ):
-    """
-    Load the video frames from a directory of JPEG files ("<frame_index>.jpg" format).
+    """Load numbered OpenImageIO-supported frames, optionally in the background."""
+    if not isinstance(video_path, str) or not os.path.isdir(video_path):
+        raise NotImplementedError("A directory of numbered image frames is required")
+    jpg_folder = video_path
 
-    The frames are resized to image_size x image_size and are loaded to GPU if
-    `offload_video_to_cpu` is `False` and to CPU if `offload_video_to_cpu` is `True`.
-
-    You can load a frame asynchronously by setting `async_loading_frames` to `True`.
-    """
-    if isinstance(video_path, str) and os.path.isdir(video_path):
-        jpg_folder = video_path
-    else:
-        raise NotImplementedError(
-            "Only JPEG frames are supported at this moment. For video files, you may use "
-            "ffmpeg (https://ffmpeg.org/) to extract frames into a folder of JPEG files, such as \n"
-            "```\n"
-            "ffmpeg -i <your_video>.mp4 -q:v 2 -start_number 0 <output_dir>/'%05d.jpg'\n"
-            "```\n"
-            "where `-q:v` generates high-quality JPEG frames and `-start_number 0` asks "
-            "ffmpeg to start the JPEG file from 00000.jpg."
-        )
-
+    from sammie import image_ops
     frame_names = [
         p
         for p in os.listdir(jpg_folder)
-        if os.path.splitext(p)[-1] in [".jpg", ".jpeg", ".JPG", ".JPEG", ".png", ".PNG"]
+        if image_ops.is_supported_image(p)
     ]
     frame_names.sort(key=lambda p: int(os.path.splitext(p)[0]))
     num_frames = len(frame_names)

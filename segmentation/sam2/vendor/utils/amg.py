@@ -273,12 +273,12 @@ def remove_small_regions(
     Removes small disconnected regions and holes in a mask. Returns the
     mask and an indicator of if the mask has been modified.
     """
-    import cv2  # type: ignore
+    from sammie import image_ops
 
     assert mode in ["holes", "islands"]
     correct_holes = mode == "holes"
     working_mask = (correct_holes ^ mask).astype(np.uint8)
-    n_labels, regions, stats, _ = cv2.connectedComponentsWithStats(working_mask, 8)
+    n_labels, regions, stats, _ = image_ops.connectedComponentsWithStats(working_mask, 8)
     sizes = stats[:, -1][1:]  # Row 0 is background label
     small_regions = [i + 1 for i, s in enumerate(sizes) if s < area_thresh]
     if len(small_regions) == 0:

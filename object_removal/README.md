@@ -13,5 +13,5 @@ write session settings themselves. Optional `downloads.py` files export a
 `DOWNLOADS` mapping discovered by the shared downloader.
 
 `minimax/` owns the MiniMax-Remover implementation, controls, downloads, and
-upstream code and license in `vendor/`. `opencv/` owns the OpenCV implementation
-and controls. Existing checkpoint paths under `checkpoints/` are preserved.
+upstream code and license in `vendor/`. `oiio_fill/` owns OpenImageIO's push-pull
+fill method. Existing checkpoint paths under `checkpoints/` are preserved.

@@ -22,6 +22,7 @@ from PySide6.QtCore import Qt, QTimer, QUrl
 from sammie import sammie
 from sammie.resources import resources
 from sammie import core
+from sammie import image_ops
 from sammie import matting
 from sammie import removal
 from segmentation.registry import get_engine_specs as get_segmentation_engines
@@ -40,7 +41,7 @@ from sammie.gui_widgets import (
 
 # ==================== VERSION ====================
 
-__version__ = "2.4.1"
+__version__ = "2.5.0"
 
 # ==================== LOGGING HELPER ====================
 
@@ -696,7 +697,7 @@ class ObjectRemovalTab(QWidget):
         removal_layout.addWidget(self.clear_removal_btn)
         layout.addWidget(removal_group)
 
-        # Method selection (MiniMax-Remover vs OpenCV)
+        # Removal method selection
         self._create_method_selection(layout)
 
         # Each plugin creates and owns its controls.
@@ -749,7 +750,7 @@ class ObjectRemovalTab(QWidget):
         layout.addWidget(instructions_group)
     
     def _create_method_selection(self, layout):
-        """Create method selection (MiniMax-Remover vs OpenCV)"""
+        """Create the registered removal method selector."""
         method_group = QGroupBox("Method")
         method_layout = QHBoxLayout(method_group)
         
@@ -761,6 +762,8 @@ class ObjectRemovalTab(QWidget):
         
         settings_mgr = get_settings_manager()
         current_method = settings_mgr.get_session_setting("removal_method", "MiniMax-Remover")
+        if current_method == "OpenCV":
+            current_method = "OIIO Fill"
         index = self.method_combo.findData(current_method)
         if index >= 0:
             self.method_combo.setCurrentIndex(index)
@@ -835,6 +838,8 @@ class ObjectRemovalTab(QWidget):
         
         # Load method selection
         method = settings_mgr.get_session_setting("removal_method", "MiniMax-Remover")
+        if method == "OpenCV":
+            method = "OIIO Fill"
         index = self.method_combo.findData(method)
         if index >= 0:
             self.method_combo.setCurrentIndex(index)
@@ -1163,8 +1168,8 @@ class MainWindow(QMainWindow):
                     self.save_project: "Ctrl+Shift+S",
                     self.export_video: "Ctrl+E",
                     self.export_image: "Ctrl+Shift+E",
-                    self.fit_to_screen: "Ctrl+Backspace",
-                    self.zoom_100: "Backspace",
+                    self.fit_to_screen: "F",
+                    self.zoom_100: "H",
                     self.reset_interface: "Ctrl+Shift+R",
                     self.show_help: "F1",
                     self.show_hotkeys_help: "Ctrl+F1",
@@ -2172,6 +2177,7 @@ class MainWindow(QMainWindow):
         if core.DeviceManager.get_device().type in spec.unsupported_device_types:
             show_message_dialog(self, title="Error", message=f"{spec.label} is not supported on this device.", type="warning")
             return
+        self.settings_mgr.set_session_setting("removal_method", engine_id)
         self.settings_mgr.save_session_settings()
         self.settings_mgr.set_app_setting("default_removal_method", engine_id)
         if spec.save_defaults:
@@ -2457,15 +2463,15 @@ class MainWindow(QMainWindow):
         self._create_shortcut("Ctrl+Shift+E", self.export_image, "Export Image", create_shortcut=False)
         
         # View/Zoom controls
-        self._create_shortcut("Backspace", self.zoom_100, "100% Zoom", create_shortcut=False)
-        self._create_shortcut("Ctrl+Backspace", self.fit_to_screen, "Fit to Screen", create_shortcut=False)
+        self._create_shortcut("H", self.zoom_100, "100% Zoom", create_shortcut=False)
+        self._create_shortcut("F", self.fit_to_screen, "Fit to Screen", create_shortcut=False)
         self._create_shortcut("=", self.zoom_in, "Zoom In")
         self._create_shortcut("-", self.zoom_out, "Zoom Out")
         self._create_shortcut("Ctrl+Shift+R", self.reset_interface, "Reset Interface", create_shortcut=False)
         
         # Frame navigation
-        self._create_shortcut(",", self.prev_frame, "Previous Frame")
-        self._create_shortcut(".", self.next_frame, "Next Frame")
+        self._create_shortcut("Left", self.prev_frame, "Previous Frame")
+        self._create_shortcut("Right", self.next_frame, "Next Frame")
         self._create_shortcut("PgUp", self.prev_keyframe, "Previous Keyframe")
         self._create_shortcut("PgDown", self.next_keyframe, "Next Keyframe")
         self._create_shortcut("Home", self.goto_first_frame, "Go to First Frame")
@@ -2524,11 +2530,12 @@ class MainWindow(QMainWindow):
     
     def open_file(self):
         """Open an image file"""
+        image_patterns = " ".join(f"*{ext}" for ext in sorted(image_ops.supported_extensions()))
         file_name, _ = QFileDialog.getOpenFileName(
             self, 
             "Open File", 
             "", 
-            "*.mp4 *.m4v *.mkv *.mov *.avi *webm *.png *.jpg *.jpeg *.bmp *.tiff *.gif *.webp"
+            f"Media files (*.mp4 *.m4v *.mkv *.mov *.avi *.webm {image_patterns});;All files (*)"
         )
         
         if file_name:  # Only proceed if a file was selected
@@ -2547,15 +2554,12 @@ class MainWindow(QMainWindow):
             return
         
         # Check if file type is supported
-        supported_extensions = [
-            '.mp4', '.m4v', '.mkv', '.mov', '.avi', '.webm',
-            '.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif', '.webp'
-        ]
+        supported_extensions = {'.mp4', '.m4v', '.mkv', '.mov', '.avi', '.webm'} | image_ops.supported_extensions()
         
         file_ext = os.path.splitext(file_path)[1].lower()
         if file_ext not in supported_extensions:
             print(f"Unsupported file type: {file_ext}")
-            file_error_text = f"File type '{file_ext}' is not supported.\n\n Supported formats: {', '.join(supported_extensions)}"
+            file_error_text = f"File type '{file_ext}' is not supported.\n\n Supported formats: {', '.join(sorted(supported_extensions))}"
             show_message_dialog(self, title="Unsupported File", message=file_error_text, type="warning")
             return
         
@@ -2584,7 +2588,7 @@ class MainWindow(QMainWindow):
         file_ext = os.path.splitext(file_path)[1].lower()
         
         try:
-            if file_ext in ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif', '.webp']:
+            if image_ops.is_supported_image(file_path):
                 framecount = sammie.load_image_sequence(file_path, parent_window=self)
             else:
                 framecount = sammie.load_video(file_path, parent_window=self)
@@ -2597,12 +2601,8 @@ class MainWindow(QMainWindow):
                     video_info.color_space, file_path
                 )
                 
-                # If png or jpg was loaded, set the frame format to override the app setting
-                if file_ext in ['.png', '.jpg', '.jpeg']:
-                    frame_format = file_ext.lstrip('.')
-                    if frame_format == 'jpeg':
-                        frame_format = 'jpg'  # Normalize jpeg to jpg
-                    self.settings_mgr.set_session_setting("frame_format", frame_format)
+                if image_ops.is_supported_image(file_path):
+                    self.settings_mgr.set_session_setting("frame_format", file_ext.lstrip('.'))
                     
                 self.settings_mgr.save_session_settings()
                 

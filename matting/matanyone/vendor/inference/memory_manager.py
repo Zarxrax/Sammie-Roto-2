@@ -1,7 +1,7 @@
 import logging
 from typing import List, Dict
 import torch
-import cv2
+from sammie import image_ops
 
 from matting.matanyone.vendor.inference.object_manager import ObjectManager
 from matting.matanyone.vendor.inference.kv_memory_store import KeyValueMemoryStore

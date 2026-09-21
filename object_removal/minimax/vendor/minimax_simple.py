@@ -1,5 +1,5 @@
 import os
-import cv2
+from sammie import image_ops
 import numpy as np
 import torch
 import argparse
@@ -46,10 +46,10 @@ def load_frames(image_folder, mask_folder):
     for img_file in image_files:
         # Load image
         img_path = os.path.join(image_folder, img_file)
-        img = cv2.imread(img_path)
+        img = image_ops.imread(img_path)
         if img is None:
             raise FileNotFoundError(f"Could not load image: {img_path}")
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = image_ops.cvtColor(img, image_ops.COLOR_BGR2RGB)
         images.append(img)
         
         # Extract frame number from filename (assuming format like 00001.png)
@@ -61,7 +61,7 @@ def load_frames(image_folder, mask_folder):
         if not os.path.exists(mask_path):
             raise FileNotFoundError(f"Mask not found at {mask_path}")
         
-        mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+        mask = image_ops.imread(mask_path, image_ops.IMREAD_GRAYSCALE)
         if mask is None:
             raise FileNotFoundError(f"Could not load mask: {mask_path}")
         
@@ -76,11 +76,11 @@ def preprocess_batch(images, masks, width, height, device="cuda"):
     
     for img, msk in zip(images, masks):
         # Resize image to target resolution
-        img_resized = cv2.resize(img, (width, height), interpolation=cv2.INTER_LINEAR)
+        img_resized = image_ops.resize(img, (width, height), interpolation=image_ops.INTER_LINEAR)
         out_images.append(img_resized.astype(np.float32) / 127.5 - 1.0)
         
         # Resize mask to target resolution
-        msk_resized = cv2.resize(msk, (width, height), interpolation=cv2.INTER_NEAREST)
+        msk_resized = image_ops.resize(msk, (width, height), interpolation=image_ops.INTER_NEAREST)
         msk_resized = (msk_resized.astype(np.float32) / 255.0 > 0.5).astype(np.float32)
         out_masks.append(msk_resized)
     
@@ -134,8 +134,8 @@ def process_frames(pipe, images, masks, output_folder, image_files,
     print(f"Saving frames to {output_folder}...")
     for i, (frame, filename) in enumerate(zip(output, image_files)):
         output_path = os.path.join(output_folder, filename)
-        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(output_path, frame_bgr)
+        frame_bgr = image_ops.cvtColor(frame, image_ops.COLOR_RGB2BGR)
+        image_ops.imwrite(output_path, frame_bgr)
         if (i + 1) % 10 == 0:
             print(f"Saved {i + 1}/{len(output)} frames")
     

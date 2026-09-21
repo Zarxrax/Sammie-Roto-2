@@ -1,4 +1,4 @@
-import cv2
+from sammie import image_ops
 import os
 import numpy as np
 import torch
@@ -268,8 +268,8 @@ class VideoMaMaManager(MattingManager):
                 return [], [], False
  
             # Load and convert frame to RGB, then proportionally downscale via matany_res
-            frame = cv2.imread(frame_path)
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame = image_ops.imread(frame_path)
+            frame = image_ops.cvtColor(frame, image_ops.COLOR_BGR2RGB)
             if crop_rect is not None:
                 frame = core.apply_crop(frame, crop_rect)
             frame = self._resize_image(frame)
@@ -282,7 +282,7 @@ class VideoMaMaManager(MattingManager):
                     mask_path = os.path.join(core.mask_dir, f"{frame_num:05d}", f"{oid}.png")
                     if not os.path.exists(mask_path):
                         continue
-                    m = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+                    m = image_ops.imread(mask_path, image_ops.IMREAD_GRAYSCALE)
                     if m is None:
                         continue
                     union_mask = m if union_mask is None else np.maximum(union_mask, m)
@@ -290,17 +290,17 @@ class VideoMaMaManager(MattingManager):
                     union_mask = core.apply_mask_postprocessing(union_mask)
                     if crop_rect is not None:
                         union_mask = core.apply_crop(union_mask, crop_rect)
-                    mask = cv2.resize(union_mask, (resized_w, resized_h), interpolation=cv2.INTER_NEAREST)
+                    mask = image_ops.resize(union_mask, (resized_w, resized_h), interpolation=image_ops.INTER_NEAREST)
                 else:
                     mask = np.zeros((resized_h, resized_w), dtype=np.uint8)
             else:
                 mask_path = os.path.join(core.mask_dir, f"{frame_num:05d}", f"{object_id}.png")
                 if os.path.exists(mask_path):
-                    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+                    mask = image_ops.imread(mask_path, image_ops.IMREAD_GRAYSCALE)
                     mask = core.apply_mask_postprocessing(mask)
                     if crop_rect is not None:
                         mask = core.apply_crop(mask, crop_rect)
-                    mask = cv2.resize(mask, (resized_w, resized_h), interpolation=cv2.INTER_NEAREST)
+                    mask = image_ops.resize(mask, (resized_w, resized_h), interpolation=image_ops.INTER_NEAREST)
                 else:
                     mask = np.zeros((resized_h, resized_w), dtype=np.uint8)
  
@@ -379,7 +379,7 @@ class VideoMaMaManager(MattingManager):
  
         # Original frame dimensions for restoring output
         first_frame_path = os.path.join(core.frames_dir, f"{start_frame:05d}.{extension}")
-        first_frame_img = cv2.imread(first_frame_path)
+        first_frame_img = image_ops.imread(first_frame_path)
         if first_frame_img is not None:
             original_h, original_w = first_frame_img.shape[:2]
         else:
@@ -501,7 +501,7 @@ class VideoMaMaManager(MattingManager):
             # model receives graduated edge values rather than a hard binary boundary.
             previous_overlap_masks = []
             for frame_out in output_frames[-overlap:]:
-                alpha_out = cv2.cvtColor(frame_out, cv2.COLOR_RGB2GRAY)
+                alpha_out = image_ops.cvtColor(frame_out, image_ops.COLOR_RGB2GRAY)
                 previous_overlap_masks.append(alpha_out)
             # -----------------------------------------
  
@@ -515,7 +515,7 @@ class VideoMaMaManager(MattingManager):
             # the new prediction across the overlap window and re-write those frames.
             if enable_boundary_blend and not is_first_batch and prev_boundary_alphas is not None:
                 for i in range(min(overlap, len(prev_boundary_alphas), len(output_frames))):
-                    new_alpha = cv2.cvtColor(output_frames[i], cv2.COLOR_RGB2GRAY)
+                    new_alpha = image_ops.cvtColor(output_frames[i], image_ops.COLOR_RGB2GRAY)
                     new_alpha = self._restore_image_size(new_alpha, (cx2 - cx1 + 1, cy2 - cy1 + 1) if crop_rect else (original_w, original_h))
                     if crop_rect is not None:
                         new_alpha = core.expand_to_full(new_alpha, crop_rect, original_w, original_h)
@@ -527,7 +527,7 @@ class VideoMaMaManager(MattingManager):
                     abs_blend_frame = abs_start + i
                     mat_filename = os.path.join(core.matting_dir, f"{abs_blend_frame:05d}", f"{object_id}.png")
                     os.makedirs(os.path.dirname(mat_filename), exist_ok=True)
-                    cv2.imwrite(mat_filename, blended)
+                    image_ops.imwrite(mat_filename, blended)
             # -----------------------------------------
 
             # Collect the last `overlap` committed alphas (original resolution) for the
@@ -535,7 +535,7 @@ class VideoMaMaManager(MattingManager):
             current_boundary_alphas = []
             for i, frame_out in enumerate(committed_output):
                 abs_frame = abs_start + output_start_offset + i
-                alpha = cv2.cvtColor(frame_out, cv2.COLOR_RGB2GRAY)
+                alpha = image_ops.cvtColor(frame_out, image_ops.COLOR_RGB2GRAY)
 
                 # Restore to the cropped region's pixel dimensions first, then expand
                 # back into the full frame canvas so the saved matte is always full-size.
@@ -552,7 +552,7 @@ class VideoMaMaManager(MattingManager):
  
                 mat_filename = os.path.join(core.matting_dir, f"{abs_frame:05d}", f"{object_id}.png")
                 os.makedirs(os.path.dirname(mat_filename), exist_ok=True)
-                cv2.imwrite(mat_filename, final_alpha)
+                image_ops.imwrite(mat_filename, final_alpha)
  
                 if abs_frame % display_update_frequency == 0:
                     try:
