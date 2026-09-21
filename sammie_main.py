@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QVBoxLayout, QHBoxLayout, 
     QGridLayout, QWidget, QPushButton, QLabel, QStatusBar, QSlider, 
     QTabWidget, QSpinBox, QComboBox, QSplitter, QGroupBox, QTextEdit,
-    QCheckBox, QLineEdit, QMessageBox, QDialog, QProgressDialog
+    QCheckBox, QLineEdit, QMessageBox, QDialog, QProgressDialog, QStackedWidget
 )
 from PySide6.QtGui import (
     QAction, QShortcut, QKeySequence, QTextCursor, QIcon, QPixmap, QFont, QDesktopServices
@@ -24,6 +24,8 @@ from sammie.resources import resources
 from sammie import core
 from sammie import matting
 from sammie import removal
+from segmentation.registry import get_engine_specs as get_segmentation_engines
+from object_removal.registry import get_engine_specs as get_removal_engines, get_engine as get_removal_engine
 from sammie.export_image_dialog import ImageExportDialog
 from sammie.export_dialog import ExportDialog
 from sammie.settings_dialog import SettingsDialog
@@ -164,11 +166,11 @@ class SegmentationTab(QWidget):
         model_layout_row = QHBoxLayout(model_group)
         
         settings_mgr = get_settings_manager()
-        settings_mgr.get_session_setting("default_sam_model", "Base")
-
         self.sam_model_combo = QComboBox()
-        self.sam_model_combo.addItems(["Base", "Large", "Efficient"])
-        self.sam_model_combo.setToolTip("Large model is slower but slightly more accurate.\nEfficient model is faster but less accurate.")
+        self._segmentation_specs = get_segmentation_engines()
+        for spec in self._segmentation_specs:
+            self.sam_model_combo.addItem(spec.label, spec.id)
+            self.sam_model_combo.setItemData(self.sam_model_combo.count() - 1, spec.hint, Qt.ToolTipRole)
         self.sam_model_btn = QPushButton("Load Model")
         self.sam_model_btn.setEnabled(False) # disabled until video is loaded
 
@@ -390,12 +392,9 @@ class SegmentationTab(QWidget):
         self._update_name_display(0)
         
         model = settings_mgr.get_session_setting("sam_model", "Base")
-        if model == "Base":
-            self.sam_model_combo.setCurrentIndex(0)
-        elif model == "Large":
-            self.sam_model_combo.setCurrentIndex(1)
-        elif model == "Efficient":
-            self.sam_model_combo.setCurrentIndex(2)
+        index = self.sam_model_combo.findData(model)
+        if index >= 0:
+            self.sam_model_combo.setCurrentIndex(index)
 
         # Update sliders
         slider_mappings = [
@@ -436,107 +435,56 @@ class MattingTab(QWidget):
         matting_layout.addWidget(self.clear_matting_btn)
         layout.addWidget(matting_group)
         
-        # MatAnyone Processing settings
+        # Shared settings and engine-owned controls
         processing_group = QGroupBox("Processing Settings")
         processing_layout = QVBoxLayout(processing_group)
         model_layout = QHBoxLayout()
-        res_layout = QHBoxLayout()
-        overlap_layout = QHBoxLayout()
-        chunk_layout = QHBoxLayout()
-        memory_layout = QHBoxLayout()
-        
-        model_label = QLabel("Model:")
         self.matany_model_combo = QComboBox()
-        self.matany_model_combo.addItems(["MatAnyone", "MatAnyone2", "VideoMaMa"])
-        self.matany_model_combo.setToolTip("VideoMaMa is higher quality but slower and uses more VRAM.")
-        self._update_instructions(self.matany_model_combo.currentText())
-
-        res_label = QLabel("Internal Resolution:")
-        self.matany_res_combo = QComboBox()
-        self.matany_res_combo.addItems(["352", "480", "576", "720", "1080", "1440", "2160", "Full"])
-        self.matany_res_combo.setToolTip("If your video's shortest side is larger than this, it will be\ndownsampled to this size before running matting.\nThis reduces VRAM requirements and increases processing speed.")
-
-        self.overlap_label = QLabel("Crossfade overlap frames:")
-        self.overlap_combo = QComboBox()
-        self.overlap_combo.addItems(["0", "2", "4"])
-        self.overlap_combo.setToolTip("Number of overlapping frames between batches.\nHigher values can look smoother on slow or poorly defined subjects.")
-        self.overlap_label.setVisible(False)
-        self.overlap_combo.setVisible(False)
-
-        self.chunk_label = QLabel("Frames per batch:")
-        self.chunk_combo = QComboBox()
-        self.chunk_combo.addItems(["16", "32", "64", "128", "256", "512"])
-        self.chunk_combo.setToolTip("The number of frames that will be processed at once.\nHigher values require more VRAM.")
-        self.chunk_label.setVisible(False)
-        self.chunk_combo.setVisible(False)
-
-        self.videomama_memory_checkbox = QCheckBox("Memory budget")
-        self.videomama_memory_checkbox.setToolTip(
-            "When enabled, VideoMaMa splits the cropped region into overlapping tiles "
-            "and limits PyTorch GPU allocations on MPS or CUDA. "
-            "When disabled, VideoMaMa runs each frame batch as one region. "
-            "The general MPS safety ceiling remains active."
-        )
-        self.videomama_memory_spinbox = QSpinBox()
-        self.videomama_memory_spinbox.setRange(8, 80)
-        self.videomama_memory_spinbox.setSuffix(" GiB")
-        self.videomama_memory_spinbox.setToolTip(
-            "Target for VideoMaMa GPU allocations. Lower values create smaller tiles "
-            "and use less GPU memory, but take longer and may show tile seams. "
-            "This does not cap total system RAM or memory used by other processes."
-        )
-        self.videomama_memory_checkbox.setVisible(False)
-        self.videomama_memory_spinbox.setVisible(False)
-
-        self.combined_mask_checkbox = QCheckBox("Combine All Objects")
-        self.combined_mask_checkbox.setToolTip("If checked, all objects will be merged and processed as a single object.")
-
-        # Connect to save settings when changed
-        self.matany_model_combo.currentTextChanged.connect(self._save_model_setting)
-        self.matany_res_combo.currentTextChanged.connect(self._save_resolution_setting)
-        self.overlap_combo.currentTextChanged.connect(
-            lambda v: settings_mgr.set_session_setting("matany_overlap", int(v))
-        )
-        self.chunk_combo.currentTextChanged.connect(
-            lambda v: settings_mgr.set_session_setting("matany_chunk", int(v))
-        )
-        self.videomama_memory_spinbox.valueChanged.connect(
-            lambda v: settings_mgr.set_session_setting("videomama_memory_gib", v)
-        )
-        self.videomama_memory_checkbox.toggled.connect(
-            lambda enabled: settings_mgr.set_session_setting("videomama_memory_enabled", enabled)
-        )
-        self.videomama_memory_checkbox.toggled.connect(self.videomama_memory_spinbox.setEnabled)
-        self.combined_mask_checkbox.stateChanged.connect(
-            lambda state: settings_mgr.set_session_setting("matany_combined", self.combined_mask_checkbox.isChecked())
-        )
-
-        model_layout.addWidget(model_label)
+        self._engine_specs = matting.get_engine_specs()
+        for spec in self._engine_specs:
+            self.matany_model_combo.addItem(spec.label, spec.id)
+        self.matany_model_combo.currentIndexChanged.connect(self._save_model_setting)
+        model_layout.addWidget(QLabel("Model:"))
         model_layout.addWidget(self.matany_model_combo)
         model_layout.addStretch()
-        res_layout.addWidget(res_label)
+        processing_layout.addLayout(model_layout)
+
+        res_layout = QHBoxLayout()
+        self.matany_res_combo = QComboBox()
+        self.matany_res_combo.addItems(["352", "480", "576", "720", "1080", "1440", "2160", "Full"])
+        self.matany_res_combo.setToolTip("If the video short side exceeds this value, it is downsampled before matting.")
+        self.matany_res_combo.currentTextChanged.connect(self._save_resolution_setting)
+        res_layout.addWidget(QLabel("Internal Resolution:"))
         res_layout.addWidget(self.matany_res_combo)
         res_layout.addStretch()
-        overlap_layout.addWidget(self.overlap_label)
-        overlap_layout.addWidget(self.overlap_combo)
-        overlap_layout.addStretch()
-        chunk_layout.addWidget(self.chunk_label)
-        chunk_layout.addWidget(self.chunk_combo)
-        chunk_layout.addStretch()
-        memory_layout.addWidget(self.videomama_memory_checkbox)
-        memory_layout.addWidget(self.videomama_memory_spinbox)
-        memory_layout.addStretch()
-        
-        processing_layout.addLayout(model_layout)
         processing_layout.addLayout(res_layout)
-        processing_layout.addLayout(overlap_layout)
-        processing_layout.addLayout(chunk_layout)
-        processing_layout.addLayout(memory_layout)
+
+        self.engine_settings_stack = QStackedWidget()
+        for spec in self._engine_specs:
+            widget = spec.settings_widget_factory() if spec.settings_widget_factory else QWidget()
+            self.engine_settings_stack.addWidget(widget)
+        processing_layout.addWidget(self.engine_settings_stack)
+
+        self.combined_mask_checkbox = QCheckBox("Combine All Objects")
+        self.combined_mask_checkbox.setToolTip("If checked, all objects are merged and processed as one object.")
+        self.combined_mask_checkbox.stateChanged.connect(
+            lambda _state: settings_mgr.set_session_setting(
+                "matany_combined", self.combined_mask_checkbox.isChecked()))
         processing_layout.addWidget(self.combined_mask_checkbox)
         layout.addWidget(processing_group)
 
         # Parameters
         self._create_parameter_sliders(layout)
+
+        saved_engine = settings_mgr.get_session_setting("matany_model", matting.DEFAULT_ENGINE_ID)
+        index = self.matany_model_combo.findData(saved_engine)
+        if index < 0:
+            index = self.matany_model_combo.findData(matting.DEFAULT_ENGINE_ID)
+        if index < 0 and self._engine_specs:
+            index = 0
+        if index >= 0:
+            self.matany_model_combo.setCurrentIndex(index)
+            self._save_model_setting(index)
         
         layout.addStretch()
     
@@ -650,53 +598,14 @@ class MattingTab(QWidget):
         gamma_val = value / 100.0
         self.gamma_value.setText(f"{gamma_val:.1f}")
 
-    def _update_instructions(self, model):
-        """Update the instructions based on the selected matting model"""
-
-        if model in ("MatAnyone", "MatAnyone2"):
-            instruction_content = """
-            • Matting can be used to create mattes for objects with soft or poorly defined edges.<br>
-            • <b>Add points to at least one frame in the Segmentation tab</b>, then press Run Matting.<br>
-            • The MatAnyone models are faster and require less VRAM than VideoMama, but may be less accurate.<br>
-            • If you add points to multiple frames, matting will refresh at each keyframe, which may momentarily affect temporal stability.<br>
-            • MatAnyone is free for non-commercial use, requires <a href="https://github.com/pq-yang/MatAnyone?tab=License-1-ov-file">permission for commercial use</a>.<br>
-            """
-
-        elif model == "VideoMaMa":
-            instruction_content = """
-            • Matting can be used to create mattes for objects with soft or poorly defined edges.<br>
-            • <b>Add points and run tracking in the Segmentation tab</b> so that a mask is available on every frame, then press Run Matting.<br>
-            • VideoMaMa requires at least 8GB of VRAM.<br>
-            • VideoMaMa processes the video frames in batches. There may be temporal instability at batch boundaries.<br>
-            • VideoMaMa is free for non-commercial use and <a href="https://huggingface.co/stabilityai/stable-video-diffusion-img2vid/blob/main/LICENSE.md">limited commercial use</a>.<br>
-            """
-
-        else:
-            instruction_content = ""
-
-        self.instructions_text.setText(instruction_content)
-    
-    def _save_model_setting(self, value):
-        """Save model combo box value to session settings"""
-        settings_mgr = get_settings_manager()
-        settings_mgr.set_session_setting("matany_model", value)
-        self._update_instructions(value)
-
-        # Show overlap and chunk size only for VideoMaMa
-        if value == "VideoMaMa":
-            self.overlap_label.setVisible(True)
-            self.overlap_combo.setVisible(True)
-            self.chunk_label.setVisible(True)
-            self.chunk_combo.setVisible(True)
-            self.videomama_memory_checkbox.setVisible(True)
-            self.videomama_memory_spinbox.setVisible(True)
-        else:
-            self.overlap_label.setVisible(False)
-            self.overlap_combo.setVisible(False)
-            self.chunk_label.setVisible(False)
-            self.chunk_combo.setVisible(False)
-            self.videomama_memory_checkbox.setVisible(False)
-            self.videomama_memory_spinbox.setVisible(False)
+    def _save_model_setting(self, index):
+        """Select a discovered engine and show its own controls."""
+        if index < 0 or index >= len(self._engine_specs):
+            return
+        spec = self._engine_specs[index]
+        get_settings_manager().set_session_setting("matany_model", spec.id)
+        self.instructions_text.setText(spec.instructions_html)
+        self.engine_settings_stack.setCurrentIndex(index)
 
     def _save_resolution_setting(self, value):
         """Save resolution combo box value to session settings"""
@@ -716,48 +625,20 @@ class MattingTab(QWidget):
         """Load all values from settings"""
         settings_mgr = get_settings_manager()
         
-        # Load model selection
-        model = settings_mgr.get_session_setting("matany_model", "MatAnyone2")
-        if model == "MatAnyone2":
-            self.matany_model_combo.setCurrentIndex(1)
-            self.overlap_label.setVisible(False)
-            self.overlap_combo.setVisible(False)
-            self.chunk_label.setVisible(False)
-            self.chunk_combo.setVisible(False)
-            self.videomama_memory_checkbox.setVisible(False)
-            self.videomama_memory_spinbox.setVisible(False)
-        elif model == "MatAnyone":
-            self.matany_model_combo.setCurrentIndex(0)
-            self.overlap_label.setVisible(False)
-            self.overlap_combo.setVisible(False)
-            self.chunk_label.setVisible(False)
-            self.chunk_combo.setVisible(False)
-            self.videomama_memory_checkbox.setVisible(False)
-            self.videomama_memory_spinbox.setVisible(False)
-        else:
-            self.matany_model_combo.setCurrentIndex(2)
-            self.overlap_label.setVisible(True) # overlap setting is visible for VideoMaMa
-            self.overlap_combo.setVisible(True)
-            self.chunk_label.setVisible(True) # chunk setting is visible for VideoMaMa
-            self.chunk_combo.setVisible(True)
-            self.videomama_memory_checkbox.setVisible(True)
-            self.videomama_memory_spinbox.setVisible(True)
-
-        # Load overlap value
-        overlap = settings_mgr.get_session_setting("matany_overlap", 2)
-        self.overlap_combo.setCurrentText(str(overlap))
-
-        # Load chunk value
-        chunk = max(16, settings_mgr.get_session_setting("matany_chunk", 16))
-        settings_mgr.set_session_setting("matany_chunk", chunk)
-        self.chunk_combo.setCurrentText(str(chunk))
-        self.videomama_memory_spinbox.setValue(
-            settings_mgr.get_session_setting("videomama_memory_gib", 32)
-        )
-        self.videomama_memory_checkbox.setChecked(
-            settings_mgr.get_session_setting("videomama_memory_enabled", True)
-        )
-        self.videomama_memory_spinbox.setEnabled(self.videomama_memory_checkbox.isChecked())
+        # Load the saved engine and let each plugin restore its controls.
+        model = settings_mgr.get_session_setting("matany_model", matting.DEFAULT_ENGINE_ID)
+        index = self.matany_model_combo.findData(model)
+        if index < 0:
+            index = self.matany_model_combo.findData(matting.DEFAULT_ENGINE_ID)
+        if index < 0 and self._engine_specs:
+            index = 0
+        if index >= 0:
+            self.matany_model_combo.setCurrentIndex(index)
+            self._save_model_setting(index)
+        for index in range(self.engine_settings_stack.count()):
+            widget = self.engine_settings_stack.widget(index)
+            if hasattr(widget, "load_settings"):
+                widget.load_settings()
 
         # Load resolution
         resolution = settings_mgr.get_session_setting("matany_res", 1080)
@@ -818,9 +699,12 @@ class ObjectRemovalTab(QWidget):
         # Method selection (MiniMax-Remover vs OpenCV)
         self._create_method_selection(layout)
 
-        # Create both parameter groups (they'll be shown/hidden based on method)
-        self._create_opencv_parameters(layout)
-        self._create_minimax_parameters(layout)
+        # Each plugin creates and owns its controls.
+        self.engine_settings_stack = QStackedWidget()
+        self._removal_specs = get_removal_engines()
+        for spec in self._removal_specs:
+            self.engine_settings_stack.addWidget(spec.settings_factory(self))
+        layout.addWidget(self.engine_settings_stack)
         
         # Create shared shrink/grow slider first (used by both methods)
         self._create_shared_shrink_grow(layout)
@@ -844,8 +728,7 @@ class ObjectRemovalTab(QWidget):
         instruction_content = """
         • Object removal uses inpainting to fill in areas where objects have been removed.<br>
         • You first need to <b>run tracking in the Segmentation tab</b>, so a mask is on every frame.<br>
-        • MiniMax-Remover uses VRAM proportionally to the number of frames in the video. Keep clips to a few seconds.<br>
-        • The OpenCV option is really bad, and is only provided as a fallback in case MiniMax-Remover can't be used.<br>
+        • Choose an engine below, adjust its settings, then run object removal.<br>
         """
         
         instructions_text.setText(instruction_content)
@@ -873,15 +756,17 @@ class ObjectRemovalTab(QWidget):
         method_layout.addWidget(QLabel("Method:"))
         
         self.method_combo = QComboBox()
-        self.method_combo.addItems(["MiniMax-Remover", "OpenCV"])
+        for spec in get_removal_engines():
+            self.method_combo.addItem(spec.label, spec.id)
         
         settings_mgr = get_settings_manager()
         current_method = settings_mgr.get_session_setting("removal_method", "MiniMax-Remover")
-        index = self.method_combo.findText(current_method)
+        index = self.method_combo.findData(current_method)
         if index >= 0:
             self.method_combo.setCurrentIndex(index)
         
-        self.method_combo.setToolTip("MiniMax-Remover: Uses a video diffusion model (recommended).<br>OpenCV: Uses traditional computing algorithms (poor quality).")
+        for index, spec in enumerate(get_removal_engines()):
+            self.method_combo.setItemData(index, spec.hint, Qt.ToolTipRole)
         self.method_combo.currentTextChanged.connect(self._on_method_changed)
         
         method_layout.addWidget(self.method_combo)
@@ -892,19 +777,11 @@ class ObjectRemovalTab(QWidget):
     def _on_method_changed(self, method):
         """Handle method selection change"""
         settings_mgr = get_settings_manager()
-        settings_mgr.set_session_setting("removal_method", method)
+        settings_mgr.set_session_setting("removal_method", self.method_combo.currentData())
         self._update_parameters_visibility()
     
     def _update_parameters_visibility(self):
-        """Show/hide parameter groups based on selected method"""
-        current_method = self.method_combo.currentText()
-        
-        if current_method == "OpenCV":
-            self.opencv_params_group.setVisible(True)
-            self.minimax_params_group.setVisible(False)
-        else:  # MiniMax-Remover
-            self.opencv_params_group.setVisible(False)
-            self.minimax_params_group.setVisible(True)
+        self.engine_settings_stack.setCurrentIndex(self.method_combo.currentIndex())
 
     def _create_shared_shrink_grow(self, layout):
         """Create the shared shrink/grow slider used by both methods"""
@@ -943,178 +820,6 @@ class ObjectRemovalTab(QWidget):
         )
         
         layout.addWidget(shrink_grow_group)
-        """Show/hide parameter groups based on selected method"""
-        current_method = self.method_combo.currentText()
-        
-        if current_method == "OpenCV":
-            self.opencv_params_group.setVisible(True)
-            self.minimax_params_group.setVisible(False)
-        else:  # MiniMax-Remover
-            self.opencv_params_group.setVisible(False)
-            self.minimax_params_group.setVisible(True)
-
-    def _create_opencv_parameters(self, layout):
-        """Create parameters for OpenCV method"""
-        settings_mgr = get_settings_manager()
-        
-        self.opencv_params_group = QWidget()
-        opencv_layout = QVBoxLayout(self.opencv_params_group)
-        opencv_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Algorithm selection
-        algorithm_group = QGroupBox("Algorithm")
-        algorithm_layout = QHBoxLayout(algorithm_group)
-        
-        algorithm_layout.addWidget(QLabel("Algorithm:"))
-        
-        self.opencv_algorithm_combo = QComboBox()
-        self.opencv_algorithm_combo.addItems(["Telea", "Navier-Stokes"])
-        
-        current_algorithm = settings_mgr.get_session_setting("inpaint_method", "Telea")
-        index = self.opencv_algorithm_combo.findText(current_algorithm)
-        if index >= 0:
-            self.opencv_algorithm_combo.setCurrentIndex(index)
-        
-        self.opencv_algorithm_combo.setToolTip("Telea: Based on fast marching method.\nNavier-Stokes: Fluid dynamics based method, may produce smoother results.")
-        self.opencv_algorithm_combo.currentTextChanged.connect(self._save_opencv_algorithm)
-        
-        algorithm_layout.addWidget(self.opencv_algorithm_combo)
-        algorithm_layout.addStretch()
-        
-        opencv_layout.addWidget(algorithm_group)
-        
-        # OpenCV-specific sliders
-        sliders_group = QGroupBox("Parameters")
-        sliders_layout = QGridLayout(sliders_group)
-        
-        slider_configs = [
-            ("Inpaint Radius:", 1, 10, "inpaint_radius", 3,
-            "The radius of a circular neighborhood of each point inpainted that is considered by the algorithm.",
-            lambda v: str(v), lambda v: v, lambda v: v)
-        ]
-        
-        for i, (label_text, min_val, max_val, setting_key, fallback_default, tooltip,
-                display_func, slider_func, save_func) in enumerate(slider_configs):
-            
-            default_val = getattr(settings_mgr.app_settings, f"default_{setting_key}", fallback_default)
-            current_val = settings_mgr.get_session_setting(setting_key, default_val)
-            
-            label = ClickableLabel(label_text)
-            label.setToolTip(f"Double-click to reset to default value ({display_func(slider_func(default_val))})")
-            sliders_layout.addWidget(label, i, 0)
-            
-            slider = QSlider(Qt.Horizontal)
-            slider.setRange(min_val, max_val)
-            slider.setValue(slider_func(current_val))
-            slider.setToolTip(tooltip)
-            sliders_layout.addWidget(slider, i, 1)
-            
-            value_label = QLabel(display_func(slider_func(current_val)))
-            value_label.setMinimumWidth(30)
-            value_label.setAlignment(Qt.AlignCenter)
-            sliders_layout.addWidget(value_label, i, 2)
-            
-            slider.valueChanged.connect(
-                lambda v, lbl=value_label, func=display_func: lbl.setText(func(v))
-            )
-            slider.valueChanged.connect(
-                lambda v, key=setting_key, func=save_func: self._save_slider_value(key, func(v))
-            )
-            
-            label.doubleClicked.connect(
-                lambda s=slider, default=default_val, func=slider_func: self._reset_slider_to_default(s, func(default))
-            )
-            
-            if setting_key == "inpaint_radius":
-                self.opencv_radius_slider = slider
-                self.opencv_radius_value = value_label
-        
-        opencv_layout.addWidget(sliders_group)
-        layout.addWidget(self.opencv_params_group)
-
-    def _create_minimax_parameters(self, layout):
-        """Create parameters for MiniMax-Remover method"""
-        settings_mgr = get_settings_manager()
-
-        self.minimax_params_group = QWidget()
-        minimax_layout = QVBoxLayout(self.minimax_params_group)
-        minimax_layout.setContentsMargins(0, 0, 0, 0)
-        
-        params_group = QGroupBox("Parameters")
-        params_layout = QGridLayout(params_group)
-        
-        row = 0
-        
-        # Internal Resolution
-        params_layout.addWidget(QLabel("Internal Resolution:"), row, 0)
-        self.minimax_resolution_combo = QComboBox()
-        self.minimax_resolution_combo.addItems(["352", "480", "720", "1080"])
-        
-        current_resolution = str(settings_mgr.get_session_setting("minimax_resolution", 480))
-        index = self.minimax_resolution_combo.findText(current_resolution)
-        if index >= 0:
-            self.minimax_resolution_combo.setCurrentIndex(index)
-        
-        self.minimax_resolution_combo.setToolTip("Internal processing resolution. Higher values produce better quality but are slower and use more VRAM.")
-        self.minimax_resolution_combo.currentTextChanged.connect(
-            lambda v: settings_mgr.set_session_setting("minimax_resolution", int(v))
-        )
-        params_layout.addWidget(self.minimax_resolution_combo, row, 1, 1, 2)
-        
-        row += 1
-        
-        # VAE Tiling checkbox
-        params_layout.addWidget(QLabel("Use VAE Tiling:"), row, 0)
-        self.minimax_vae_tiling_checkbox = QCheckBox()
-        
-        vae_tiling = settings_mgr.get_session_setting("minimax_vae_tiling", False)
-        self.minimax_vae_tiling_checkbox.setChecked(vae_tiling)
-        self.minimax_vae_tiling_checkbox.setToolTip("If you get an out of memory error during the VAE decode step, try enabling this option. The VAE steps will take longer but use less VRAM.")
-        self.minimax_vae_tiling_checkbox.stateChanged.connect(
-            lambda state: settings_mgr.set_session_setting("minimax_vae_tiling", self.minimax_vae_tiling_checkbox.isChecked())
-        )
-        params_layout.addWidget(self.minimax_vae_tiling_checkbox, row, 1, 1, 2)
-        
-        row += 1
-        
-        # Steps slider
-        default_steps = getattr(settings_mgr.app_settings, "default_minimax_steps", 6)
-        current_steps = settings_mgr.get_session_setting("minimax_steps", default_steps)
-        
-        label = ClickableLabel("Steps:")
-        label.setToolTip(f"Double-click to reset to default value ({default_steps})")
-        params_layout.addWidget(label, row, 0)
-        
-        self.minimax_steps_slider = QSlider(Qt.Horizontal)
-        self.minimax_steps_slider.setRange(4, 12)
-        self.minimax_steps_slider.setValue(current_steps)
-        self.minimax_steps_slider.setToolTip("Number of diffusion steps. Larger values are better quality but slower.")
-        params_layout.addWidget(self.minimax_steps_slider, row, 1)
-        
-        self.minimax_steps_value = QLabel(str(current_steps))
-        self.minimax_steps_value.setMinimumWidth(30)
-        self.minimax_steps_value.setAlignment(Qt.AlignCenter)
-        params_layout.addWidget(self.minimax_steps_value, row, 2)
-        
-        self.minimax_steps_slider.valueChanged.connect(
-            lambda v: self.minimax_steps_value.setText(str(v))
-        )
-        self.minimax_steps_slider.valueChanged.connect(
-            lambda v: settings_mgr.set_session_setting("minimax_steps", v)
-        )
-        
-        label.doubleClicked.connect(
-            lambda: self._reset_slider_to_default(self.minimax_steps_slider, default_steps)
-        )
-        
-        minimax_layout.addWidget(params_group)
-        layout.addWidget(self.minimax_params_group)
-
-    def _save_opencv_algorithm(self, algorithm):
-        """Save OpenCV algorithm to session settings"""
-        settings_mgr = get_settings_manager()
-        settings_mgr.set_session_setting("inpaint_method", algorithm)
-
     def _reset_slider_to_default(self, slider, default_value):
         """Reset a slider to its default value"""
         slider.setValue(default_value)
@@ -1130,36 +835,16 @@ class ObjectRemovalTab(QWidget):
         
         # Load method selection
         method = settings_mgr.get_session_setting("removal_method", "MiniMax-Remover")
-        index = self.method_combo.findText(method)
+        index = self.method_combo.findData(method)
         if index >= 0:
             self.method_combo.setCurrentIndex(index)
         
         # Update visibility
         self._update_parameters_visibility()
     
-        # Load OpenCV settings
-        algorithm = settings_mgr.get_session_setting("inpaint_method", "Telea")
-        index = self.opencv_algorithm_combo.findText(algorithm)
-        if index >= 0:
-            self.opencv_algorithm_combo.setCurrentIndex(index)
-        
-        radius = settings_mgr.get_session_setting("inpaint_radius", 3)
-        self.opencv_radius_slider.setValue(radius)
-        self.opencv_radius_value.setText(str(radius))
-        
-        # Load MiniMax settings
-        resolution = str(settings_mgr.get_session_setting("minimax_resolution", 480))
-        index = self.minimax_resolution_combo.findText(resolution)
-        if index >= 0:
-            self.minimax_resolution_combo.setCurrentIndex(index)
-        
-        vae_tiling = settings_mgr.get_session_setting("minimax_vae_tiling", False)
-        self.minimax_vae_tiling_checkbox.setChecked(vae_tiling)
-        
-        steps = settings_mgr.get_session_setting("minimax_steps", 6)
-        self.minimax_steps_slider.setValue(steps)
-        self.minimax_steps_value.setText(str(steps))
-        
+        for spec in self._removal_specs:
+            spec.load_settings(self)
+
         # Load shared shrink/grow setting
         shrink_grow = settings_mgr.get_session_setting("inpaint_grow", 5)
         self.shrink_grow_slider.setValue(shrink_grow)
@@ -1401,15 +1086,9 @@ class MainWindow(QMainWindow):
             # Connect shared shrink/grow slider
             removal_tab.shrink_grow_slider.valueChanged.connect(lambda _: self._update_current_frame_display())
 
-            # Connect OpenCV parameter controls
-            removal_tab.opencv_algorithm_combo.currentTextChanged.connect(lambda _: self._update_current_frame_display())
-            removal_tab.opencv_radius_slider.valueChanged.connect(lambda _: self._update_current_frame_display())
+            for spec in get_removal_engines():
+                spec.connect_preview(removal_tab, lambda *_: self._update_current_frame_display())
 
-            # Connect MiniMax parameter controls
-            removal_tab.minimax_resolution_combo.currentTextChanged.connect(lambda _: self._update_current_frame_display())
-            removal_tab.minimax_vae_tiling_checkbox.stateChanged.connect(lambda _: self._update_current_frame_display())
-            removal_tab.minimax_steps_slider.valueChanged.connect(lambda _: self._update_current_frame_display())
-            
             # Store reference to removal tab for status updates
             self.removal_tab = removal_tab
             # Initialize the button status
@@ -2259,7 +1938,7 @@ class MainWindow(QMainWindow):
     
     def load_segmentation_model(self):
         """Load a new SAM model"""
-        model = self.segmentation_tab.sam_model_combo.currentText()
+        model = self.segmentation_tab.sam_model_combo.currentData()
         if model == self.sam_manager.loaded_model_name:
             print("Model is already loaded")
             return
@@ -2416,22 +2095,27 @@ class MainWindow(QMainWindow):
         """Run matting process"""
         self.settings_mgr.save_session_settings()
         count = len(self.point_manager.points)
-        matting_model = self.settings_mgr.get_session_setting("matany_model", "MatAnyone2")
+        matting_model = self.settings_mgr.get_session_setting("matany_model", matting.DEFAULT_ENGINE_ID)
+        engine_spec = matting.get_engine(matting_model)
+        if engine_spec is None:
+            engine_spec = matting.get_engine(matting.DEFAULT_ENGINE_ID)
+        if engine_spec is None:
+            show_message_dialog(self, title="Error", message="No matting engines are available.", type="warning")
+            return
+        matting_model = engine_spec.id
         combined=self.settings_mgr.get_session_setting("matany_combined", False)
 
-        # Don't allow VideoMama on CPU
-        if core.DeviceManager.get_device().type == 'cpu' and matting_model == 'VideoMaMa':
-            show_message_dialog(self, title="Error" , message="VideoMaMa is not supported on CPU. Please use MatAnyone instead.", type="warning")
+        device_type = core.DeviceManager.get_device().type
+        if device_type in engine_spec.unsupported_device_types:
+            show_message_dialog(self, title="Error", message=f"{engine_spec.label} is not supported on {device_type.upper()}.", type="warning")
             return
 
         # Save current matting settings as the new defaults
         self.settings_mgr.set_app_setting("default_matany_model", matting_model)
         self.settings_mgr.set_app_setting("default_matany_combined", combined)
         self.settings_mgr.set_app_setting("default_matany_res", self.settings_mgr.get_session_setting("matany_res", 1080))
-        self.settings_mgr.set_app_setting("default_matany_overlap", self.settings_mgr.get_session_setting("matany_overlap", 2))
-        self.settings_mgr.set_app_setting("default_matany_chunk", self.settings_mgr.get_session_setting("matany_chunk", 16))
-        self.settings_mgr.set_app_setting("default_videomama_memory_gib", self.settings_mgr.get_session_setting("videomama_memory_gib", 32))
-        self.settings_mgr.set_app_setting("default_videomama_memory_enabled", self.settings_mgr.get_session_setting("videomama_memory_enabled", True))
+        if engine_spec.save_defaults:
+            engine_spec.save_defaults(self.settings_mgr)
 
         if count > 0:  
             #load models
@@ -2446,7 +2130,7 @@ class MainWindow(QMainWindow):
             matting_succeeded = False
             try:
                 if self.matany_manager.BACKEND != matting_model: # if the existing matting manager backend is wrong, create a new one
-                    self.matany_manager = matting.create_matting_manager()
+                    self.matany_manager = matting.create_matting_manager(matting_model)
                 if not self.matany_manager.load_matting_model(parent_window=self): # load matting model
                     print(f"Failed to load { matting_model} model")
                     return
@@ -2480,44 +2164,36 @@ class MainWindow(QMainWindow):
 
     def run_object_removal(self):
         """Run object removal process"""
-
-        # Don't allow minimax-remover on CPU
-        if core.DeviceManager.get_device().type == 'cpu' and self.removal_tab.method_combo.currentText() == 'MiniMax-Remover':
-            show_message_dialog(self, title="Error" , message="MiniMax-Remover is not supported on CPU. Please use OpenCV instead.", type="warning")
+        engine_id = self.removal_tab.method_combo.currentData()
+        spec = get_removal_engine(engine_id)
+        if spec is None:
+            show_message_dialog(self, title="Error", message=f"Unknown object removal engine: {engine_id}", type="warning")
+            return
+        if core.DeviceManager.get_device().type in spec.unsupported_device_types:
+            show_message_dialog(self, title="Error", message=f"{spec.label} is not supported on this device.", type="warning")
             return
         self.settings_mgr.save_session_settings()
-
-        # Save current object removal settings as the new defaults
-        self.settings_mgr.set_app_setting("default_removal_method", self.removal_tab.method_combo.currentText())
-        self.settings_mgr.set_app_setting("default_inpaint_method", self.settings_mgr.get_session_setting("inpaint_method", "Telea"))
-        self.settings_mgr.set_app_setting("default_inpaint_radius", self.settings_mgr.get_session_setting("inpaint_radius", 3))
-        self.settings_mgr.set_app_setting("default_minimax_resolution", self.settings_mgr.get_session_setting("minimax_resolution", 480))
-        self.settings_mgr.set_app_setting("default_minimax_vae_tiling", self.settings_mgr.get_session_setting("minimax_vae_tiling", False))
-        self.settings_mgr.set_app_setting("default_minimax_steps", self.settings_mgr.get_session_setting("minimax_steps", 6))
-        
-        if self.removal_tab.method_combo.currentText() == 'MiniMax-Remover':
-            try:
-                # offload sam model
+        self.settings_mgr.set_app_setting("default_removal_method", engine_id)
+        if spec.save_defaults:
+            spec.save_defaults(self.settings_mgr)
+        self.removal_manager = spec.manager_factory()
+        needs_offload = spec.offload_segmentation
+        try:
+            if needs_offload:
                 self.sam_manager.offload_model_to_cpu()
                 QApplication.processEvents()
-                self.removal_manager.run_object_removal_minimax(self.point_manager.points, parent_window=self)
-            except Exception as e:
-                if "out of memory" in str(e):
-                    show_message_dialog(self, title="Error", message="An out of memory error occurred. Please try again with lower settings." , type="warning")
-                else: 
-                    print(f"An error occurred: {e}")
+            self.removal_manager.run(self.point_manager.points, parent_window=self)
+        except Exception as e:
+            if "out of memory" in str(e).lower():
+                show_message_dialog(self, title="Error", message="An out of memory error occurred. Please try again with lower settings.", type="warning")
+            else:
+                print(f"An error occurred: {e}")
+        finally:
+            try:
+                self.removal_manager.unload()
             finally:
-                progress = QProgressDialog("Loading...", None, 0, 0, self)
-                progress.setWindowTitle("Please Wait")
-                progress.setModal(True)
-                progress.show()
-                QApplication.processEvents()
-                self.removal_manager.unload_minimax_model()
-                QApplication.processEvents()
-                self.sam_manager.load_model_to_device()
-                progress.close()
-        else:
-            self.removal_manager.run_object_removal_cv(self.point_manager.points, parent_window=self)
+                if needs_offload:
+                    self.sam_manager.load_model_to_device()
 
         self.update_removal_status()
         self._update_current_frame_display()
