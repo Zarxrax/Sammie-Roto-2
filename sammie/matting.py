@@ -633,6 +633,25 @@ class VideoMaMaManager(MattingManager):
 
     BACKEND = "videomama"
 
+    @staticmethod
+    def _limit_mps_memory(memory_gib, enabled=True):
+        """Keep the baseline MPS safety ceiling, applying the user budget if enabled."""
+        recommended = torch.mps.recommended_max_memory()
+        limit = min(80 * 1024 ** 3, int(recommended * 0.8))
+        if enabled:
+            limit = min(limit, int(memory_gib * 0.95 * 1024 ** 3))
+        torch.mps.set_per_process_memory_fraction(limit / recommended)
+        print(f"VideoMaMa MPS allocation limit: {limit / 1024 ** 3:.1f} GiB")
+
+    @staticmethod
+    def _limit_cuda_memory(device, memory_gib, enabled=True):
+        """Limit PyTorch's CUDA caching allocator on the selected device."""
+        total = torch.cuda.get_device_properties(device).total_memory
+        fraction = min(0.95, memory_gib * 0.95 * 1024 ** 3 / total) if enabled else 1.0
+        torch.cuda.set_per_process_memory_fraction(fraction, device=device)
+        if enabled:
+            print(f"VideoMaMa CUDA allocation limit: {total * fraction / 1024 ** 3:.1f} GiB")
+
     def unload_matting_model(self):
         """Unload the VideoMaMa pipeline and free VRAM"""
         if self.pipeline is not None:
@@ -659,17 +678,29 @@ class VideoMaMaManager(MattingManager):
         matting_model = settings_mgr.get_session_setting("matany_model", "VideoMaMa")
         max_size = settings_mgr.get_session_setting("matany_res", 0)
         overlap = settings_mgr.get_session_setting("matany_overlap", 2)
-        batch_size = settings_mgr.get_session_setting("matany_chunk", 16)
+        batch_size = max(16, settings_mgr.get_session_setting("matany_chunk", 16))
+        memory_gib = settings_mgr.get_session_setting("videomama_memory_gib", 32)
+        memory_enabled = settings_mgr.get_session_setting("videomama_memory_enabled", True)
         combined = settings_mgr.get_session_setting("matany_combined", False)
 
         if not ensure_models(["videomama", "svd_vae"], parent=parent_window):
             return False  # user cancelled or download failed
 
         try:
+            if device.type == "mps":
+                self._limit_mps_memory(memory_gib, memory_enabled)
+            elif device.type == "cuda":
+                self._limit_cuda_memory(device, memory_gib, memory_enabled)
+            # BF16 has FP32's exponent range with half the storage. Keep the VAE
+            # in FP32 while testing a smaller UNet after all-FP16 gave black frames.
+            mps_bf16 = (device.type == "mps" and
+                        torch.backends.mps.is_macos_or_newer(14, 0))
+            unet_dtype = torch.bfloat16 if mps_bf16 else (
+                torch.float32 if device.type in ("mps", "cpu") else torch.float16)
             self.pipeline = VideoInferencePipeline(
                 base_model_path=os.path.join("checkpoints", "videomama"),
                 unet_checkpoint_path=os.path.join("checkpoints", "videomama"),
-                weight_dtype=torch.float16,
+                weight_dtype=unet_dtype,
                 device=str(device),
                 enable_model_cpu_offload=False,    # Not much benefit here, since the vae is a small model
                 vae_encode_chunk_size=1,          # Process VAE in small chunks, increasing doesnt help anything
@@ -710,8 +741,22 @@ class VideoMaMaManager(MattingManager):
         settings_mgr = get_settings_manager()
         
         # --- VideoMaMa batch settings ---
-        batch_size = settings_mgr.get_session_setting("matany_chunk", 16)   # frames per chunk sent to the model
+        batch_size = max(16, settings_mgr.get_session_setting("matany_chunk", 16))   # frames per chunk sent to the model
         overlap = settings_mgr.get_session_setting("matany_overlap", 2)     # frames re-processed at each boundary for continuity
+        memory_gib = settings_mgr.get_session_setting("videomama_memory_gib", 32)
+        memory_enabled = settings_mgr.get_session_setting("videomama_memory_enabled", True)
+        if overlap >= batch_size:
+            overlap = batch_size - 1
+            print(f"VideoMaMa: reducing overlap to {overlap} for {batch_size}-frame batches")
+        if self.pipeline.device.type == "mps":
+            self._limit_mps_memory(memory_gib, memory_enabled)
+        elif self.pipeline.device.type == "cuda":
+            self._limit_cuda_memory(self.pipeline.device, memory_gib, memory_enabled)
+        requested_res = settings_mgr.get_session_setting("matany_res", 0)
+        print(f"VideoMaMa {self.pipeline.device.type}: {self.pipeline.weight_dtype} UNet, "
+              f"{self.pipeline.vae_dtype} VAE, {batch_size} frames per batch, "
+              f"working short side {requested_res or 'original'}px, "
+              f"memory budget {'enabled at ' + str(memory_gib) + ' GiB' if memory_enabled else 'disabled'}.")
         if overlap == 0: 
             enable_boundary_blend = False
         else: 
@@ -941,6 +986,8 @@ class VideoMaMaManager(MattingManager):
         frames_to_process = end_frame - start_frame + 1
         settings_mgr = get_settings_manager()
         display_update_frequency = settings_mgr.get_app_setting("display_update_frequency", 5)
+        memory_gib = settings_mgr.get_session_setting("videomama_memory_gib", 32)
+        memory_enabled = settings_mgr.get_session_setting("videomama_memory_enabled", True)
  
         # Original frame dimensions for restoring output
         first_frame_path = os.path.join(core.frames_dir, f"{start_frame:05d}.{extension}")
@@ -1030,15 +1077,31 @@ class VideoMaMaManager(MattingManager):
             device_type = core.DeviceManager.get_device().type 
             try:
                 with torch.amp.autocast(device_type=device_type, enabled=False):
-                    output_frames = self.pipeline.run(
-                        cond_frames=cond_frames,
-                        mask_frames=mask_frames,
-                        seed=42,
-                        progress_callback=_on_pipeline_progress,
-                    )
+                    if memory_enabled and self.pipeline.device.type in ("mps", "cuda"):
+                        from videomama.spatial_tiling import run_tiled
+                        tile_budget = memory_gib
+                        if self.pipeline.device.type == "cuda":
+                            available_gib = (torch.cuda.get_device_properties(
+                                self.pipeline.device).total_memory / 1024 ** 3)
+                            tile_budget = max(8, min(memory_gib, available_gib * 0.95))
+                        output_frames = run_tiled(
+                            self.pipeline, cond_frames, mask_frames,
+                            memory_gib=tile_budget, seed=42,
+                            progress_callback=_on_pipeline_progress,
+                        )
+                    else:
+                        output_frames = self.pipeline.run(
+                            cond_frames=cond_frames,
+                            mask_frames=mask_frames,
+                            seed=42,
+                            progress_callback=_on_pipeline_progress,
+                        )
             except RuntimeError as e:
                 if str(e) == "USER_CANCELLED":
                     return None  # signals cancel upstream
+                if "out of memory" in str(e).lower():
+                    print("VideoMaMa reached the GPU memory limit. Lower frames per batch "
+                          "or adjust the memory budget before retrying.")
                 raise
             except Exception as e:
                 print(f"Error in VideoMaMa inference for batch {batch_idx}: {e}")

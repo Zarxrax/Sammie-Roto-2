@@ -27,7 +27,7 @@ class VideoInferencePipeline:
             base_model_path (str): Path to the base Stable Video Diffusion model.
             unet_checkpoint_path (str): Path to the fine-tuned UNet checkpoint.
             device (str): The device to run models on ('cuda' or 'cpu').
-            weight_dtype (torch.dtype): The precision for model weights (float16 or bfloat16).
+            weight_dtype (torch.dtype): The precision for UNet weights.
             enable_model_cpu_offload (bool): If True, models are kept on CPU and moved to GPU only when needed.
             vae_encode_chunk_size (int): Number of frames to encode at once in VAE (lower = less memory).
             attention_mode (str): Attention optimization: 'auto', 'xformers', 'sdpa', or 'none'.
@@ -36,13 +36,16 @@ class VideoInferencePipeline:
         """
         #print("--- Initializing Inference Pipeline and Loading Models ---")
         self.device = torch.device(device)
+        if self.device.type in ("mps", "cpu") and weight_dtype == torch.float16:
+            weight_dtype = torch.float32
         self.weight_dtype = weight_dtype
+        self.vae_dtype = torch.float32 if self.device.type in ("mps", "cpu") else weight_dtype
         self.enable_model_cpu_offload = enable_model_cpu_offload
         self.vae_encode_chunk_size = vae_encode_chunk_size
 
         # Load models from pretrained paths
         try:
-            self.vae = AutoencoderKLTemporalDecoder.from_pretrained(base_model_path, subfolder="vae", variant="fp16", torch_dtype=weight_dtype)
+            self.vae = AutoencoderKLTemporalDecoder.from_pretrained(base_model_path, subfolder="vae", variant="fp16", torch_dtype=self.vae_dtype)
             self.unet = UNetSpatioTemporalConditionModel.from_pretrained(unet_checkpoint_path, subfolder="unet", torch_dtype=weight_dtype)
         except Exception as e:
             raise IOError(f"Fatal error loading models: {e}")
@@ -182,13 +185,13 @@ class VideoInferencePipeline:
             if self.enable_model_cpu_offload:
                 self.vae.to(self.device)
 
-            cond_latents = self._tensor_to_vae_latent(cond_video_tensor.to(self.weight_dtype), progress_callback=progress_callback, stage="Encoding video")
+            cond_latents = self._tensor_to_vae_latent(cond_video_tensor.to(self.vae_dtype), progress_callback=progress_callback, stage="Encoding video")
             cond_latents = cond_latents / self.vae.config.scaling_factor
             _notify(2, "VAE encoding...")
             
             
 
-            mask_latents = self._tensor_to_vae_latent(mask_video_tensor.to(self.weight_dtype), progress_callback=progress_callback, stage="Encoding mask")
+            mask_latents = self._tensor_to_vae_latent(mask_video_tensor.to(self.vae_dtype), progress_callback=progress_callback, stage="Encoding mask")
             mask_latents = mask_latents / self.vae.config.scaling_factor
             _notify(2, "VAE encoding...")
 
@@ -211,7 +214,8 @@ class VideoInferencePipeline:
             timesteps = torch.full((1,), 1.0, device=self.device, dtype=torch.int32)
             added_time_ids = self._get_add_time_ids(fps, motion_bucket_id, noise_aug_strength, batch_size=1)
 
-            unet_input = torch.cat([noisy_latents, cond_latents, mask_latents], dim=2)
+            unet_input = torch.cat([noisy_latents, cond_latents.to(self.weight_dtype),
+                                    mask_latents.to(self.weight_dtype)], dim=2)
             # Free intermediate latents before UNet forward pass
             del noisy_latents, cond_latents, mask_latents
             self._clear_device_cache(self.device)
@@ -229,7 +233,7 @@ class VideoInferencePipeline:
             if self.enable_model_cpu_offload:
                 self.vae.to(self.device)
 
-            pred_latents = (1 / self.vae.config.scaling_factor) * pred_latents.squeeze(0)
+            pred_latents = (1 / self.vae.config.scaling_factor) * pred_latents.squeeze(0).to(self.vae_dtype)
 
             frames = []
             # Process in chunks to avoid VRAM issues (lower = less memory, slower)

@@ -443,6 +443,7 @@ class MattingTab(QWidget):
         res_layout = QHBoxLayout()
         overlap_layout = QHBoxLayout()
         chunk_layout = QHBoxLayout()
+        memory_layout = QHBoxLayout()
         
         model_label = QLabel("Model:")
         self.matany_model_combo = QComboBox()
@@ -469,6 +470,24 @@ class MattingTab(QWidget):
         self.chunk_label.setVisible(False)
         self.chunk_combo.setVisible(False)
 
+        self.videomama_memory_checkbox = QCheckBox("Memory budget")
+        self.videomama_memory_checkbox.setToolTip(
+            "When enabled, VideoMaMa splits the cropped region into overlapping tiles "
+            "and limits PyTorch GPU allocations on MPS or CUDA. "
+            "When disabled, VideoMaMa runs each frame batch as one region. "
+            "The general MPS safety ceiling remains active."
+        )
+        self.videomama_memory_spinbox = QSpinBox()
+        self.videomama_memory_spinbox.setRange(8, 80)
+        self.videomama_memory_spinbox.setSuffix(" GiB")
+        self.videomama_memory_spinbox.setToolTip(
+            "Target for VideoMaMa GPU allocations. Lower values create smaller tiles "
+            "and use less GPU memory, but take longer and may show tile seams. "
+            "This does not cap total system RAM or memory used by other processes."
+        )
+        self.videomama_memory_checkbox.setVisible(False)
+        self.videomama_memory_spinbox.setVisible(False)
+
         self.combined_mask_checkbox = QCheckBox("Combine All Objects")
         self.combined_mask_checkbox.setToolTip("If checked, all objects will be merged and processed as a single object.")
 
@@ -481,6 +500,13 @@ class MattingTab(QWidget):
         self.chunk_combo.currentTextChanged.connect(
             lambda v: settings_mgr.set_session_setting("matany_chunk", int(v))
         )
+        self.videomama_memory_spinbox.valueChanged.connect(
+            lambda v: settings_mgr.set_session_setting("videomama_memory_gib", v)
+        )
+        self.videomama_memory_checkbox.toggled.connect(
+            lambda enabled: settings_mgr.set_session_setting("videomama_memory_enabled", enabled)
+        )
+        self.videomama_memory_checkbox.toggled.connect(self.videomama_memory_spinbox.setEnabled)
         self.combined_mask_checkbox.stateChanged.connect(
             lambda state: settings_mgr.set_session_setting("matany_combined", self.combined_mask_checkbox.isChecked())
         )
@@ -497,11 +523,15 @@ class MattingTab(QWidget):
         chunk_layout.addWidget(self.chunk_label)
         chunk_layout.addWidget(self.chunk_combo)
         chunk_layout.addStretch()
+        memory_layout.addWidget(self.videomama_memory_checkbox)
+        memory_layout.addWidget(self.videomama_memory_spinbox)
+        memory_layout.addStretch()
         
         processing_layout.addLayout(model_layout)
         processing_layout.addLayout(res_layout)
         processing_layout.addLayout(overlap_layout)
         processing_layout.addLayout(chunk_layout)
+        processing_layout.addLayout(memory_layout)
         processing_layout.addWidget(self.combined_mask_checkbox)
         layout.addWidget(processing_group)
 
@@ -658,11 +688,15 @@ class MattingTab(QWidget):
             self.overlap_combo.setVisible(True)
             self.chunk_label.setVisible(True)
             self.chunk_combo.setVisible(True)
+            self.videomama_memory_checkbox.setVisible(True)
+            self.videomama_memory_spinbox.setVisible(True)
         else:
             self.overlap_label.setVisible(False)
             self.overlap_combo.setVisible(False)
             self.chunk_label.setVisible(False)
             self.chunk_combo.setVisible(False)
+            self.videomama_memory_checkbox.setVisible(False)
+            self.videomama_memory_spinbox.setVisible(False)
 
     def _save_resolution_setting(self, value):
         """Save resolution combo box value to session settings"""
@@ -690,26 +724,40 @@ class MattingTab(QWidget):
             self.overlap_combo.setVisible(False)
             self.chunk_label.setVisible(False)
             self.chunk_combo.setVisible(False)
+            self.videomama_memory_checkbox.setVisible(False)
+            self.videomama_memory_spinbox.setVisible(False)
         elif model == "MatAnyone":
             self.matany_model_combo.setCurrentIndex(0)
             self.overlap_label.setVisible(False)
             self.overlap_combo.setVisible(False)
             self.chunk_label.setVisible(False)
             self.chunk_combo.setVisible(False)
+            self.videomama_memory_checkbox.setVisible(False)
+            self.videomama_memory_spinbox.setVisible(False)
         else:
             self.matany_model_combo.setCurrentIndex(2)
             self.overlap_label.setVisible(True) # overlap setting is visible for VideoMaMa
             self.overlap_combo.setVisible(True)
             self.chunk_label.setVisible(True) # chunk setting is visible for VideoMaMa
             self.chunk_combo.setVisible(True)
+            self.videomama_memory_checkbox.setVisible(True)
+            self.videomama_memory_spinbox.setVisible(True)
 
         # Load overlap value
         overlap = settings_mgr.get_session_setting("matany_overlap", 2)
         self.overlap_combo.setCurrentText(str(overlap))
 
         # Load chunk value
-        chunk = settings_mgr.get_session_setting("matany_chunk", 16)
+        chunk = max(16, settings_mgr.get_session_setting("matany_chunk", 16))
+        settings_mgr.set_session_setting("matany_chunk", chunk)
         self.chunk_combo.setCurrentText(str(chunk))
+        self.videomama_memory_spinbox.setValue(
+            settings_mgr.get_session_setting("videomama_memory_gib", 32)
+        )
+        self.videomama_memory_checkbox.setChecked(
+            settings_mgr.get_session_setting("videomama_memory_enabled", True)
+        )
+        self.videomama_memory_spinbox.setEnabled(self.videomama_memory_checkbox.isChecked())
 
         # Load resolution
         resolution = settings_mgr.get_session_setting("matany_res", 1080)
@@ -2382,6 +2430,8 @@ class MainWindow(QMainWindow):
         self.settings_mgr.set_app_setting("default_matany_res", self.settings_mgr.get_session_setting("matany_res", 1080))
         self.settings_mgr.set_app_setting("default_matany_overlap", self.settings_mgr.get_session_setting("matany_overlap", 2))
         self.settings_mgr.set_app_setting("default_matany_chunk", self.settings_mgr.get_session_setting("matany_chunk", 16))
+        self.settings_mgr.set_app_setting("default_videomama_memory_gib", self.settings_mgr.get_session_setting("videomama_memory_gib", 32))
+        self.settings_mgr.set_app_setting("default_videomama_memory_enabled", self.settings_mgr.get_session_setting("videomama_memory_enabled", True))
 
         if count > 0:  
             #load models

@@ -1,4 +1,16 @@
 # Sammie-Roto specific files and folders
+
+# macOS Finder and filesystem metadata
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100/
+.Trashes/
+.fseventsd/
+.TemporaryItems/
+.VolumeIcon.icns
+
 python-3.12.8-embed-amd64/
 temp/
 sammie_debug.log
