@@ -3,8 +3,8 @@
 
 ![Sammie-Roto 2 screenshot](https://github.com/user-attachments/assets/bc2c99c8-4039-49f1-94ed-65f104a83e8d)
 
-[![GitHub Downloads](https://img.shields.io/github/downloads/Zarxrax/Sammie-Roto-2/total)](https://github.com/Zarxrax/Sammie-Roto-2/releases)
-[![GitHub Code License](https://img.shields.io/github/license/Zarxrax/Sammie-Roto-2)](LICENSE)
+[![GitHub Downloads](https://img.shields.io/github/downloads/magnoborgo/Sammie-Roto-2/total)](https://github.com/magnoborgo/Sammie-Roto-2/releases)
+[![GitHub Code License](https://img.shields.io/github/license/magnoborgo/Sammie-Roto-2)](LICENSE)
 [![Discord](https://img.shields.io/discord/1437589475369811970?label=Discord&color=blue)](https://discord.gg/jb5qrFyGFF)
 
 **Please add a Github Star if you find it useful!**
@@ -28,7 +28,7 @@ Sammie-Roto 2 is free and open source, but runs models produced by several exter
 ## Need more help? [Join the Discord](https://discord.gg/jb5qrFyGFF)!
 
 ### Installation (Windows):
-- Download latest version from [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)
+- Download latest version from [releases](https://github.com/magnoborgo/Sammie-Roto-2/releases)
 - Extract the zip archive to any location that doesn't restrict write permissions (don't put it in Program Files)
 - Run 'install.bat' and follow the prompt.
 - Run 'run_sammie.bat' to launch the software (or double click the desktop shortcut).
@@ -36,14 +36,14 @@ Sammie-Roto 2 is free and open source, but runs models produced by several exter
 Everything is self-contained in the Sammie-Roto folder. If you want to remove the application, simply delete this folder.
 
 ### Installation (Linux, Mac)
-- Download latest version from [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)
+- Download latest version from [releases](https://github.com/magnoborgo/Sammie-Roto-2/releases)
 - Extract the zip archive.
 - Open a terminal and navigate to the Sammie-Roto folder that you just extracted from the zip.
 - Execute the following command in the terminal: `bash install.sh` then follow the prompt.
 - MacOS users: double-click the desktop icon to launch the program. Linux users: `bash run_sammie.sh` or find it in the applications menu.
 
 ### Updates
-**Full Changelog can be seen under [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)**
+**Full Changelog can be seen under [releases](https://github.com/magnoborgo/Sammie-Roto-2/releases)**
 - [09/22/2026] 2.5.1 - Added responsive binary paint correction for segmentation masks, with add/remove brushes, paint-only matting support, and integration across matting and object removal. Updated temporary plate and output naming to preserve source frame numbers in flat folders. Improved image staging, viewport painting controls, panning margins, and keyboard shortcuts.
 - [09/21/2026] 2.5.0 - Added a configurable memory budget with tiled VideoMaMa processing on MPS and CUDA, plus optional automatic matting export. Refactored matting, segmentation, and object removal into self-contained engines. Switched image loading and processing to OpenImageIO and NumPy, adding EXR and other supported image formats, multilayer EXR export, and OIIO Fill object removal. Fixed SAM2 frame loading and updated shortcuts: F to fit, H for 100% zoom, and Left/Right arrows to change frames.
 - [09/05/2026] 2.4.1 - Preliminary support for AMD GPUs on Windows, some bugfixes.

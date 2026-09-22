@@ -3042,7 +3042,7 @@ class MainWindow(QMainWindow):
 
     def open_update_url(self, version):
         """Open the GitHub releases page"""
-        url = "https://github.com/Zarxrax/Sammie-Roto-2/releases"
+        url = "https://github.com/magnoborgo/Sammie-Roto-2/releases"
         webbrowser.open(url)
     
     def show_help(self):
@@ -3052,7 +3052,7 @@ class MainWindow(QMainWindow):
 
     def show_changelog(self):
         """Open the GitHub changelog page"""
-        url = "https://github.com/Zarxrax/Sammie-Roto-2/releases"
+        url = "https://github.com/magnoborgo/Sammie-Roto-2/releases"
         webbrowser.open(url)
 
     def open_folder(self):
@@ -3069,7 +3069,7 @@ class MainWindow(QMainWindow):
         # Use rich text to make the URL clickable
         info_text = (
             "Video Segmentation and Matting tool<br><br>"
-            '<a href="https://github.com/Zarxrax/Sammie-Roto-2">https://github.com/Zarxrax/Sammie-Roto-2</a>'
+            '<a href="https://github.com/magnoborgo/Sammie-Roto-2">https://github.com/magnoborgo/Sammie-Roto-2</a>'
         )
         msg.setInformativeText(info_text)
         msg.setTextFormat(Qt.RichText)
