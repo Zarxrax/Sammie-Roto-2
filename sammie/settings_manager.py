@@ -49,12 +49,11 @@ class ApplicationSettings:
 
     # Object Removal Processing defaults
     default_removal_method: str = "MiniMax-Remover"
-    default_inpaint_method: str = "Telea"
-    default_inpaint_radius: int = 3
     default_inpaint_grow: int = 5
     default_minimax_steps: int = 6
     default_minimax_resolution: int = 480
     default_minimax_vae_tiling: bool = False
+    default_propainterx_resolution: int = 480
     
     # Playback
     playback_fps: int = 24  # frames per second for playback
@@ -123,12 +122,11 @@ class SessionSettings:
 
     # Object removal parameters
     removal_method: str = "MiniMax-Remover"
-    inpaint_method: str = "Telea"
-    inpaint_radius: int = 3
     inpaint_grow: int = 0
     minimax_steps: int = 6
     minimax_resolution: int = 480
     minimax_vae_tiling: bool = False
+    propainterx_resolution: int = 480
     
     # Selected objects
     selected_object_id: int = 0
@@ -287,12 +285,11 @@ class SettingsManager:
             matany_chunk=self.app_settings.default_matany_chunk,
             matany_combined=self.app_settings.default_matany_combined,
             removal_method=self.app_settings.default_removal_method,
-            inpaint_method=self.app_settings.default_inpaint_method,
-            inpaint_radius=self.app_settings.default_inpaint_radius,
             inpaint_grow=self.app_settings.default_inpaint_grow,
             minimax_steps=self.app_settings.default_minimax_steps,
             minimax_resolution=self.app_settings.default_minimax_resolution,
             minimax_vae_tiling=self.app_settings.default_minimax_vae_tiling,
+            propainterx_resolution=self.app_settings.default_propainterx_resolution,
             selected_object_id=self.app_settings.default_object_id,
             created_timestamp=timestamp,
             modified_timestamp=timestamp
@@ -371,12 +368,11 @@ class SettingsManager:
     def get_inpainting_params(self) -> Dict[str, Any]:
         """Get current inpainting parameters"""
         return {
-            'inpaint_method': self.session_settings.inpaint_method,
-            'inpaint_radius': self.session_settings.inpaint_radius,
             'inpaint_grow': self.session_settings.inpaint_grow,
             'minimax_steps': self.session_settings.minimax_steps,
             'minimax_resolution': self.session_settings.minimax_resolution,
-            'minimax_vae_tiling': self.session_settings.minimax_vae_tiling
+            'minimax_vae_tiling': self.session_settings.minimax_vae_tiling,
+            'propainterx_resolution': self.session_settings.propainterx_resolution
         }
 
     def session_exists(self) -> bool:

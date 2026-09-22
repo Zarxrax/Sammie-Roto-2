@@ -167,7 +167,7 @@ class SegmentationTab(QWidget):
         settings_mgr.get_session_setting("default_sam_model", "Base")
 
         self.sam_model_combo = QComboBox()
-        self.sam_model_combo.addItems(["Base", "Large", "Efficient"])
+        self.sam_model_combo.addItems(["Base", "Large", "Efficient", "Anime"])
         self.sam_model_combo.setToolTip("Large model is slower but slightly more accurate.\nEfficient model is faster but less accurate.")
         self.sam_model_btn = QPushButton("Load Model")
         self.sam_model_btn.setEnabled(False) # disabled until video is loaded
@@ -396,6 +396,8 @@ class SegmentationTab(QWidget):
             self.sam_model_combo.setCurrentIndex(1)
         elif model == "Efficient":
             self.sam_model_combo.setCurrentIndex(2)
+        elif model == "Anime":
+            self.sam_model_combo.setCurrentIndex(3)
 
         # Update sliders
         slider_mappings = [
@@ -767,11 +769,11 @@ class ObjectRemovalTab(QWidget):
         removal_layout.addWidget(self.clear_removal_btn)
         layout.addWidget(removal_group)
 
-        # Method selection (MiniMax-Remover vs OpenCV)
+        # Method selection (MiniMax-Remover vs ProPainterX)
         self._create_method_selection(layout)
 
         # Create both parameter groups (they'll be shown/hidden based on method)
-        self._create_opencv_parameters(layout)
+        self._create_propainterx_parameters(layout)
         self._create_minimax_parameters(layout)
         
         # Create shared shrink/grow slider first (used by both methods)
@@ -797,7 +799,7 @@ class ObjectRemovalTab(QWidget):
         • Object removal uses inpainting to fill in areas where objects have been removed.<br>
         • You first need to <b>run tracking in the Segmentation tab</b>, so a mask is on every frame.<br>
         • MiniMax-Remover uses VRAM proportionally to the number of frames in the video. Keep clips to a few seconds.<br>
-        • The OpenCV option is really bad, and is only provided as a fallback in case MiniMax-Remover can't be used.<br>
+        • ProPainterX handles longer clips more efficiently than MiniMax-Remover, but quality is usually worse.<br>
         """
         
         instructions_text.setText(instruction_content)
@@ -818,14 +820,14 @@ class ObjectRemovalTab(QWidget):
         layout.addWidget(instructions_group)
     
     def _create_method_selection(self, layout):
-        """Create method selection (MiniMax-Remover vs OpenCV)"""
+        """Create method selection (MiniMax-Remover vs ProPainterX)"""
         method_group = QGroupBox("Method")
         method_layout = QHBoxLayout(method_group)
         
         method_layout.addWidget(QLabel("Method:"))
         
         self.method_combo = QComboBox()
-        self.method_combo.addItems(["MiniMax-Remover", "OpenCV"])
+        self.method_combo.addItems(["MiniMax-Remover", "ProPainterX"])
         
         settings_mgr = get_settings_manager()
         current_method = settings_mgr.get_session_setting("removal_method", "MiniMax-Remover")
@@ -833,7 +835,7 @@ class ObjectRemovalTab(QWidget):
         if index >= 0:
             self.method_combo.setCurrentIndex(index)
         
-        self.method_combo.setToolTip("MiniMax-Remover: Uses a video diffusion model (recommended).<br>OpenCV: Uses traditional computing algorithms (poor quality).")
+        self.method_combo.setToolTip("MiniMax-Remover: Good quality but can only process a few seconds of video.<br>ProPainterX: Worse quality but handles longer clips more efficiently.")
         self.method_combo.currentTextChanged.connect(self._on_method_changed)
         
         method_layout.addWidget(self.method_combo)
@@ -851,11 +853,11 @@ class ObjectRemovalTab(QWidget):
         """Show/hide parameter groups based on selected method"""
         current_method = self.method_combo.currentText()
         
-        if current_method == "OpenCV":
-            self.opencv_params_group.setVisible(True)
+        if current_method == "ProPainterX":
+            self.propainterx_params_group.setVisible(True)
             self.minimax_params_group.setVisible(False)
         else:  # MiniMax-Remover
-            self.opencv_params_group.setVisible(False)
+            self.propainterx_params_group.setVisible(False)
             self.minimax_params_group.setVisible(True)
 
     def _create_shared_shrink_grow(self, layout):
@@ -895,94 +897,36 @@ class ObjectRemovalTab(QWidget):
         )
         
         layout.addWidget(shrink_grow_group)
-        """Show/hide parameter groups based on selected method"""
-        current_method = self.method_combo.currentText()
-        
-        if current_method == "OpenCV":
-            self.opencv_params_group.setVisible(True)
-            self.minimax_params_group.setVisible(False)
-        else:  # MiniMax-Remover
-            self.opencv_params_group.setVisible(False)
-            self.minimax_params_group.setVisible(True)
 
-    def _create_opencv_parameters(self, layout):
-        """Create parameters for OpenCV method"""
+    def _create_propainterx_parameters(self, layout):
+        """Create parameters for ProPainterX method"""
         settings_mgr = get_settings_manager()
-        
-        self.opencv_params_group = QWidget()
-        opencv_layout = QVBoxLayout(self.opencv_params_group)
-        opencv_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Algorithm selection
-        algorithm_group = QGroupBox("Algorithm")
-        algorithm_layout = QHBoxLayout(algorithm_group)
-        
-        algorithm_layout.addWidget(QLabel("Algorithm:"))
-        
-        self.opencv_algorithm_combo = QComboBox()
-        self.opencv_algorithm_combo.addItems(["Telea", "Navier-Stokes"])
-        
-        current_algorithm = settings_mgr.get_session_setting("inpaint_method", "Telea")
-        index = self.opencv_algorithm_combo.findText(current_algorithm)
+        self.propainterx_params_group = QWidget()
+        propainterx_layout = QVBoxLayout(self.propainterx_params_group)
+        propainterx_layout.setContentsMargins(0, 0, 0, 0)
+
+        params_group = QGroupBox("Parameters")
+        params_layout = QGridLayout(params_group)
+
+        # Internal Resolution
+        params_layout.addWidget(QLabel("Internal Resolution:"), 0, 0)
+        self.propainterx_resolution_combo = QComboBox()
+        self.propainterx_resolution_combo.addItems(["352", "480", "720", "1080"])
+
+        current_resolution = str(settings_mgr.get_session_setting("propainterx_resolution", 480))
+        index = self.propainterx_resolution_combo.findText(current_resolution)
         if index >= 0:
-            self.opencv_algorithm_combo.setCurrentIndex(index)
-        
-        self.opencv_algorithm_combo.setToolTip("Telea: Based on fast marching method.\nNavier-Stokes: Fluid dynamics based method, may produce smoother results.")
-        self.opencv_algorithm_combo.currentTextChanged.connect(self._save_opencv_algorithm)
-        
-        algorithm_layout.addWidget(self.opencv_algorithm_combo)
-        algorithm_layout.addStretch()
-        
-        opencv_layout.addWidget(algorithm_group)
-        
-        # OpenCV-specific sliders
-        sliders_group = QGroupBox("Parameters")
-        sliders_layout = QGridLayout(sliders_group)
-        
-        slider_configs = [
-            ("Inpaint Radius:", 1, 10, "inpaint_radius", 3,
-            "The radius of a circular neighborhood of each point inpainted that is considered by the algorithm.",
-            lambda v: str(v), lambda v: v, lambda v: v)
-        ]
-        
-        for i, (label_text, min_val, max_val, setting_key, fallback_default, tooltip,
-                display_func, slider_func, save_func) in enumerate(slider_configs):
-            
-            default_val = getattr(settings_mgr.app_settings, f"default_{setting_key}", fallback_default)
-            current_val = settings_mgr.get_session_setting(setting_key, default_val)
-            
-            label = ClickableLabel(label_text)
-            label.setToolTip(f"Double-click to reset to default value ({display_func(slider_func(default_val))})")
-            sliders_layout.addWidget(label, i, 0)
-            
-            slider = QSlider(Qt.Horizontal)
-            slider.setRange(min_val, max_val)
-            slider.setValue(slider_func(current_val))
-            slider.setToolTip(tooltip)
-            sliders_layout.addWidget(slider, i, 1)
-            
-            value_label = QLabel(display_func(slider_func(current_val)))
-            value_label.setMinimumWidth(30)
-            value_label.setAlignment(Qt.AlignCenter)
-            sliders_layout.addWidget(value_label, i, 2)
-            
-            slider.valueChanged.connect(
-                lambda v, lbl=value_label, func=display_func: lbl.setText(func(v))
-            )
-            slider.valueChanged.connect(
-                lambda v, key=setting_key, func=save_func: self._save_slider_value(key, func(v))
-            )
-            
-            label.doubleClicked.connect(
-                lambda s=slider, default=default_val, func=slider_func: self._reset_slider_to_default(s, func(default))
-            )
-            
-            if setting_key == "inpaint_radius":
-                self.opencv_radius_slider = slider
-                self.opencv_radius_value = value_label
-        
-        opencv_layout.addWidget(sliders_group)
-        layout.addWidget(self.opencv_params_group)
+            self.propainterx_resolution_combo.setCurrentIndex(index)
+
+        self.propainterx_resolution_combo.setToolTip("Internal processing resolution. Higher values produce better quality but are slower and use more VRAM.")
+        self.propainterx_resolution_combo.currentTextChanged.connect(
+            lambda v: settings_mgr.set_session_setting("propainterx_resolution", int(v))
+        )
+        params_layout.addWidget(self.propainterx_resolution_combo, 0, 1, 1, 2)
+
+        propainterx_layout.addWidget(params_group)
+        layout.addWidget(self.propainterx_params_group)
 
     def _create_minimax_parameters(self, layout):
         """Create parameters for MiniMax-Remover method"""
@@ -1062,11 +1006,6 @@ class ObjectRemovalTab(QWidget):
         minimax_layout.addWidget(params_group)
         layout.addWidget(self.minimax_params_group)
 
-    def _save_opencv_algorithm(self, algorithm):
-        """Save OpenCV algorithm to session settings"""
-        settings_mgr = get_settings_manager()
-        settings_mgr.set_session_setting("inpaint_method", algorithm)
-
     def _reset_slider_to_default(self, slider, default_value):
         """Reset a slider to its default value"""
         slider.setValue(default_value)
@@ -1089,15 +1028,11 @@ class ObjectRemovalTab(QWidget):
         # Update visibility
         self._update_parameters_visibility()
     
-        # Load OpenCV settings
-        algorithm = settings_mgr.get_session_setting("inpaint_method", "Telea")
-        index = self.opencv_algorithm_combo.findText(algorithm)
+        # Load ProPainterX settings
+        propainterx_resolution = str(settings_mgr.get_session_setting("propainterx_resolution", 480))
+        index = self.propainterx_resolution_combo.findText(propainterx_resolution)
         if index >= 0:
-            self.opencv_algorithm_combo.setCurrentIndex(index)
-        
-        radius = settings_mgr.get_session_setting("inpaint_radius", 3)
-        self.opencv_radius_slider.setValue(radius)
-        self.opencv_radius_value.setText(str(radius))
+            self.propainterx_resolution_combo.setCurrentIndex(index)
         
         # Load MiniMax settings
         resolution = str(settings_mgr.get_session_setting("minimax_resolution", 480))
@@ -1353,9 +1288,8 @@ class MainWindow(QMainWindow):
             # Connect shared shrink/grow slider
             removal_tab.shrink_grow_slider.valueChanged.connect(lambda _: self._update_current_frame_display())
 
-            # Connect OpenCV parameter controls
-            removal_tab.opencv_algorithm_combo.currentTextChanged.connect(lambda _: self._update_current_frame_display())
-            removal_tab.opencv_radius_slider.valueChanged.connect(lambda _: self._update_current_frame_display())
+            # Connect ProPainterX parameter controls
+            removal_tab.propainterx_resolution_combo.currentTextChanged.connect(lambda _: self._update_current_frame_display())
 
             # Connect MiniMax parameter controls
             removal_tab.minimax_resolution_combo.currentTextChanged.connect(lambda _: self._update_current_frame_display())
@@ -2428,14 +2362,13 @@ class MainWindow(QMainWindow):
 
         # Don't allow minimax-remover on CPU
         if core.DeviceManager.get_device().type == 'cpu' and self.removal_tab.method_combo.currentText() == 'MiniMax-Remover':
-            show_message_dialog(self, title="Error" , message="MiniMax-Remover is not supported on CPU. Please use OpenCV instead.", type="warning")
+            show_message_dialog(self, title="Error" , message="MiniMax-Remover is not supported on CPU. Please use ProPainterX instead.", type="warning")
             return
         self.settings_mgr.save_session_settings()
 
         # Save current object removal settings as the new defaults
         self.settings_mgr.set_app_setting("default_removal_method", self.removal_tab.method_combo.currentText())
-        self.settings_mgr.set_app_setting("default_inpaint_method", self.settings_mgr.get_session_setting("inpaint_method", "Telea"))
-        self.settings_mgr.set_app_setting("default_inpaint_radius", self.settings_mgr.get_session_setting("inpaint_radius", 3))
+        self.settings_mgr.set_app_setting("default_propainterx_resolution", self.settings_mgr.get_session_setting("propainterx_resolution", 480))
         self.settings_mgr.set_app_setting("default_minimax_resolution", self.settings_mgr.get_session_setting("minimax_resolution", 480))
         self.settings_mgr.set_app_setting("default_minimax_vae_tiling", self.settings_mgr.get_session_setting("minimax_vae_tiling", False))
         self.settings_mgr.set_app_setting("default_minimax_steps", self.settings_mgr.get_session_setting("minimax_steps", 6))
@@ -2461,8 +2394,27 @@ class MainWindow(QMainWindow):
                 QApplication.processEvents()
                 self.sam_manager.load_model_to_device()
                 progress.close()
-        else:
-            self.removal_manager.run_object_removal_cv(self.point_manager.points, parent_window=self)
+        else:  # ProPainterX
+            try:
+                # offload sam model
+                self.sam_manager.offload_model_to_cpu()
+                QApplication.processEvents()
+                self.removal_manager.run_object_removal_propainterx(self.point_manager.points, parent_window=self)
+            except Exception as e:
+                if "out of memory" in str(e).lower():
+                    show_message_dialog(self, title="Error", message="An out of memory error occurred. Please try again with lower settings." , type="warning")
+                else:
+                    print(f"An error occurred: {e}")
+            finally:
+                progress = QProgressDialog("Loading...", None, 0, 0, self)
+                progress.setWindowTitle("Please Wait")
+                progress.setModal(True)
+                progress.show()
+                QApplication.processEvents()
+                self.removal_manager.unload_propainterx_model()
+                QApplication.processEvents()
+                self.sam_manager.load_model_to_device()
+                progress.close()
 
         self.update_removal_status()
         self._update_current_frame_display()

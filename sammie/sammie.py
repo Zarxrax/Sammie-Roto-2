@@ -24,7 +24,6 @@ from sammie.model_downloader import ensure_models
 
 smoothing_model = None  # global variable needed to avoid complexity of passing the model around
 
-
 # .........................................................................................
 # SAM2 / EfficientTAM segmentation
 # .........................................................................................
@@ -71,6 +70,10 @@ class SamManager:
             print("Loaded EfficientTAM 512x512 model")
             checkpoint = "./checkpoints/efficienttam_s_512x512.pt"
             model_cfg = "./configs/sam2.1/efficienttam_s_512x512.yaml"
+        elif sam_model == "Anime":
+            print("Loaded SAM2 Anime model")
+            checkpoint = "./checkpoints/sam2.1_anime_v1.pt"
+            model_cfg = "./configs/sam2.1/sam2.1_hiera_b+.yaml"
 
         # Check if files exist
         if not ensure_models(sam_model, parent=parent_window):
