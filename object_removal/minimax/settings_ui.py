@@ -2,6 +2,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QGroupBox, QHBoxLayout, QLab
 from PySide6.QtCore import Qt
 from sammie.settings_manager import get_settings_manager
 from sammie.gui_widgets import ClickableLabel
+from sammie.numeric_slider import NumericSliderValue
 
 def create_settings(tab):
     widget = QWidget()
@@ -62,16 +63,11 @@ def create_settings(tab):
     tab.minimax_steps_slider.setRange(4, 12)
     tab.minimax_steps_slider.setValue(current_steps)
     tab.minimax_steps_slider.setToolTip("Number of diffusion steps. Larger values are better quality but slower.")
-    params_layout.addWidget(tab.minimax_steps_slider, row, 1)
+    params_layout.addWidget(tab.minimax_steps_slider, row, 2)
 
-    tab.minimax_steps_value = QLabel(str(current_steps))
-    tab.minimax_steps_value.setMinimumWidth(30)
-    tab.minimax_steps_value.setAlignment(Qt.AlignCenter)
-    params_layout.addWidget(tab.minimax_steps_value, row, 2)
+    tab.minimax_steps_value = NumericSliderValue(tab.minimax_steps_slider)
+    params_layout.addWidget(tab.minimax_steps_value, row, 1)
 
-    tab.minimax_steps_slider.valueChanged.connect(
-        lambda v: tab.minimax_steps_value.setText(str(v))
-    )
     tab.minimax_steps_slider.valueChanged.connect(
         lambda v: settings_mgr.set_session_setting("minimax_steps", v)
     )

@@ -23,6 +23,7 @@ from sammie import sammie
 from sammie.resources import resources
 from sammie import core
 from sammie import image_ops
+from sammie.numeric_slider import NumericSliderValue
 from sammie import matting
 from sammie import removal
 from segmentation.registry import get_engine_specs as get_segmentation_engines
@@ -290,18 +291,13 @@ class SegmentationTab(QWidget):
             slider.setRange(min_val, max_val)
             slider.setValue(current_val)
             slider.setToolTip(tooltip)
-            sliders_layout.addWidget(slider, i, 1)
+            sliders_layout.addWidget(slider, i, 2)
             
             # Create value display
-            value_label = QLabel(str(current_val))
-            value_label.setMinimumWidth(30)
-            value_label.setAlignment(Qt.AlignCenter)
-            sliders_layout.addWidget(value_label, i, 2)
+            value_label = NumericSliderValue(slider)
+            sliders_layout.addWidget(value_label, i, 1)
             
             # Connect slider to value display and save settings
-            slider.valueChanged.connect(
-                lambda v, lbl=value_label: lbl.setText(str(v))
-            )
             slider.valueChanged.connect(
                 lambda v, key=attr_prefix: self._save_slider_value(key, v)
             )
@@ -525,7 +521,7 @@ class MattingTab(QWidget):
         slider_configs = [
             ("Gamma:", 1, 1000, "matany_gamma", 1.0,
             "Values < 1.0 darken edges, values > 1.0 brighten edges.",
-            lambda v: f"{v/100.0:.1f}", lambda v: int(v * 100), lambda v: v / 100.0),
+            lambda v: f"{v/100.0:.2f}", lambda v: int(v * 100), lambda v: v / 100.0),
             ("Shrink/Grow:", -20, 20, "matany_grow", 0,
             "Shrink (erode) or grow (dilate) the matted regions.",
             lambda v: str(v), lambda v: v, lambda v: v)
@@ -548,17 +544,14 @@ class MattingTab(QWidget):
             slider.setRange(min_val, max_val)
             slider.setValue(slider_func(current_val))
             slider.setToolTip(tooltip)
-            sliders_layout.addWidget(slider, i, 1)
+            sliders_layout.addWidget(slider, i, 2)
             
             # Create value display
-            value_label = QLabel(display_func(slider_func(current_val)))
-            value_label.setMinimumWidth(35 if setting_key == "matany_gamma" else 30)
-            value_label.setAlignment(Qt.AlignCenter)
-            sliders_layout.addWidget(value_label, i, 2)
+            value_label = NumericSliderValue(slider, decimals=2 if setting_key == "matany_gamma" else 0)
+            sliders_layout.addWidget(value_label, i, 1)
             
             # Connect slider to value display and save settings
             if setting_key == "matany_gamma":
-                slider.valueChanged.connect(self._update_gamma_value)
                 slider.valueChanged.connect(
                     lambda v, func=save_func: self._save_slider_value("matany_gamma", func(v))
                 )
@@ -570,9 +563,6 @@ class MattingTab(QWidget):
                 self.gamma_slider = slider
                 self.gamma_value = value_label
             else:
-                slider.valueChanged.connect(
-                    lambda v, lbl=value_label, func=display_func: lbl.setText(func(v))
-                )
                 slider.valueChanged.connect(
                     lambda v, key=setting_key, func=save_func: self._save_slider_value(key, func(v))
                 )
@@ -594,11 +584,6 @@ class MattingTab(QWidget):
         """Reset a slider to its default value"""
         slider.setValue(default_value)
         
-    def _update_gamma_value(self, value):
-        """Update gamma value display (convert from int to decimal)"""
-        gamma_val = value / 100.0
-        self.gamma_value.setText(f"{gamma_val:.1f}")
-
     def _save_model_setting(self, index):
         """Select a discovered engine and show its own controls."""
         if index < 0 or index >= len(self._engine_specs):
@@ -658,7 +643,7 @@ class MattingTab(QWidget):
         # Update gamma slider
         gamma = settings_mgr.get_session_setting("matany_gamma", 1.0)
         self.gamma_slider.setValue(int(gamma * 100))
-        self.gamma_value.setText(f"{gamma:.1f}")
+        self.gamma_value.setText(f"{gamma:.2f}")
         
         # Update shrink/grow slider
         shrink_grow = settings_mgr.get_session_setting("matany_grow", 0)
@@ -804,16 +789,11 @@ class ObjectRemovalTab(QWidget):
         self.shrink_grow_slider.setRange(-20, 20)
         self.shrink_grow_slider.setValue(current_grow)
         self.shrink_grow_slider.setToolTip("Shrink (erode) or grow (dilate) the mask before inpainting. This is additive to the same setting on the Segmentation tab.")
-        shrink_grow_layout.addWidget(self.shrink_grow_slider, 0, 1)
+        shrink_grow_layout.addWidget(self.shrink_grow_slider, 0, 2)
         
-        self.shrink_grow_value = QLabel(str(current_grow))
-        self.shrink_grow_value.setMinimumWidth(30)
-        self.shrink_grow_value.setAlignment(Qt.AlignCenter)
-        shrink_grow_layout.addWidget(self.shrink_grow_value, 0, 2)
+        self.shrink_grow_value = NumericSliderValue(self.shrink_grow_slider)
+        shrink_grow_layout.addWidget(self.shrink_grow_value, 0, 1)
         
-        self.shrink_grow_slider.valueChanged.connect(
-            lambda v: self.shrink_grow_value.setText(str(v))
-        )
         self.shrink_grow_slider.valueChanged.connect(
             lambda v: self._save_slider_value("inpaint_grow", v)
         )
