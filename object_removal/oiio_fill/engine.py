@@ -75,7 +75,7 @@ class OIIOFillRemovalManager(RemovalManager):
             if progress_dialog.wasCanceled():
                 break
 
-            frame_filename = os.path.join(core.frames_dir, f"{frame_number:05d}.{extension}")
+            frame_filename = core.frame_path(frame_number, extension)
             if not os.path.exists(frame_filename):
                 operations_completed += 1
                 tqdm_bar.update(1)
@@ -94,15 +94,13 @@ class OIIOFillRemovalManager(RemovalManager):
             # Combine masks from all objects on this frame
             combined_mask = np.zeros(frame.shape[:2], np.uint8)
             for object_id in object_ids:
-                mask_filename = os.path.join(core.mask_dir, f"{frame_number:05d}", f"{object_id}.png")
-                if os.path.exists(mask_filename):
-                    mask = image_ops.imread(mask_filename, image_ops.IMREAD_GRAYSCALE)
-                    if mask is not None:
-                        combined_mask = image_ops.bitwise_or(combined_mask, mask)
+                mask = core.load_segmentation_mask(frame_number, object_id)
+                if mask is not None:
+                    combined_mask = image_ops.bitwise_or(combined_mask, mask)
 
             # Skip if no mask present, copy original frame
             if not np.any(combined_mask):
-                output_filename = os.path.join(core.removal_dir, f"{frame_number:05d}.png")
+                output_filename = core.output_path(core.removal_dir, frame_number)
                 os.makedirs(os.path.dirname(output_filename), exist_ok=True)
                 image_ops.imwrite(output_filename, frame)
                 operations_completed += 1
@@ -123,13 +121,13 @@ class OIIOFillRemovalManager(RemovalManager):
             # Run inpainting
             try:
                 result = image_ops.inpaint(frame, combined_mask)
-                output_filename = os.path.join(core.removal_dir, f"{frame_number:05d}.png")
+                output_filename = core.output_path(core.removal_dir, frame_number)
                 os.makedirs(os.path.dirname(output_filename), exist_ok=True)
                 image_ops.imwrite(output_filename, result)
 
             except Exception as e:
                 print(f"Error inpainting frame {frame_number}: {e}")
-                output_filename = os.path.join(core.removal_dir, f"{frame_number:05d}.png")
+                output_filename = core.output_path(core.removal_dir, frame_number)
                 os.makedirs(os.path.dirname(output_filename), exist_ok=True)
                 image_ops.imwrite(output_filename, frame)
 

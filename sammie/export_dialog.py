@@ -858,25 +858,11 @@ class ExportDialog(QDialog):
             in_point = settings_mgr.get_session_setting("in_point", None)
             out_point = settings_mgr.get_session_setting("out_point", None)
  
-        for frame_dirname in sorted(os.listdir(matting_dir)):
-            frame_dir = os.path.join(matting_dir, frame_dirname)
-            if not os.path.isdir(frame_dir):
-                continue
- 
+        found_ids = set()
+        for frame_num in range(core.VideoInfo.total_frames):
             # If in/out range is set, skip frames outside it
             if in_point is not None and out_point is not None:
-                try:
-                    frame_num = int(frame_dirname)
-                    if frame_num < in_point or frame_num > out_point:
-                        continue
-                except ValueError:
+                if frame_num < in_point or frame_num > out_point:
                     continue
- 
-            ids = [
-                int(os.path.splitext(f)[0])
-                for f in os.listdir(frame_dir)
-                if f.endswith('.png') and os.path.splitext(f)[0].isdigit()
-            ]
-            if ids:
-                return sorted(ids)
-        return []
+            found_ids.update(core.output_ids(matting_dir, frame_num))
+        return sorted(found_ids)

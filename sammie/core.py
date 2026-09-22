@@ -1,6 +1,8 @@
 # sammie/core.py
 from sammie import image_ops
 import os
+import json
+import re
 import numpy as np
 import torch
 import warnings
@@ -14,9 +16,128 @@ from sammie.settings_manager import get_settings_manager
 temp_dir = "temp"
 frames_dir = os.path.join(temp_dir, "frames")
 mask_dir = os.path.join(temp_dir, "masks")
+paint_dir = os.path.join(temp_dir, "paint")
+paint_enabled = True
 backup_dir = os.path.join(temp_dir, "masks_backup")
 matting_dir = os.path.join(temp_dir, "matting")
 removal_dir = os.path.join(temp_dir, "removal")
+plate_info_path = os.path.join(temp_dir, "plate_info.json")
+_plate_info = None
+
+
+def set_plate_info(source_name, frame_numbers, padding=4):
+    """Record the original plate numbering for indexed application frames."""
+    global _plate_info
+    _plate_info = {
+        "name": re.sub(r"[^A-Za-z0-9_.-]", "_", source_name).rstrip("._-") or "plate",
+        "numbers": list(frame_numbers),
+        "padding": max(4, padding),
+    }
+    os.makedirs(temp_dir, exist_ok=True)
+    with open(plate_info_path, "w", encoding="utf-8") as stream:
+        json.dump(_plate_info, stream)
+
+
+def plate_info():
+    global _plate_info
+    if _plate_info is None:
+        with open(plate_info_path, encoding="utf-8") as stream:
+            _plate_info = json.load(stream)
+    return _plate_info
+
+
+def reload_plate_info():
+    global _plate_info
+    _plate_info = None
+    return plate_info()
+
+
+def plate_number(frame_index):
+    numbers = plate_info()["numbers"]
+    return numbers[frame_index] if 0 <= frame_index < len(numbers) else frame_index
+
+
+def frame_path(frame_index, extension=None):
+    extension = extension or get_frame_extension()
+    info = plate_info()
+    return os.path.join(frames_dir, f"{info['name']}_frames.{plate_number(frame_index):0{info['padding']}d}.{extension}")
+
+
+def output_path(folder, frame_index, object_id=None):
+    info = plate_info()
+    folder_name = os.path.basename(folder)
+    kind = "mask" if folder_name in ("masks", "masks_backup") else folder_name
+    object_suffix = f"_obj{object_id}" if object_id not in (None, 0) else ""
+    name = f"{info['name']}_{kind}{object_suffix}.{plate_number(frame_index):0{info['padding']}d}.png"
+    return os.path.join(folder, name)
+
+
+def output_ids(folder, frame_index):
+    """List object IDs with output files for one frame."""
+    ids = []
+    if not os.path.isdir(folder):
+        return ids
+    base = os.path.basename(output_path(folder, frame_index, 0))
+    stem, extension = os.path.splitext(base)
+    prefix, number = stem.rsplit('.', 1)
+    for name in os.listdir(folder):
+        if name == base:
+            ids.append(0)
+        elif name.startswith(prefix + "_obj") and name.endswith("." + number + extension):
+            token = name[len(prefix) + 4:-(len(number) + len(extension) + 1)]
+            if token.isdigit():
+                ids.append(int(token))
+    return ids
+
+
+def remove_output_objects(folder, frame_index, keep_ids=()):
+    for object_id in output_ids(folder, frame_index):
+        if object_id not in keep_ids:
+            os.remove(output_path(folder, frame_index, object_id))
+
+
+def native_segmentation_object_ids(points=()):
+    """Objects represented by SAM points or raw SAM mask files."""
+    ids = {point['object_id'] for point in points if 'object_id' in point}
+    for frame_index in range(VideoInfo.total_frames):
+        ids.update(output_ids(mask_dir, frame_index))
+    return sorted(ids)
+
+
+def segmentation_object_ids(points=()):
+    """Use paint-only objects only when no native segmentation exists."""
+    native_ids = native_segmentation_object_ids(points)
+    if native_ids or not paint_enabled:
+        return native_ids
+    paint_ids = set()
+    for frame_index in range(VideoInfo.total_frames):
+        paint_ids.update(output_ids(paint_dir, frame_index))
+    return sorted(paint_ids)
+
+
+def segmentation_keyframes(object_id, points=(), start_frame=0, end_frame=None):
+    """Use painted seed frames only when the project has no native segmentation."""
+    end_frame = VideoInfo.total_frames - 1 if end_frame is None else end_frame
+    frames = {
+        point['frame'] for point in points
+        if point.get('object_id') == object_id and start_frame <= point['frame'] <= end_frame
+    }
+    if frames:
+        return sorted(frames)
+
+    native_ids = native_segmentation_object_ids(points)
+    if native_ids:
+        return [
+            frame for frame in range(start_frame, end_frame + 1)
+            if os.path.exists(output_path(mask_dir, frame, object_id))
+        ]
+
+    if paint_enabled:
+        return [
+            frame for frame in range(start_frame, end_frame + 1)
+            if os.path.exists(paint_path(frame, object_id))
+        ]
+    return []
 
 PALETTE = [
     (128, 0, 0), (0, 128, 0), (128, 128, 0), (0, 0, 128), (128, 0, 128), (0, 128, 128),
@@ -204,7 +325,7 @@ class PointManager:
         """Remove last point"""
         if self.points:
             point = self.points.pop()
-            mask_filename = os.path.join(mask_dir, f'{point["frame"]:05d}', f'{point["object_id"]}.png')
+            mask_filename = output_path(mask_dir, point["frame"], point["object_id"])
             if os.path.exists(mask_filename):
                 os.remove(mask_filename)
             settings_mgr = get_settings_manager()
@@ -223,7 +344,6 @@ class PointManager:
 
     def clear_frame(self, frame):
         """Clear points for a frame"""
-        import shutil
         before_count = len(self.points)
         points_to_remove = [p for p in self.points if p['frame'] == frame]
         self.points = [p for p in self.points if p['frame'] != frame]
@@ -231,9 +351,8 @@ class PointManager:
 
         if removed_count > 0:
             # Remove mask files for this frame
-            frame_mask_dir = os.path.join(mask_dir, f"{frame:05d}")
-            if os.path.exists(frame_mask_dir):
-                shutil.rmtree(frame_mask_dir)
+            for object_id in output_ids(mask_dir, frame):
+                os.remove(output_path(mask_dir, frame, object_id))
             settings_mgr = get_settings_manager()
             settings_mgr.save_points(self.points)
             self._notify('clear_frame', frame=frame, count=removed_count, points=points_to_remove)
@@ -249,8 +368,8 @@ class PointManager:
         if removed_count > 0:
             # Remove mask files for this object across all frames
             for point in points_to_remove:
-                mask_filename = os.path.join(mask_dir, f'{point["frame"]:05d}', f'{object_id}.png')
-                matting_filename = os.path.join(matting_dir, f'{point["frame"]:05d}', f'{object_id}.png')
+                mask_filename = output_path(mask_dir, point["frame"], object_id)
+                matting_filename = output_path(matting_dir, point["frame"], object_id)
                 if os.path.exists(mask_filename):
                     os.remove(mask_filename)
                 if os.path.exists(matting_filename):
@@ -296,7 +415,7 @@ def get_frame_extension():
 def load_base_frame(frame_number):
     """Load the base frame image from disk"""
     extension = get_frame_extension()
-    frame_filename = os.path.join(frames_dir, f"{frame_number:05d}.{extension}")
+    frame_filename = frame_path(frame_number, extension)
     if os.path.exists(frame_filename):
         image = image_ops.imread(frame_filename)
         return image_ops.cvtColor(image, image_ops.COLOR_BGR2RGB)
@@ -323,8 +442,14 @@ def load_masks_for_frame(frame_number, points, return_combined=True, object_id_f
     if folder is None:
         folder = mask_dir
 
-    # Get unique object IDs from points
-    object_ids = list(set(p['object_id'] for p in points if 'object_id' in p))
+    # Discover objects from annotations and from the actual output files. The
+    # latter is required for paint-only matting, where no point records exist.
+    object_ids = list(
+        {p['object_id'] for p in points if 'object_id' in p}
+        | set(output_ids(folder, frame_number))
+    )
+    if folder == mask_dir and paint_enabled:
+        object_ids = list(set(object_ids) | set(output_ids(paint_dir, frame_number)))
 
     # Filter by specific object ID if requested
     if object_id_filter is not None:
@@ -337,14 +462,12 @@ def load_masks_for_frame(frame_number, points, return_combined=True, object_id_f
 
     # Load each mask file
     for object_id in object_ids:
-        mask_filename = os.path.join(folder, f"{frame_number:05d}", f"{object_id}.png")
-        if os.path.exists(mask_filename):
-            mask = image_ops.imread(mask_filename, image_ops.IMREAD_GRAYSCALE)
-            if mask is not None:
-                individual_masks[object_id] = mask
+        if folder == mask_dir:
+            mask = load_segmentation_mask(frame_number, object_id)
         else:
-            # if mask doesn't exist, create a blank frame
-            individual_masks[object_id] = np.zeros((VideoInfo.height, VideoInfo.width), dtype=np.uint8)
+            mask_filename = output_path(folder, frame_number, object_id)
+            mask = image_ops.imread(mask_filename, image_ops.IMREAD_GRAYSCALE) if os.path.exists(mask_filename) else None
+        individual_masks[object_id] = mask if mask is not None else np.zeros((VideoInfo.height, VideoInfo.width), dtype=np.uint8)
 
     if not individual_masks:
         return None if return_combined else {}
@@ -357,6 +480,73 @@ def load_masks_for_frame(frame_number, points, return_combined=True, object_id_f
         return combined_mask
     else:
         return individual_masks
+
+
+def paint_path(frame_number, object_id):
+    return output_path(paint_dir, frame_number, object_id)
+
+
+def load_segmentation_mask(frame_number, object_id):
+    """Return one object's SAM mask with its optional paint edits applied."""
+    path = output_path(mask_dir, frame_number, object_id)
+    mask = image_ops.imread(path, image_ops.IMREAD_GRAYSCALE) if os.path.exists(path) else None
+    if mask is None and paint_enabled and os.path.exists(paint_path(frame_number, object_id)):
+        mask = np.zeros((VideoInfo.height, VideoInfo.width), dtype=np.uint8)
+    if mask is not None and paint_enabled:
+        mask = apply_paint(mask, frame_number, object_id)
+    return mask
+
+
+def _paint_masks(paint):
+    """Decode white additions and red subtractions."""
+    return (np.all(paint == (255, 255, 255), axis=2),
+            np.all(paint == (255, 0, 0), axis=2))
+
+
+def apply_paint(mask, frame_number, object_id):
+    """Black leaves SAM intact, white adds, and red removes."""
+    path = paint_path(frame_number, object_id)
+    if not os.path.exists(path):
+        return mask
+    paint = image_ops.read_rgb(path)
+    if paint.shape[:2] != mask.shape:
+        return mask
+    add, remove = _paint_masks(paint)
+    result = mask.copy()
+    result[add] = 255
+    result[remove] = 0
+    return result
+
+
+class PaintStroke:
+    """Keep one brush drag in memory and persist it only when finished."""
+
+    def __init__(self, frame_number, object_id):
+        self.path = paint_path(frame_number, object_id)
+        height, width = VideoInfo.height, VideoInfo.width
+        paint = image_ops.read_rgb(self.path) if os.path.exists(self.path) else None
+        self.paint = paint if paint is not None and paint.shape[:2] == (height, width) else np.zeros((height, width, 3), dtype=np.uint8)
+
+    def add_segment(self, start, end, radius, add):
+        paint_segment(self.paint, start, end, radius, add)
+
+    def save(self):
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        image_ops.write_rgb(self.path, self.paint)
+
+
+def paint_segment(paint, start, end, radius, add):
+    """Rasterize a solid interpolated segment into an in-memory overlay."""
+    height, width = paint.shape[:2]
+    distance = max(abs(end[0] - start[0]), abs(end[1] - start[1]), 1)
+    for step in range(distance + 1):
+        x = round(start[0] + (end[0] - start[0]) * step / distance)
+        y = round(start[1] + (end[1] - start[1]) * step / distance)
+        x0, x1 = max(0, x - radius), min(width, x + radius + 1)
+        y0, y1 = max(0, y - radius), min(height, y + radius + 1)
+        if x0 < x1 and y0 < y1:
+            yy, xx = np.ogrid[y0:y1, x0:x1]
+            paint[y0:y1, x0:x1][(xx - x) ** 2 + (yy - y) ** 2 <= radius ** 2] = (255, 255, 255) if add else (255, 0, 0)
 
 
 # .........................................................................................
@@ -492,10 +682,7 @@ def compute_mask_bounding_box(frame_range, object_ids, combine_ids=None, buffer=
         # Build the union mask for this frame across all relevant object IDs
         union_mask = None
         for oid in ids_to_scan:
-            mask_path = os.path.join(mask_dir, f"{frame_num:05d}", f"{oid}.png")
-            if not os.path.exists(mask_path):
-                continue
-            m = image_ops.imread(mask_path, image_ops.IMREAD_GRAYSCALE)
+            m = load_segmentation_mask(frame_num, oid)
             if m is None:
                 continue
             union_mask = m if union_mask is None else np.maximum(union_mask, m)

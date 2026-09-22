@@ -101,10 +101,7 @@ class MattingManager:
             union_mask = None
             original_size = None
             for oid in combine_ids:
-                mask_filename = os.path.join(core.mask_dir, f"{frame_number:05d}", f"{oid}.png")
-                if not os.path.exists(mask_filename):
-                    continue
-                m = image_ops.imread(mask_filename, image_ops.IMREAD_GRAYSCALE)
+                m = core.load_segmentation_mask(frame_number, oid)
                 if m is None:
                     continue
                 if original_size is None:
@@ -113,16 +110,12 @@ class MattingManager:
             if union_mask is None or not np.any(union_mask):
                 print(f"Combined mask is blank or missing for frame {frame_number}")
                 return None, None
+            union_mask = core.apply_mask_postprocessing(union_mask)
             mask = self._resize_image(union_mask)
             mask = torch.tensor(mask, dtype=torch.float32, device=device)
             return mask, original_size
 
-        mask_filename = os.path.join(core.mask_dir, f"{frame_number:05d}", f"{object_id}.png")
-        if not os.path.exists(mask_filename):
-            print(f"Mask not found for object {object_id} at frame {frame_number}: {mask_filename}")
-            return None, None
-
-        mask = image_ops.imread(mask_filename, image_ops.IMREAD_GRAYSCALE)
+        mask = core.load_segmentation_mask(frame_number, object_id)
         if mask is None or not np.any(mask):
             print(f"Mask is blank or invalid for object {object_id} at frame {frame_number}")
             return None, None
@@ -162,7 +155,7 @@ class MattingManager:
         extension = core.get_frame_extension()
         images = []
         for frame_number in range(start_frame, end_frame + 1):
-            image_filename = os.path.join(core.frames_dir, f"{frame_number:05d}.{extension}")
+            image_filename = core.frame_path(frame_number, extension)
             if os.path.exists(image_filename):
                 images.append(image_filename)
         return images
@@ -181,4 +174,3 @@ class MattingManager:
 
     def run_matting(self, points_list, parent_window, combined=False):
         raise NotImplementedError("Subclasses must implement run_matting()")
-

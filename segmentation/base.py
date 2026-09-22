@@ -192,7 +192,7 @@ class SamManager:
 
     def segment_image(self, frame_number, object_id, input_points, input_labels):
         extension = core.get_frame_extension()
-        frame_filename = os.path.join(core.frames_dir, f"{frame_number:05d}.{extension}")
+        frame_filename = core.frame_path(frame_number, extension)
         if os.path.exists(frame_filename):
             self._clear_frame_if_tracked(object_id, frame_number)
 
@@ -209,7 +209,7 @@ class SamManager:
             for i, out_obj_id in enumerate(out_obj_ids):
                 if out_obj_id != object_id:
                     continue
-                mask_filename = os.path.join(core.mask_dir, f"{frame_number:05d}", f"{out_obj_id}.png")
+                mask_filename = core.output_path(core.mask_dir, frame_number, out_obj_id)
                 mask = (out_mask_logits[i] > 0.0).cpu().numpy().squeeze()
                 mask = (mask * 255).astype(np.uint8)
                 os.makedirs(os.path.dirname(mask_filename), exist_ok=True)
@@ -307,7 +307,7 @@ class SamManager:
                 for j, out_obj_id in enumerate(out_obj_ids):
                     if out_obj_id != object_id:
                         continue
-                    mask_filename = os.path.join(core.mask_dir, f"{frame_number:05d}", f"{out_obj_id}.png")
+                    mask_filename = core.output_path(core.mask_dir, frame_number, out_obj_id)
                     mask = (out_mask_logits[j] > 0.0).cpu().numpy().squeeze()
                     mask = (mask * 255).astype(np.uint8)
                     try:
@@ -355,7 +355,7 @@ class SamManager:
                 self.inference_state, start_frame_idx=start_frame_idx,
                 max_frame_num_to_track=max_frame_num_to_track, reverse=reverse):
             for i, out_obj_id in enumerate(out_obj_ids):
-                mask_filename = os.path.join(core.mask_dir, f"{out_frame_idx:05d}", f"{out_obj_id}.png")
+                mask_filename = core.output_path(core.mask_dir, out_frame_idx, out_obj_id)
                 mask = (out_mask_logits[i] > 0.0).cpu().numpy().squeeze()
                 mask = (mask * 255).astype(np.uint8)
                 os.makedirs(os.path.dirname(mask_filename), exist_ok=True)

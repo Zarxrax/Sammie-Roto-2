@@ -44,6 +44,7 @@ Everything is self-contained in the Sammie-Roto folder. If you want to remove th
 
 ### Updates
 **Full Changelog can be seen under [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)**
+- [09/22/2026] 2.5.1 - Added responsive binary paint correction for segmentation masks, with add/remove brushes, paint-only matting support, and integration across matting and object removal. Updated temporary plate and output naming to preserve source frame numbers in flat folders. Improved image staging, viewport painting controls, panning margins, and keyboard shortcuts.
 - [09/21/2026] 2.5.0 - Added a configurable memory budget with tiled VideoMaMa processing on MPS and CUDA, plus optional automatic matting export. Refactored matting, segmentation, and object removal into self-contained engines. Switched image loading and processing to OpenImageIO and NumPy, adding EXR and other supported image formats, multilayer EXR export, and OIIO Fill object removal. Fixed SAM2 frame loading and updated shortcuts: F to fit, H for 100% zoom, and Left/Right arrows to change frames.
 - [09/05/2026] 2.4.1 - Preliminary support for AMD GPUs on Windows, some bugfixes.
 - [08/22/2026] 2.4.0 - New installer/updater, additional segmentation tracking options, many small fixes and improvements.

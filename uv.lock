@@ -1636,7 +1636,7 @@ wheels = [
 
 [[package]]
 name = "sammie-roto-2"
-version = "2.5.0"
+version = "2.5.1"
 source = { virtual = "." }
 dependencies = [
     { name = "accelerate", marker = "sys_platform == 'darwin' or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },

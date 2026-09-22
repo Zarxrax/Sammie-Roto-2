@@ -153,8 +153,8 @@ class VideoMaMaManager(MattingManager):
         start_frame, end_frame, frames_to_process = self._get_frame_range()
         print(f"Processing matting from frame {start_frame} to {end_frame} ({frames_to_process} frames)")
 
-        # Get unique object IDs from points list
-        object_ids = sorted(list(set(point['object_id'] for point in points_list if 'object_id' in point)))
+        # Include objects created entirely with the paint layer.
+        object_ids = core.segmentation_object_ids(points_list)
         if not object_ids:
             print("No objects found for matting")
             return 0
@@ -172,12 +172,8 @@ class VideoMaMaManager(MattingManager):
 
         # If combined mode is selected, delete any existing matting files except object 0.
         if combined and os.path.exists(core.matting_dir):
-            for frame_dirname in os.listdir(core.matting_dir):
-                frame_dir = os.path.join(core.matting_dir, frame_dirname)
-                if os.path.isdir(frame_dir):
-                    for f in os.listdir(frame_dir):
-                        if f != "0.png":
-                            os.remove(os.path.join(frame_dir, f))
+            for frame_number in range(core.VideoInfo.total_frames):
+                core.remove_output_objects(core.matting_dir, frame_number, keep_ids=(0,))
 
         # Calculate total operations for progress tracking
         total_operations = len(self._generate_windows(frames_to_process, batch_size, overlap)) * len(object_ids)
@@ -262,7 +258,7 @@ class VideoMaMaManager(MattingManager):
         mask_frames = []
  
         for frame_num in range(abs_start, abs_end):
-            frame_path = os.path.join(core.frames_dir, f"{frame_num:05d}.{extension}")
+            frame_path = core.frame_path(frame_num, extension)
             if not os.path.exists(frame_path):
                 print(f"Warning: Frame not found: {frame_path}")
                 return [], [], False
@@ -279,10 +275,7 @@ class VideoMaMaManager(MattingManager):
             if combine_ids:
                 union_mask = None
                 for oid in combine_ids:
-                    mask_path = os.path.join(core.mask_dir, f"{frame_num:05d}", f"{oid}.png")
-                    if not os.path.exists(mask_path):
-                        continue
-                    m = image_ops.imread(mask_path, image_ops.IMREAD_GRAYSCALE)
+                    m = core.load_segmentation_mask(frame_num, oid)
                     if m is None:
                         continue
                     union_mask = m if union_mask is None else np.maximum(union_mask, m)
@@ -294,9 +287,8 @@ class VideoMaMaManager(MattingManager):
                 else:
                     mask = np.zeros((resized_h, resized_w), dtype=np.uint8)
             else:
-                mask_path = os.path.join(core.mask_dir, f"{frame_num:05d}", f"{object_id}.png")
-                if os.path.exists(mask_path):
-                    mask = image_ops.imread(mask_path, image_ops.IMREAD_GRAYSCALE)
+                mask = core.load_segmentation_mask(frame_num, object_id)
+                if mask is not None:
                     mask = core.apply_mask_postprocessing(mask)
                     if crop_rect is not None:
                         mask = core.apply_crop(mask, crop_rect)
@@ -378,7 +370,7 @@ class VideoMaMaManager(MattingManager):
         memory_enabled = settings_mgr.get_session_setting("videomama_memory_enabled", True)
  
         # Original frame dimensions for restoring output
-        first_frame_path = os.path.join(core.frames_dir, f"{start_frame:05d}.{extension}")
+        first_frame_path = core.frame_path(start_frame, extension)
         first_frame_img = image_ops.imread(first_frame_path)
         if first_frame_img is not None:
             original_h, original_w = first_frame_img.shape[:2]
@@ -525,7 +517,7 @@ class VideoMaMaManager(MattingManager):
                         + new_weight * new_alpha.astype(np.float32)
                     ).clip(0, 255).astype(np.uint8)
                     abs_blend_frame = abs_start + i
-                    mat_filename = os.path.join(core.matting_dir, f"{abs_blend_frame:05d}", f"{object_id}.png")
+                    mat_filename = core.output_path(core.matting_dir, abs_blend_frame, object_id)
                     os.makedirs(os.path.dirname(mat_filename), exist_ok=True)
                     image_ops.imwrite(mat_filename, blended)
             # -----------------------------------------
@@ -550,7 +542,7 @@ class VideoMaMaManager(MattingManager):
                 if i >= len(committed_output) - overlap:
                     current_boundary_alphas.append(final_alpha.copy())
  
-                mat_filename = os.path.join(core.matting_dir, f"{abs_frame:05d}", f"{object_id}.png")
+                mat_filename = core.output_path(core.matting_dir, abs_frame, object_id)
                 os.makedirs(os.path.dirname(mat_filename), exist_ok=True)
                 image_ops.imwrite(mat_filename, final_alpha)
  

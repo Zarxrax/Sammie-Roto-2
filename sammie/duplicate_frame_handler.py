@@ -6,6 +6,7 @@ from tqdm import tqdm
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QProgressDialog, QApplication
 from sammie.settings_manager import get_settings_manager
+from sammie import core
 
 # Resolve absolute path of file back to project root folder
 utils_dir = os.path.dirname(os.path.abspath(__file__))
@@ -30,18 +31,21 @@ def orb_comparison(img1, img2):
 # To compare without other elements or the background on the frame affecting the comparison, the mask luma matte gets applied to the frame
 def generate_matted_frame(frame_path, mask_dir, frame_number):
     frame = image_ops.imread(frame_path)
-    frame_mask_dir = os.path.join(mask_dir, frame_number)
-    if not os.path.exists(frame_mask_dir):
+    object_ids = set(core.output_ids(mask_dir, frame_number))
+    if core.paint_enabled:
+        object_ids.update(core.output_ids(core.paint_dir, frame_number))
+    if not object_ids:
         # Return None if masks are missing for this frame
-        print(f"Missing masks folder for frame: {frame_number}")
+        print(f"Missing masks for frame: {frame_number}")
         return None
     
     # Create empty mask image
     mask_image = np.zeros((frame.shape[0], frame.shape[1]), dtype=np.uint8)
     # Combine all masks from mask folder into one mask image for comparison
-    for matte in os.listdir(frame_mask_dir):
-        matte_path = os.path.join(frame_mask_dir, matte)
-        matte_image = image_ops.imread(matte_path, image_ops.IMREAD_GRAYSCALE)
+    for object_id in object_ids:
+        matte_image = core.load_segmentation_mask(frame_number, object_id)
+        if matte_image is None:
+            continue
         mask_image = image_ops.bitwise_or(mask_image, matte_image)
 
     # Check if there is no luma mask for a frame, use the full frame in that case to prevent zero ORB matches (which raised a division by zero error), but does result in zero similarity.
@@ -54,28 +58,26 @@ def generate_matted_frame(frame_path, mask_dir, frame_number):
 
 # Replace the masks on disc with a specific "similar frames" list
 def replace_files_similar_mattes(mask_dir, similar_frames):
-    last_mask_dir = os.path.join(mask_dir, similar_frames[-1])
+    last_frame = similar_frames[-1]
+    object_ids = core.output_ids(mask_dir, last_frame)
     
     # Check if the source mask directory exists
-    if not os.path.exists(last_mask_dir):
-        print(f"Source mask folder missing for frame: {similar_frames[-1]}, skipping replacement")
+    if not object_ids:
+        print(f"Source masks missing for frame: {last_frame}, skipping replacement")
         return
     
-    file_list = os.listdir(last_mask_dir)
     for i, frame in enumerate(similar_frames):
         if i == len(similar_frames) - 1:  # Skip the last sourcing frame
             break
         
         # Check if the target mask directory exists before attempting to replace
-        target_mask_dir = os.path.join(mask_dir, frame)
-        if not os.path.exists(target_mask_dir):
-            print(f"Target mask folder missing for frame: {frame}, skipping")
+        if not core.output_ids(mask_dir, frame):
+            print(f"Target masks missing for frame: {frame}, skipping")
             continue
             
-        for file in file_list:
-            file_path = os.path.join(last_mask_dir, file)
-            replace_mask_dir = os.path.join(mask_dir, frame, file)
-            shutil.copy(file_path, replace_mask_dir)
+        for object_id in object_ids:
+            shutil.copy(core.output_path(mask_dir, last_frame, object_id),
+                        core.output_path(mask_dir, frame, object_id))
 
 def backup_mattes(mask_dir, backup_dir):
     #print("Creating original masks backup")
@@ -105,11 +107,9 @@ def replace_similar_matte_frames(parent_window, dedupe_min_threshold):
         print("Could not find frames to dedupe.\nPlease load a video first.")
         return False
     
-    # Get the list of propagated frame numbers
+    # Get the indexed frames; source plate numbers may start at any value.
     extension = get_settings_manager().get_session_setting("frame_format", "png")
-    for filename in os.listdir(frames_dir):
-        if filename.lower().endswith(f".{extension.lower()}"):
-            frame_numbers.append(os.path.splitext(filename)[0])
+    frame_numbers = list(range(core.VideoInfo.total_frames))
     
     # Check if masks directory exists
     if not os.path.exists(mask_dir):
@@ -129,7 +129,7 @@ def replace_similar_matte_frames(parent_window, dedupe_min_threshold):
     # Find the first frame with valid masks to use as initial base frame
     base_frame = None
     while frame_index < frames_amount and base_frame is None:
-        start_base_frame_path = os.path.join(frames_dir, frame_numbers[frame_index] + f".{extension}")
+        start_base_frame_path = core.frame_path(frame_numbers[frame_index], extension)
         base_frame = generate_matted_frame(start_base_frame_path, mask_dir, frame_numbers[frame_index])
         if base_frame is None:
             frame_index += 1
@@ -157,7 +157,7 @@ def replace_similar_matte_frames(parent_window, dedupe_min_threshold):
             progress.update(1)
             
             # Load the next frame
-            next_frame_path = os.path.join(frames_dir, frame_numbers[next_index] + f".{extension}")
+            next_frame_path = core.frame_path(frame_numbers[next_index], extension)
             next_frame = generate_matted_frame(next_frame_path, mask_dir, frame_numbers[next_index])
             
             # If the next frame has no masks, treat it as a break point
@@ -196,7 +196,7 @@ def replace_similar_matte_frames(parent_window, dedupe_min_threshold):
             # Find the next frame with valid masks
             base_frame = None
             while frame_index < frames_amount and base_frame is None:
-                new_base_frame_path = os.path.join(frames_dir, frame_numbers[frame_index] + f".{extension}")
+                new_base_frame_path = core.frame_path(frame_numbers[frame_index], extension)
                 base_frame = generate_matted_frame(new_base_frame_path, mask_dir, frame_numbers[frame_index])
                 if base_frame is None:
                     # Skip frames without masks

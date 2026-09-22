@@ -13,7 +13,6 @@ This module contains reusable UI components including:
 """
 
 import os
-import shutil
 import threading
 import requests
 from packaging import version
@@ -21,16 +20,17 @@ from datetime import datetime
 from PySide6.QtWidgets import (
     QLabel, QTableWidget, QTableWidgetItem, QAbstractItemView, 
     QHeaderView, QPushButton, QWidget, QHBoxLayout, QVBoxLayout,
-    QDialog, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
+    QDialog, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsEllipseItem, QGraphicsPathItem,
+    QGraphicsDropShadowEffect,
     QColorDialog, QSlider, QStyleOptionSlider, QStyle, QMessageBox,
     QApplication, QLineEdit
 )
 from PySide6.QtGui import (
     QPixmap, QMouseEvent, QWheelEvent, QPainter, QColor, QIcon,
-    QPen, QPalette, QKeyEvent
+    QPen, QPalette, QKeyEvent, QBrush, QPainterPath
 )
 from PySide6.QtCore import (
-    Qt, QPointF, QObject, Signal, QRect, QTimer
+    Qt, QPointF, QObject, Signal, QRect, QRectF, QTimer
 )
 
 from sammie import core
@@ -445,11 +445,9 @@ class PointTable(QTableWidget):
         
         # Delete masks only for affected frames, then replay points to regenerate them
         if removed_points and hasattr(self, 'parent_window'):
-            # Delete mask directories for affected frames only
+            # Delete mask files for affected frames only
             for frame in affected_frames:
-                frame_mask_dir = os.path.join(core.mask_dir, f"{frame:05d}")
-                if os.path.exists(frame_mask_dir):
-                    shutil.rmtree(frame_mask_dir)
+                core.remove_output_objects(core.mask_dir, frame)
 
             # Replay points to regenerate masks for affected frames 
             points = self.parent_window.point_manager.get_all_points()
@@ -541,6 +539,9 @@ class ImageViewer(QGraphicsView):
     
     # Add signal for point clicks
     point_clicked = Signal(int, int, bool)  # x, y coordinates, is_positive
+    paint_stroke = Signal(int, int, int, int, bool)  # start/end coordinates and add
+    paint_finished = Signal()
+    brush_radius_changed = Signal(int)
     # Add signal for live preview
     preview_requested = Signal(int, int, bool)  # x, y, is_positive
     preview_cancelled = Signal()
@@ -564,6 +565,17 @@ class ImageViewer(QGraphicsView):
         
         self.pixmap_item = QGraphicsPixmapItem()
         self.scene.addItem(self.pixmap_item)
+        self.paint_feedback_item = QGraphicsPathItem()
+        self.paint_feedback_item.setZValue(90)
+        self.paint_feedback_item.setAcceptedMouseButtons(Qt.NoButton)
+        self.scene.addItem(self.paint_feedback_item)
+        self.brush_outline = QGraphicsEllipseItem()
+        self.brush_outline.setPen(QPen(QColor(255, 255, 255), 1.5))
+        self.brush_outline.setBrush(QBrush(Qt.NoBrush))
+        self.brush_outline.setAcceptedMouseButtons(Qt.NoButton)
+        self.brush_outline.setZValue(100)
+        self.brush_outline.hide()
+        self.scene.addItem(self.brush_outline)
         
         # Rendering hints for higher quality scaling
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
@@ -572,18 +584,39 @@ class ImageViewer(QGraphicsView):
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
         self.setMouseTracking(True)
+
+        # Fixed viewport overlay: it never participates in layout or changes image position.
+        self.paint_hint = QLabel(self)
+        self.paint_hint.setAlignment(Qt.AlignCenter)
+        self.paint_hint.setWordWrap(True)
+        self.paint_hint.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.paint_hint.setStyleSheet(
+            "QLabel { color: white; background: transparent; border: none; "
+            "font-weight: 600; padding: 2px; }"
+        )
+        hint_shadow = QGraphicsDropShadowEffect(self.paint_hint)
+        hint_shadow.setBlurRadius(3)
+        hint_shadow.setOffset(1, 1)
+        hint_shadow.setColor(QColor(0, 0, 0, 230))
+        self.paint_hint.setGraphicsEffect(hint_shadow)
+        self.paint_hint.hide()
     
     def _init_variables(self):
         """Initialize state variables"""
         self._is_panning = False
         self._pan_start = QPointF()
         self.point_editing_enabled = True
+        self.paint_mode = None
+        self._paint_last = None
+        self._brush_resize_start = None
+        self.brush_radius = 12
         self.original_pixmap = None
         self.fit_scale = 1.0
         self.min_scale = 1.0
         self.max_scale = 8.0
         self.current_scale = 1.0
         self.has_been_initialized = False  # Track if we've done initial zoom
+        self._scene_image_size = None
 
         # Preview state
         self._preview_active = False          # True while Shift is held
@@ -618,9 +651,18 @@ class ImageViewer(QGraphicsView):
             self.pixmap_item.setPixmap(pixmap)
             self.pixmap_item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
             
-            # Only update scene rect if dimensions changed
-            if self.sceneRect() != pixmap.rect():
-                self.setSceneRect(pixmap.rect())
+            # Keep 10% empty space around the plate so its edges can be panned
+            # away from the viewport edge while painting.
+            image_size = (pixmap.width(), pixmap.height())
+            if self._scene_image_size != image_size:
+                self._scene_image_size = image_size
+                margin_x = pixmap.width() * 0.1
+                margin_y = pixmap.height() * 0.1
+                self.setSceneRect(QRectF(
+                    -margin_x, -margin_y,
+                    pixmap.width() + margin_x * 2,
+                    pixmap.height() + margin_y * 2,
+                ))
                 self._update_fit_scale()
             
             # Apply zoom based on preserve_zoom setting
@@ -653,6 +695,8 @@ class ImageViewer(QGraphicsView):
 
     def clear_image(self):
         """Clear the currently displayed image and reset viewer state"""
+        self.clear_paint_feedback()
+        self.brush_outline.hide()
         # Clear the pixmap from the graphics item
         self.pixmap_item.setPixmap(QPixmap())
         
@@ -661,6 +705,7 @@ class ImageViewer(QGraphicsView):
         
         # Clear stored references
         self.original_pixmap = None
+        self._scene_image_size = None
         
         # Reset scale values
         self.fit_scale = 0.1
@@ -765,6 +810,16 @@ class ImageViewer(QGraphicsView):
             self.setCursor(Qt.ClosedHandCursor)
             super().mousePressEvent(event)
             return
+        if self.paint_mode and event.button() in (Qt.LeftButton, Qt.RightButton):
+            if event.modifiers() & Qt.ShiftModifier:
+                self._brush_resize_start = (event.position().y(), self.brush_radius)
+                return
+            pos = self.mapToScene(event.position().toPoint())
+            x, y = int(pos.x()), int(pos.y())
+            if self.original_pixmap and 0 <= x < self.original_pixmap.width() and 0 <= y < self.original_pixmap.height():
+                self._paint_last = (x, y)
+                self.paint_stroke.emit(x, y, x, y, self.paint_mode == 'add' and event.button() == Qt.LeftButton)
+            return
     
         if self.point_editing_enabled:
             if event.button() == Qt.LeftButton:
@@ -808,6 +863,8 @@ class ImageViewer(QGraphicsView):
     
     def mouseMoveEvent(self, event: QMouseEvent):
         """Handle mouse movement for panning, coordinate display, and live preview"""
+        if self.paint_mode:
+            self._move_brush_cursor(event.position().toPoint())
         if self._is_panning:
             delta = event.position().toPoint() - self._pan_start
             self._pan_start = event.position().toPoint()
@@ -818,6 +875,17 @@ class ImageViewer(QGraphicsView):
             self.verticalScrollBar().setValue(
                 self.verticalScrollBar().value() - delta.y()
             )
+        elif self._brush_resize_start is not None:
+            start_y, start_radius = self._brush_resize_start
+            self.set_brush_radius(start_radius + round(start_y - event.position().y()))
+            self.brush_radius_changed.emit(self.brush_radius)
+        elif self._paint_last is not None:
+            pos = self.mapToScene(event.position().toPoint())
+            x, y = int(pos.x()), int(pos.y())
+            if self.original_pixmap and 0 <= x < self.original_pixmap.width() and 0 <= y < self.original_pixmap.height():
+                old_x, old_y = self._paint_last
+                self.paint_stroke.emit(old_x, old_y, x, y, self.paint_mode == 'add' and bool(event.buttons() & Qt.LeftButton))
+                self._paint_last = (x, y)
         else:
             self._update_mouse_status(event.position().toPoint())
 
@@ -847,12 +915,67 @@ class ImageViewer(QGraphicsView):
         """Handle mouse release events"""
         if event.button() == Qt.MiddleButton:
             self._is_panning = False
-            self.setCursor(Qt.ArrowCursor)
+            self.update_brush_cursor()
+        if event.button() in (Qt.LeftButton, Qt.RightButton):
+            if self._paint_last is not None:
+                self.paint_finished.emit()
+            self._paint_last = None
+            self._brush_resize_start = None
         
         super().mouseReleaseEvent(event)
 
+    def show_paint_segment(self, start, end, add):
+        if self.paint_feedback_item.path().isEmpty():
+            path = QPainterPath()
+            path.moveTo(start[0], start[1])
+            path.lineTo(start[0] + 0.01, start[1])
+            pen = QPen(QColor(0, 255, 80, 170) if add else QColor(255, 50, 80, 170),
+                       self.brush_radius * 2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+            self.paint_feedback_item.setPen(pen)
+        else:
+            path = self.paint_feedback_item.path()
+            path.moveTo(start[0], start[1])
+        path.lineTo(end[0], end[1])
+        self.paint_feedback_item.setPath(path)
+
+    def clear_paint_feedback(self):
+        self.paint_feedback_item.setPath(QPainterPath())
+
+    def set_brush_radius(self, radius):
+        self.brush_radius = max(1, min(200, radius))
+        if self.brush_outline.isVisible():
+            center = self.brush_outline.rect().center()
+            r = self.brush_radius
+            self.brush_outline.setRect(center.x() - r, center.y() - r, 2 * r, 2 * r)
+
+    def update_brush_cursor(self):
+        if self.paint_mode and not self._is_panning:
+            self.setCursor(Qt.BlankCursor)
+        else:
+            self.setCursor(Qt.ArrowCursor)
+            self.brush_outline.hide()
+
+    def _move_brush_cursor(self, viewport_pos):
+        if not self.original_pixmap:
+            self.brush_outline.hide()
+            return
+        pos = self.mapToScene(viewport_pos)
+        if 0 <= pos.x() < self.original_pixmap.width() and 0 <= pos.y() < self.original_pixmap.height():
+            r = self.brush_radius
+            self.brush_outline.setRect(pos.x() - r, pos.y() - r, 2 * r, 2 * r)
+            self.brush_outline.show()
+        else:
+            self.brush_outline.hide()
+
+    def leaveEvent(self, event):
+        self.brush_outline.hide()
+        super().leaveEvent(event)
+
     def keyPressEvent(self, event):
         """Activate or update live preview on Shift/Ctrl press"""
+        if self.paint_mode:
+            super().keyPressEvent(event)
+            return
         if event.isAutoRepeat():
             super().keyPressEvent(event)
             return
@@ -912,6 +1035,7 @@ class ImageViewer(QGraphicsView):
     def resizeEvent(self, event):
         """Handle viewport resize events"""
         super().resizeEvent(event)
+        self._position_paint_hint()
         
         if self.original_pixmap:
             previous_fit_scale = self.fit_scale
@@ -920,6 +1044,30 @@ class ImageViewer(QGraphicsView):
             # If currently at fit scale, maintain fit on resize
             if abs(self.current_scale - previous_fit_scale) < 0.001:
                 self.set_zoom(self.fit_scale)
+
+    def scrollContentsBy(self, dx, dy):
+        """Scroll the scene while keeping viewport overlays fixed."""
+        super().scrollContentsBy(dx, dy)
+        self._position_paint_hint()
+        self.paint_hint.raise_()
+
+    def set_paint_hint(self, text, visible):
+        self.paint_hint.setText(text)
+        self.paint_hint.setVisible(visible)
+        self._position_paint_hint()
+        self.paint_hint.raise_()
+
+    def _position_paint_hint(self):
+        if not self.paint_hint.isVisible():
+            return
+        viewport_rect = self.viewport().geometry()
+        available_width = max(100, viewport_rect.width() - 24)
+        self.paint_hint.setFixedWidth(available_width)
+        hint_height = self.paint_hint.heightForWidth(available_width)
+        self.paint_hint.setFixedHeight(max(20, hint_height))
+        x = viewport_rect.x() + (viewport_rect.width() - self.paint_hint.width()) // 2
+        y = viewport_rect.y() + viewport_rect.height() - self.paint_hint.height() - 10
+        self.paint_hint.move(max(0, x), max(0, y))
     
     # ==================== STATUS UPDATES ====================
     

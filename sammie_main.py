@@ -10,13 +10,14 @@ from datetime import datetime
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QVBoxLayout, QHBoxLayout, 
     QGridLayout, QWidget, QPushButton, QLabel, QStatusBar, QSlider, 
-    QTabWidget, QSpinBox, QComboBox, QSplitter, QGroupBox, QTextEdit,
+    QTabWidget, QSpinBox, QAbstractSpinBox, QComboBox, QSplitter, QGroupBox, QTextEdit,
     QCheckBox, QLineEdit, QMessageBox, QDialog, QProgressDialog, QStackedWidget
 )
 from PySide6.QtGui import (
-    QAction, QShortcut, QKeySequence, QTextCursor, QIcon, QPixmap, QFont, QDesktopServices
+    QAction, QShortcut, QKeySequence, QTextCursor, QIcon, QPixmap, QFontDatabase,
+    QDesktopServices, QTransform
 )
-from PySide6.QtCore import Qt, QTimer, QUrl
+from PySide6.QtCore import Qt, QTimer, QUrl, QKeyCombination
 
 # Import external logic functions
 from sammie import sammie
@@ -42,7 +43,7 @@ from sammie.gui_widgets import (
 
 # ==================== VERSION ====================
 
-__version__ = "2.5.0"
+__version__ = "2.5.1"
 
 # ==================== LOGGING HELPER ====================
 
@@ -84,6 +85,7 @@ class SegmentationTab(QWidget):
     def _init_ui(self):
         """Initialize the segmentation tab layout"""
         layout = QVBoxLayout(self)
+        self._create_mode_group(layout)
         
         # Add Point group
         self._create_add_point_group(layout)
@@ -101,7 +103,37 @@ class SegmentationTab(QWidget):
         self._create_parameter_sliders(layout)
         
         layout.addStretch()
-    
+
+    def _create_mode_group(self, layout):
+        group = QGroupBox("Mode")
+        controls = QVBoxLayout(group)
+        self.mode_button = QPushButton("Point Mode")
+        self.mode_button.setCheckable(True)
+        self.mode_button.setToolTip("Switch between segmentation points and painting")
+        controls.addWidget(self.mode_button)
+        self.paint_layer_checkbox = QCheckBox("Enable Paint Layer")
+        self.paint_layer_checkbox.setChecked(True)
+        controls.addWidget(self.paint_layer_checkbox)
+        radius_row = QHBoxLayout()
+        radius_row.addWidget(QLabel("Brush radius:"))
+        self.paint_radius = QSpinBox()
+        self.paint_radius.setRange(1, 200)
+        self.paint_radius.setValue(12)
+        radius_row.addWidget(self.paint_radius)
+        controls.addLayout(radius_row)
+        paint_actions = QHBoxLayout()
+        self.clear_paint_btn = QPushButton("Clear This Frame Paint")
+        self.clear_paint_btn.setToolTip("Clear paint on this frame for the selected object")
+        paint_actions.addWidget(self.clear_paint_btn)
+        self.clear_all_paint_btn = QPushButton("Clear All Paint")
+        self.clear_all_paint_btn.setToolTip("Clear paint from every frame and object")
+        paint_actions.addWidget(self.clear_all_paint_btn)
+        controls.addLayout(paint_actions)
+        self.paint_radius.setEnabled(False)
+        self.clear_paint_btn.setEnabled(False)
+        self.clear_all_paint_btn.setEnabled(False)
+        layout.addWidget(group)
+
     def _create_add_point_group(self, layout):
         """Create the Add Point group with object selector and point type"""
         add_point_group = QGroupBox("Add Point")
@@ -222,7 +254,7 @@ class SegmentationTab(QWidget):
         directional_layout.setSpacing(0)  # reduce space between buttons, matching playback controls
 
         play_pixmap = QPixmap(":/icons/control-play.png")
-        play_pixmap_flipped = QPixmap.fromImage(play_pixmap.toImage().mirrored(True, False))
+        play_pixmap_flipped = play_pixmap.transformed(QTransform().scale(-1, 1))
 
         directional_button_configs = [
             (QIcon(":/icons/control-step-left.png"), "track_one_frame_backward_btn",
@@ -1000,6 +1032,8 @@ class MainWindow(QMainWindow):
         """Connect all UI signals"""
         # Connect image viewer point clicks and preview
         self.viewer.point_clicked.connect(self.add_point_from_click)
+        self.viewer.paint_stroke.connect(self._paint_stroke)
+        self.viewer.paint_finished.connect(self._finish_paint_stroke)
         self.viewer.preview_requested.connect(self.on_preview_requested)
         self.viewer.preview_cancelled.connect(self.on_preview_cancelled)
 
@@ -1013,6 +1047,12 @@ class MainWindow(QMainWindow):
         seg_tab = self.sidebar.segmentation_tab
         if seg_tab:
             seg_tab.parent_window = self
+            seg_tab.mode_button.toggled.connect(self._set_paint_enabled)
+            seg_tab.paint_layer_checkbox.toggled.connect(self._set_paint_layer_visible)
+            seg_tab.paint_radius.valueChanged.connect(self.viewer.set_brush_radius)
+            self.viewer.brush_radius_changed.connect(seg_tab.paint_radius.setValue)
+            seg_tab.clear_paint_btn.clicked.connect(self._clear_paint)
+            seg_tab.clear_all_paint_btn.clicked.connect(self._clear_all_paint)
             # Connect segmentation tab buttons
             seg_tab.sam_model_btn.clicked.connect(self.load_segmentation_model)
             seg_tab.undo_last_point_btn.clicked.connect(self.undo_last_point)
@@ -1205,6 +1245,8 @@ class MainWindow(QMainWindow):
         # Image viewer
         self.viewer = ImageViewer(status_callback=self.update_status_bar, parent_window=self)
         layout.addWidget(self.viewer)
+        self.paint_hint_text = "Paint mode active: Left-drag add · Right-drag remove · Shift-drag vertically resize brush · Middle-drag pan · P: point mode"
+        self.viewer.set_paint_hint(self.paint_hint_text, False)
         
         # Frame controls
         self._create_frame_controls(layout)
@@ -1298,9 +1340,7 @@ class MainWindow(QMainWindow):
         self.console.setReadOnly(True)
         console_layout.addWidget(self.console)
         
-        console_font = QFont("Consolas")  # Try Consolas first
-        console_font.setStyleHint(QFont.Monospace)  # Fallback to system monospace
-        self.console.setFont(console_font)
+        self.console.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
         
         # Add containers to splitter
         self.bottom_splitter.addWidget(point_container)
@@ -1559,9 +1599,17 @@ class MainWindow(QMainWindow):
     
     def on_tab_changed(self, index):
         """Handle tab changes and automatically switch views"""
+        self._finish_paint_stroke()
         # Get the tab widget to determine which tab is selected
         tab_widget = self.sidebar.tab_widget
         current_tab = tab_widget.widget(index)
+        self.viewer.set_paint_hint(
+            self.paint_hint_text,
+            current_tab == self.sidebar.segmentation_tab and self.sidebar.segmentation_tab.mode_button.isChecked(),
+        )
+        self._set_paint_tool()
+        if current_tab != self.sidebar.segmentation_tab:
+            self.viewer.paint_mode = None
         
         # Determine the appropriate view based on the current tab
         if current_tab == self.sidebar.segmentation_tab:
@@ -1740,6 +1788,97 @@ class MainWindow(QMainWindow):
         updated_image = sammie.update_image(current_frame, view_options, self.point_manager.points, preview_mask=preview_mask, preview_object_id=preview_object_id)
         if updated_image:
             self.viewer.update_image(updated_image)
+
+    def _set_paint_enabled(self, enabled):
+        self._finish_paint_stroke()
+        tab = self.sidebar.segmentation_tab
+        if enabled and not tab.paint_layer_checkbox.isChecked():
+            tab.paint_layer_checkbox.setChecked(True)
+        tab.mode_button.setText("Paint Mode" if enabled else "Point Mode")
+        tab.paint_radius.setEnabled(enabled)
+        tab.clear_paint_btn.setEnabled(enabled)
+        tab.clear_all_paint_btn.setEnabled(enabled)
+        self.viewer.set_paint_hint(
+            self.paint_hint_text,
+            enabled and self.sidebar.tab_widget.currentWidget() == tab,
+        )
+        self._set_paint_tool()
+        self._update_point_editing_state()
+        self._update_current_frame_display()
+
+    def toggle_paint_mode(self):
+        if self.sidebar.tab_widget.currentWidget() != self.sidebar.segmentation_tab:
+            return
+        if isinstance(QApplication.focusWidget(), (QLineEdit, QTextEdit, QAbstractSpinBox)):
+            return
+        self.sidebar.segmentation_tab.mode_button.toggle()
+
+    def _set_paint_tool(self):
+        active = self.sidebar.tab_widget.currentWidget() == self.sidebar.segmentation_tab
+        self.viewer.paint_mode = "add" if active and self.sidebar.segmentation_tab.mode_button.isChecked() else None
+        self.viewer.update_brush_cursor()
+
+    def _set_paint_layer_visible(self, visible):
+        self._finish_paint_stroke()
+        if not visible and self.sidebar.segmentation_tab.mode_button.isChecked():
+            self.sidebar.segmentation_tab.mode_button.setChecked(False)
+        core.paint_enabled = visible
+        self._mark_paint_downstream_stale()
+        self._update_current_frame_display()
+
+    def _paint_stroke(self, x0, y0, x1, y1, add):
+        if not self.sidebar.segmentation_tab.mode_button.isChecked() or core.VideoInfo.total_frames == 0:
+            return
+        tab = self.sidebar.segmentation_tab
+        if getattr(self, '_active_paint_stroke', None) is None:
+            self._active_paint_stroke = core.PaintStroke(self.frame_slider.value(), tab.get_selected_object_id())
+        self._active_paint_stroke.add_segment((x0, y0), (x1, y1), tab.paint_radius.value(), add)
+        self.viewer.show_paint_segment((x0, y0), (x1, y1), add)
+
+    def _finish_paint_stroke(self):
+        stroke = getattr(self, '_active_paint_stroke', None)
+        if stroke is None:
+            return
+        self._active_paint_stroke = None
+        stroke.save()
+        self._mark_paint_downstream_stale()
+        self._update_current_frame_display()
+        self.viewer.clear_paint_feedback()
+
+    def _mark_paint_downstream_stale(self):
+        self.matany_manager.propagated = False
+        self.removal_manager.propagated = False
+        self.update_matting_status()
+        self.update_removal_status()
+
+    def _clear_paint(self):
+        self._finish_paint_stroke()
+        tab = self.sidebar.segmentation_tab
+        path = core.paint_path(self.frame_slider.value(), tab.get_selected_object_id())
+        if os.path.exists(path):
+            os.remove(path)
+            self._mark_paint_downstream_stale()
+            self._update_current_frame_display()
+
+    def _clear_all_paint(self):
+        reply = QMessageBox.question(
+            self,
+            "Clear All Paint",
+            "Clear paint from every frame and object? This cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        self._finish_paint_stroke()
+        if os.path.isdir(core.paint_dir):
+            for name in os.listdir(core.paint_dir):
+                path = os.path.join(core.paint_dir, name)
+                if os.path.isfile(path) and name.lower().endswith('.png'):
+                    os.remove(path)
+        self._mark_paint_downstream_stale()
+        self._update_current_frame_display()
             
     def _refresh_table(self):
         """Rebuild table from point manager data"""
@@ -2079,7 +2218,7 @@ class MainWindow(QMainWindow):
     def run_matting(self):
         """Run matting process"""
         self.settings_mgr.save_session_settings()
-        count = len(self.point_manager.points)
+        object_ids = core.segmentation_object_ids(self.point_manager.points)
         matting_model = self.settings_mgr.get_session_setting("matany_model", matting.DEFAULT_ENGINE_ID)
         engine_spec = matting.get_engine(matting_model)
         if engine_spec is None:
@@ -2102,7 +2241,7 @@ class MainWindow(QMainWindow):
         if engine_spec.save_defaults:
             engine_spec.save_defaults(self.settings_mgr)
 
-        if count > 0:  
+        if object_ids:
             #load models
             print(f"Loading {matting_model} model...")
             progress = QProgressDialog("Loading...", None, 0, 0, self)
@@ -2145,7 +2284,7 @@ class MainWindow(QMainWindow):
             if matting_succeeded and self.settings_mgr.get_app_setting("matting_auto_export", False):
                 self.export_video(auto=True)
         else:
-            print("Points must be added on the Segmentation tab before matting")
+            print("Create a segmentation with points or paint before running matting")
 
     def run_object_removal(self):
         """Run object removal process"""
@@ -2367,7 +2506,7 @@ class MainWindow(QMainWindow):
         is_edit_view = self.view_combo.currentText() == "Segmentation-Edit"
         
         # Enable/disable point clicks in image viewer (but keep zoom/pan)
-        self.viewer.point_editing_enabled = is_edit_view
+        self.viewer.point_editing_enabled = is_edit_view and not self.sidebar.segmentation_tab.mode_button.isChecked()
     
     def set_object_id(self, object_id):
         """Set the selected object ID in the segmentation tab"""
@@ -2447,6 +2586,14 @@ class MainWindow(QMainWindow):
         self._create_shortcut("F", self.fit_to_screen, "Fit to Screen", create_shortcut=False)
         self._create_shortcut("=", self.zoom_in, "Zoom In")
         self._create_shortcut("-", self.zoom_out, "Zoom Out")
+        self._create_shortcut(
+            QKeySequence(QKeyCombination(Qt.KeypadModifier, Qt.Key_Plus)),
+            self.zoom_in, "Zoom In", display_key="Num +",
+        )
+        self._create_shortcut(
+            QKeySequence(QKeyCombination(Qt.KeypadModifier, Qt.Key_Minus)),
+            self.zoom_out, "Zoom Out", display_key="Num -",
+        )
         self._create_shortcut("Ctrl+Shift+R", self.reset_interface, "Reset Interface", create_shortcut=False)
         
         # Frame navigation
@@ -2462,6 +2609,7 @@ class MainWindow(QMainWindow):
         self._create_shortcut("Ctrl+Shift+X", self.clear_markers, "Clear In/Out Markers")
         
         # Point operations
+        self._create_shortcut("P", self.toggle_paint_mode, "Toggle Point/Paint Mode")
         self._create_shortcut("Ctrl+Z", self.undo_last_point, "Remove Last Point")
         self._create_shortcut("Delete", self.delete_selected_point, "Delete Selected Point")
         self._create_shortcut("Ctrl+Delete", self.clear_frame_points, "Clear Frame Points")
@@ -2490,7 +2638,7 @@ class MainWindow(QMainWindow):
         self._create_shortcut("F1", self.show_help, "Show Help", create_shortcut=False)
         self._create_shortcut("Ctrl+F1", self.show_hotkeys_help, "Show Keyboard Shortcuts", create_shortcut=False)
 
-    def _create_shortcut(self, key, action, description, create_shortcut=True):
+    def _create_shortcut(self, key, action, description, create_shortcut=True, display_key=None):
         """Helper method to create keyboard shortcuts"""
         if create_shortcut:
             shortcut = QShortcut(QKeySequence(key), self)
@@ -2499,7 +2647,7 @@ class MainWindow(QMainWindow):
         # Always add to the list for help display
         if not hasattr(self, "_shortcuts_list"):
             self._shortcuts_list = []
-        self._shortcuts_list.append((key, description))
+        self._shortcuts_list.append((display_key or str(key), description))
 
     def show_hotkeys_help(self):
         if hasattr(self, "_shortcuts_list"):
@@ -2565,8 +2713,6 @@ class MainWindow(QMainWindow):
         self.clear_markers()
         self._update_dynamic_widgets()
         
-        file_ext = os.path.splitext(file_path)[1].lower()
-        
         try:
             if image_ops.is_supported_image(file_path):
                 framecount = sammie.load_image_sequence(file_path, parent_window=self)
@@ -2581,8 +2727,7 @@ class MainWindow(QMainWindow):
                     video_info.color_space, file_path
                 )
                 
-                if image_ops.is_supported_image(file_path):
-                    self.settings_mgr.set_session_setting("frame_format", file_ext.lstrip('.'))
+                self.settings_mgr.set_session_setting("frame_format", "png")
                     
                 self.settings_mgr.save_session_settings()
                 

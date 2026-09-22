@@ -222,7 +222,7 @@ class MinimaxRemovalManager(RemovalManager):
         for i, frame in enumerate(output):
             frame_number = start_frame + i
             composited = self.composite_removal_over_original(frame, frame_number, points)
-            output_path = os.path.join(core.removal_dir, f"{frame_number:05d}.{extension}")
+            output_path = core.output_path(core.removal_dir, frame_number)
             frame_bgr = image_ops.cvtColor(composited, image_ops.COLOR_RGB2BGR)
             image_ops.imwrite(output_path, frame_bgr)
 
@@ -265,7 +265,7 @@ class MinimaxRemovalManager(RemovalManager):
         masks = []
 
         for frame_number in range(start_frame, end_frame + 1):
-            frame_path = os.path.join(core.frames_dir, f"{frame_number:05d}.{extension}")
+            frame_path = core.frame_path(frame_number, extension)
 
             # Load frame
             frame = image_ops.imread(frame_path)
@@ -274,11 +274,9 @@ class MinimaxRemovalManager(RemovalManager):
             # Combine masks for all objects on this frame
             combined_mask = np.zeros(frame.shape[:2], np.uint8)
             for object_id in object_ids:
-                mask_path = os.path.join(core.mask_dir, f"{frame_number:05d}", f"{object_id}.png")
-                if os.path.exists(mask_path):
-                    mask = image_ops.imread(mask_path, image_ops.IMREAD_GRAYSCALE)
-                    if mask is not None:
-                        combined_mask = image_ops.bitwise_or(combined_mask, mask)
+                mask = core.load_segmentation_mask(frame_number, object_id)
+                if mask is not None:
+                    combined_mask = image_ops.bitwise_or(combined_mask, mask)
 
             # Apply segmentation postprocessing (holes, dots, border_fix, grow)
             combined_mask = core.apply_mask_postprocessing(combined_mask)

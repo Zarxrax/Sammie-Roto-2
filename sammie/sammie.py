@@ -9,6 +9,7 @@ import zipfile
 import threading
 import queue
 import multiprocessing
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import av
 from tqdm import tqdm
 from PySide6.QtGui import QPixmap, QImage
@@ -91,7 +92,7 @@ def load_removal_frame(frame_number):
     Load the object removal frame image from disk.
     If the frame does not exist, load the base frame instead.
     """
-    frame_filename = os.path.join(core.removal_dir, f"{frame_number:05d}.png")
+    frame_filename = core.output_path(core.removal_dir, frame_number)
     if os.path.exists(frame_filename):
         image = image_ops.imread(frame_filename)
         return image_ops.cvtColor(image, image_ops.COLOR_BGR2RGB)
@@ -245,7 +246,7 @@ def _handle_matting_matte_view(frame_number, view_options, points, return_numpy=
     mask = core.load_masks_for_frame(frame_number, points, return_combined=True,
                                 object_id_filter=object_id_filter, folder=core.matting_dir)
     if mask is None:
-        return None
+        mask = np.zeros((core.VideoInfo.height, core.VideoInfo.width), dtype=np.uint8)
 
     mask = core.apply_matany_postprocessing(mask)
     mask_3channel = np.stack([mask] * 3, axis=-1)
@@ -289,7 +290,7 @@ def _handle_matting_alpha_view(frame_number, view_options, points, return_numpy=
     mask = core.load_masks_for_frame(frame_number, points, return_combined=True,
                                 object_id_filter=object_id_filter, folder=core.matting_dir)
     if mask is None:
-        return _convert_to_qpixmap(image_rgba) if not return_numpy else image_rgba
+        mask = np.zeros(image.shape[:2], dtype=np.uint8)
 
     mask = core.apply_matany_postprocessing(mask)
     image_rgba = image_ops.merge([image[:, :, 0], image[:, :, 1], image[:, :, 2], mask])
@@ -469,8 +470,7 @@ def load_video(video_file, parent_window):
     src_range = int(stream.codec_context.color_range)  # 1=limited, 2=full
 
     frame_count = 0
-    settings_mgr = get_settings_manager()
-    frame_format = settings_mgr.get_app_setting("frame_format", "png")
+    plate_name = re.sub(r"[^A-Za-z0-9_.-]", "_", os.path.splitext(os.path.basename(video_file))[0]).rstrip("._-") or "plate"
 
     # --- Threaded frame writing setup ---
     save_q = queue.Queue(maxsize=100)
@@ -510,7 +510,7 @@ def load_video(video_file, parent_window):
             # image_ops.imwrite expects BGR
             frame_bgr = image_ops.cvtColor(frame_rgb, image_ops.COLOR_RGB2BGR)
 
-            frame_filename = os.path.join(core.frames_dir, f"{frame_count:05d}.{frame_format}")
+            frame_filename = os.path.join(core.frames_dir, f"{plate_name}_frames.{frame_count:04d}.png")
             save_q.put((frame_filename, frame_bgr))
             frame_count += 1
             progress.update(1)
@@ -553,6 +553,7 @@ def load_video(video_file, parent_window):
     progress_dialog.close()
 
     core.VideoInfo.total_frames = frame_count
+    core.set_plate_info(plate_name, range(frame_count))
     return frame_count
 
 def detect_image_sequence(image_path):
@@ -653,7 +654,6 @@ def load_image_sequence(image_path, parent_window):
     progress_dialog.setAutoClose(True)
     progress_dialog.show()
 
-    settings_mgr = get_settings_manager()
     first_image = image_ops.imread(files_to_load[0])
     if first_image is None:
         progress_dialog.close()
@@ -664,25 +664,49 @@ def load_image_sequence(image_path, parent_window):
     core.VideoInfo.height, core.VideoInfo.width = first_image.shape[:2]
     core.VideoInfo.fps = 24.0
     core.VideoInfo.total_frames = len(files_to_load)
+    stems = [os.path.splitext(os.path.basename(path))[0] for path in files_to_load]
+    matches = [re.search(r"^(.*?)(\d+)$", stem) for stem in stems]
+    plate_name = matches[0].group(1).rstrip("._-") if matches[0] else stems[0]
+    numbers = [int(match.group(2)) if match else index for index, match in enumerate(matches)]
+    padding = max((len(match.group(2)) for match in matches if match), default=4)
+    core.set_plate_info(plate_name, numbers, padding)
 
-    for frame_count, source_path in enumerate(files_to_load):
+    def stage_plate(frame_count, source_path):
+        frame_filename = core.frame_path(frame_count, "png")
+        if os.path.splitext(source_path)[1].lower() == ".png":
+            shutil.copy2(source_path, frame_filename)
+            return
         image = image_ops.imread(source_path)
         if image is None:
-            print(f"Warning: Could not load {source_path}, skipping...")
-            continue
+            raise OSError(f"Could not load {source_path}")
+        image_ops.imwrite(frame_filename, image)
 
-        source_ext = os.path.splitext(source_path)[1].lower()
-        frame_filename = os.path.join(core.frames_dir, f"{frame_count:05d}{source_ext}")
-        shutil.copy2(source_path, frame_filename)
+    cancelled = False
+    failed_files = []
+    with ThreadPoolExecutor(max_workers=min(4, multiprocessing.cpu_count())) as executor:
+        futures = {
+            executor.submit(stage_plate, frame_count, source_path): source_path
+            for frame_count, source_path in enumerate(files_to_load)
+        }
+        for completed, future in enumerate(as_completed(futures), 1):
+            try:
+                future.result()
+            except Exception as exc:
+                print(f"Error staging {futures[future]}: {exc}")
+                failed_files.append(futures[future])
+            progress_dialog.setValue(completed * 100 // len(files_to_load))
+            QApplication.processEvents()
+            if progress_dialog.wasCanceled():
+                cancelled = True
+                for pending in futures:
+                    pending.cancel()
+                break
 
-        progress_dialog.setValue((frame_count + 1) * 100 // len(files_to_load))
-        QApplication.processEvents()
-
-        if progress_dialog.wasCanceled():
-            if os.path.exists(core.temp_dir):
-                shutil.rmtree(core.temp_dir)
-            progress_dialog.close()
-            return 0
+    if cancelled or failed_files:
+        if os.path.exists(core.temp_dir):
+            shutil.rmtree(core.temp_dir)
+        progress_dialog.close()
+        return 0
 
     progress_dialog.setValue(100)
     return core.VideoInfo.total_frames
@@ -691,6 +715,9 @@ def load_image_sequence(image_path, parent_window):
 def resume_session():
     if os.path.exists(core.temp_dir):
         if os.path.exists(core.frames_dir) and os.listdir(core.frames_dir):
+            if not os.path.exists(core.plate_info_path):
+                print("Previous temp session uses the old file layout; load plates to start a new session.")
+                return 0
             print("Resuming previous session...")
             QApplication.processEvents()
             restore_video_info()
@@ -700,6 +727,7 @@ def resume_session():
 def restore_video_info():
     if not os.path.exists(core.frames_dir):
         return 0
+    core.reload_plate_info()
     image = core.load_base_frame(0)
     if image is not None:
         height, width, channels = image.shape

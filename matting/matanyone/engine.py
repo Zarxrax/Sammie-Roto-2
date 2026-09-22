@@ -72,8 +72,8 @@ class MatAnyManager(MattingManager):
         start_frame, end_frame, frames_to_process = self._get_frame_range()
         print(f"Processing matting from frame {start_frame} to {end_frame} ({frames_to_process} frames)")
 
-        # Get unique object IDs from points list
-        object_ids = sorted(list(set(point['object_id'] for point in points_list if 'object_id' in point)))
+        # Include objects and keyframes created entirely with the paint layer.
+        object_ids = core.segmentation_object_ids(points_list)
         if not object_ids:
             print("No objects found for matting")
             return 0
@@ -81,10 +81,9 @@ class MatAnyManager(MattingManager):
         # Find all keyframes for each object (within processing range)
         object_keyframes = {}
         for object_id in object_ids:
-            keyframes = sorted(list(set(
-                point['frame'] for point in points_list
-                if point.get('object_id') == object_id and start_frame <= point['frame'] <= end_frame
-            )))
+            keyframes = core.segmentation_keyframes(
+                object_id, points_list, start_frame=start_frame, end_frame=end_frame
+            )
             if keyframes:
                 object_keyframes[object_id] = keyframes
             else:
@@ -126,12 +125,8 @@ class MatAnyManager(MattingManager):
 
         # If combined mode is selected, delete any existing matting files except object 0.
         if combined and os.path.exists(core.matting_dir):
-            for frame_dirname in os.listdir(core.matting_dir):
-                frame_dir = os.path.join(core.matting_dir, frame_dirname)
-                if os.path.isdir(frame_dir):
-                    for f in os.listdir(frame_dir):
-                        if f != "0.png":
-                            os.remove(os.path.join(frame_dir, f))
+            for frame_number in range(core.VideoInfo.total_frames):
+                core.remove_output_objects(core.matting_dir, frame_number, keep_ids=(0,))
 
         images = self._collect_image_paths(start_frame, end_frame)
 
@@ -281,7 +276,7 @@ class MatAnyManager(MattingManager):
             mat = (mat * 255).astype(np.uint8)
             mat = self._restore_image_size(mat, original_size)
 
-            mat_filename = os.path.join(core.matting_dir, f"{frame_number:05d}", f"{object_id}.png")
+            mat_filename = core.output_path(core.matting_dir, frame_number, object_id)
             os.makedirs(os.path.dirname(mat_filename), exist_ok=True)
             image_ops.imwrite(mat_filename, mat)
             return True
@@ -355,7 +350,7 @@ class MatAnyManager(MattingManager):
                 mat = self._restore_image_size(mat, original_size)
 
                 # Save matte
-                mat_filename = os.path.join(core.matting_dir, f"{frame_number:05d}", f"{object_id}.png")
+                mat_filename = core.output_path(core.matting_dir, frame_number, object_id)
                 os.makedirs(os.path.dirname(mat_filename), exist_ok=True)
                 image_ops.imwrite(mat_filename, mat)
                 core.DeviceManager.clear_cache()
@@ -422,7 +417,7 @@ class MatAnyManager(MattingManager):
                 mat = self._restore_image_size(mat, original_size)
 
                 # Save matte
-                mat_filename = os.path.join(core.matting_dir, f"{frame_number:05d}", f"{object_id}.png")
+                mat_filename = core.output_path(core.matting_dir, frame_number, object_id)
                 os.makedirs(os.path.dirname(mat_filename), exist_ok=True)
                 image_ops.imwrite(mat_filename, mat)
                 core.DeviceManager.clear_cache()
