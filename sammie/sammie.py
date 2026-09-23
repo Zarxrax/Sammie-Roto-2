@@ -28,27 +28,15 @@ smoothing_model = None  # global variable needed to avoid complexity of passing 
 # SAM2 / EfficientTAM segmentation
 # .........................................................................................
 
-class SamManager:
+class SamManager(core.CallbackMixin):
     def __init__(self):
+        super().__init__()
         self.model = None
         self.loaded_model_name = None
         self.predictor = None
         self.inference_state = None
         self.propagated = False  # whether we have propagated the masks
         self.deduplicated = False  # whether we have deduplicated the masks
-        self.callbacks = []  # Add callbacks for segmentation events
-
-    def add_callback(self, callback):
-        """Add callback for segmentation events"""
-        self.callbacks.append(callback)
-
-    def _notify(self, action, **kwargs):
-        """Notify callbacks of changes"""
-        for callback in self.callbacks:
-            try:
-                callback(action, **kwargs)
-            except Exception as e:
-                print(f"Callback error: {e}")
 
     def load_segmentation_model(self, model=None, parent_window=None):
         if model is None:
@@ -422,6 +410,14 @@ class SamManager:
             else:
                 progress_dialog.setValue(100)
 
+        # Always leave the slider showing the last frame actually processed
+        if last_frame_idx is not None:
+            try:
+                parent_window.frame_slider.setValue(last_frame_idx)
+                QApplication.processEvents()
+            except Exception as e:
+                print(f"Error updating display: {e}")
+
         return last_frame_idx, cancelled
 
     def track_objects(self, parent_window):
@@ -626,6 +622,48 @@ def _convert_to_qpixmap(image):
     return QPixmap.fromImage(q_image)
 
 
+def _get_display_mask(frame_number, points, object_id_filter, folder, postprocess_fn):
+    """
+    Load the combined mask for a view and postprocess it. Returns None (without
+    calling postprocess_fn) if no mask exists for this frame/object filter —
+    callers are responsible for deciding what to do in that case.
+    """
+    mask = core.load_masks_for_frame(frame_number, points, return_combined=True,
+                                      object_id_filter=object_id_filter, folder=folder)
+    if mask is None:
+        return None
+    return postprocess_fn(mask)
+
+
+def _maybe_antialias_mask(mask_3channel, view_options):
+    """
+    Apply the smoothing model to a 3-channel mask if antialiasing is enabled
+    in view_options (default True) and the model is available. Used only by
+    segmentation views — matting views have never applied antialiasing.
+    """
+    if not view_options.get("antialias", True):
+        return mask_3channel
+    global smoothing_model
+    if smoothing_model is None:
+        load_smoothing_model()
+    if smoothing_model is not None:
+        device = core.DeviceManager.get_device()
+        mask_3channel = run_smoothing_model(mask_3channel, smoothing_model, device)
+    return mask_3channel
+
+
+def _composite_bgcolor(image, mask, bgcolor):
+    """Blend `image` with a solid `bgcolor` background using `mask` (single-channel, 0-255) as alpha."""
+    bg = np.full_like(image, bgcolor)
+    alpha = mask.astype(np.float32) / 255.0
+    return cv2.blendLinear(image, bg, alpha, 1.0 - alpha)
+
+
+def _composite_alpha(image, mask):
+    """Merge `image` (RGB) and `mask` (single-channel, 0-255) into an RGBA image."""
+    return cv2.merge([image[:, :, 0], image[:, :, 1], image[:, :, 2], mask])
+
+
 def _handle_none_view(frame_number, return_numpy=False):
     """Handle None view"""
     image = core.load_base_frame(frame_number)
@@ -664,20 +702,12 @@ def _handle_segmentation_edit_view(frame_number, view_options, points, return_nu
 
 def _handle_segmentation_matte_view(frame_number, view_options, points, return_numpy=False, object_id_filter=None):
     """Handle Segmentation-Matte view"""
-    mask = core.load_masks_for_frame(frame_number, points, return_combined=True, object_id_filter=object_id_filter)
+    mask = _get_display_mask(frame_number, points, object_id_filter, core.mask_dir, core.apply_mask_postprocessing)
     if mask is None:
         return None
 
-    mask = core.apply_mask_postprocessing(mask)
     mask_3channel = np.stack([mask] * 3, axis=-1)
-
-    if view_options.get("antialias", True):
-        global smoothing_model
-        if smoothing_model is None:
-            load_smoothing_model()
-        if smoothing_model is not None:
-            device = core.DeviceManager.get_device()
-            mask_3channel = run_smoothing_model(mask_3channel, smoothing_model, device)
+    mask_3channel = _maybe_antialias_mask(mask_3channel, view_options)
 
     if return_numpy:
         return mask_3channel
@@ -691,25 +721,15 @@ def _handle_segmentation_bgcolor_view(frame_number, view_options, points, return
     if image is None:
         return None
 
-    mask = core.load_masks_for_frame(frame_number, points, return_combined=True, object_id_filter=object_id_filter)
+    mask = _get_display_mask(frame_number, points, object_id_filter, core.mask_dir, core.apply_mask_postprocessing)
     if mask is None:
         return _convert_to_qpixmap(image) if not return_numpy else image
 
-    mask = core.apply_mask_postprocessing(mask)
     mask_3channel = np.stack([mask] * 3, axis=-1)
-
-    if view_options.get("antialias", True):
-        global smoothing_model
-        if smoothing_model is None:
-            load_smoothing_model()
-        if smoothing_model is not None:
-            device = core.DeviceManager.get_device()
-            mask_3channel = run_smoothing_model(mask_3channel, smoothing_model, device)
+    mask_3channel = _maybe_antialias_mask(mask_3channel, view_options)
 
     bgcolor = view_options.get("bgcolor", (0, 255, 0))
-    bg = np.full_like(image, bgcolor)
-    alpha = mask_3channel[:, :, 0].astype(np.float32) / 255.0
-    image = cv2.blendLinear(image, bg, alpha, 1.0 - alpha)
+    image = _composite_bgcolor(image, mask_3channel[:, :, 0], bgcolor)
 
     if return_numpy:
         return image
@@ -723,23 +743,15 @@ def _handle_segmentation_alpha_view(frame_number, view_options, points, return_n
     if image is None:
         return None
 
-    mask = core.load_masks_for_frame(frame_number, points, return_combined=True, object_id_filter=object_id_filter)
+    mask = _get_display_mask(frame_number, points, object_id_filter, core.mask_dir, core.apply_mask_postprocessing)
     if mask is None:
-        return _convert_to_qpixmap(image_rgba) if not return_numpy else image_rgba
+        return _convert_to_qpixmap(image) if not return_numpy else image
 
-    mask = core.apply_mask_postprocessing(mask)
+    mask_3channel = np.stack([mask] * 3, axis=-1)
+    mask_3channel = _maybe_antialias_mask(mask_3channel, view_options)
+    mask = mask_3channel[:, :, 0]
 
-    if view_options.get("antialias", True):
-        global smoothing_model
-        if smoothing_model is None:
-            load_smoothing_model()
-        if smoothing_model is not None:
-            device = core.DeviceManager.get_device()
-            mask_3channel = np.stack([mask] * 3, axis=-1)
-            mask_3channel = run_smoothing_model(mask_3channel, smoothing_model, device)
-            mask = mask_3channel[:, :, 0]
-
-    image_rgba = cv2.merge([image[:, :, 0], image[:, :, 1], image[:, :, 2], mask])
+    image_rgba = _composite_alpha(image, mask)
 
     if return_numpy:
         return image_rgba
@@ -749,12 +761,10 @@ def _handle_segmentation_alpha_view(frame_number, view_options, points, return_n
 
 def _handle_matting_matte_view(frame_number, view_options, points, return_numpy=False, object_id_filter=None):
     """Handle Matting-Matte view"""
-    mask = core.load_masks_for_frame(frame_number, points, return_combined=True,
-                                object_id_filter=object_id_filter, folder=core.matting_dir)
+    mask = _get_display_mask(frame_number, points, object_id_filter, core.matting_dir, core.apply_matany_postprocessing)
     if mask is None:
         return None
 
-    mask = core.apply_matany_postprocessing(mask)
     mask_3channel = np.stack([mask] * 3, axis=-1)
 
     if return_numpy:
@@ -769,17 +779,12 @@ def _handle_matting_bgcolor_view(frame_number, view_options, points, return_nump
     if image is None:
         return None
 
-    mask = core.load_masks_for_frame(frame_number, points, return_combined=True,
-                                object_id_filter=object_id_filter, folder=core.matting_dir)
+    mask = _get_display_mask(frame_number, points, object_id_filter, core.matting_dir, core.apply_matany_postprocessing)
     if mask is None:
         return _convert_to_qpixmap(image) if not return_numpy else image
 
-    mask = core.apply_matany_postprocessing(mask)
-
     bgcolor = view_options.get("bgcolor", (0, 255, 0))
-    bg = np.full_like(image, bgcolor)
-    alpha = mask.astype(np.float32) / 255.0
-    image = cv2.blendLinear(image, bg, alpha, 1.0 - alpha)
+    image = _composite_bgcolor(image, mask, bgcolor)
 
     if return_numpy:
         return image
@@ -793,13 +798,11 @@ def _handle_matting_alpha_view(frame_number, view_options, points, return_numpy=
     if image is None:
         return None
 
-    mask = core.load_masks_for_frame(frame_number, points, return_combined=True,
-                                object_id_filter=object_id_filter, folder=core.matting_dir)
+    mask = _get_display_mask(frame_number, points, object_id_filter, core.matting_dir, core.apply_matany_postprocessing)
     if mask is None:
-        return _convert_to_qpixmap(image_rgba) if not return_numpy else image_rgba
+        return _convert_to_qpixmap(image) if not return_numpy else image
 
-    mask = core.apply_matany_postprocessing(mask)
-    image_rgba = cv2.merge([image[:, :, 0], image[:, :, 1], image[:, :, 2], mask])
+    image_rgba = _composite_alpha(image, mask)
 
     if return_numpy:
         return image_rgba

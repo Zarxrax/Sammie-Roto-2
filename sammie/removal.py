@@ -1,7 +1,6 @@
 # sammie/removal.py
 import cv2
 import os
-import math
 import numpy as np
 import torch
 import shutil
@@ -13,26 +12,14 @@ from sammie.settings_manager import get_settings_manager
 from sammie.model_downloader import ensure_models
 
 
-class RemovalManager:
+class RemovalManager(core.CallbackMixin):
     """Manager for object removal operations"""
 
     def __init__(self):
+        super().__init__()
         self.pipe = None
         self.propainterx_pipeline = None
         self.propagated = False  # whether removal has been completed
-        self.callbacks = []
-
-    def add_callback(self, callback):
-        """Add callback for removal events"""
-        self.callbacks.append(callback)
-
-    def _notify(self, action, **kwargs):
-        """Notify callbacks of changes"""
-        for callback in self.callbacks:
-            try:
-                callback(action, **kwargs)
-            except Exception as e:
-                print(f"Callback error: {e}")
 
     def load_minimax_model(self, parent_window=None):
         from diffusers.models import AutoencoderKLWan
@@ -128,14 +115,8 @@ class RemovalManager:
         device = core.DeviceManager.get_device()
         self.propagated = False
 
-        # Get in/out points from settings
-        in_point = settings_mgr.get_session_setting("in_point", None)
-        out_point = settings_mgr.get_session_setting("out_point", None)
-
         # Determine frame range to process
-        start_frame = in_point if in_point is not None else 0
-        end_frame = out_point if out_point is not None else frame_count - 1
-        frames_to_process = end_frame - start_frame + 1
+        start_frame, end_frame, frames_to_process = core.get_frame_range()
 
         print(f"Processing removal from frame {start_frame} to {end_frame} ({frames_to_process} frames)")
 
@@ -282,14 +263,11 @@ class RemovalManager:
             frame = cv2.imread(frame_path)
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-            # Combine masks for all objects on this frame
-            combined_mask = np.zeros(frame.shape[:2], np.uint8)
-            for object_id in object_ids:
-                mask_path = os.path.join(core.mask_dir, f"{frame_number:05d}", f"{object_id}.png")
-                if os.path.exists(mask_path):
-                    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-                    if mask is not None:
-                        combined_mask = cv2.bitwise_or(combined_mask, mask)
+            # Combine masks for all objects on this frame (falls back to an
+            # all-black mask, matching the frame's shape, if none are found)
+            combined_mask, _ = core.load_combined_mask(frame_number, object_ids)
+            if combined_mask is None:
+                combined_mask = np.zeros(frame.shape[:2], np.uint8)
 
             # Apply segmentation postprocessing (holes, dots, border_fix, grow)
             combined_mask = core.apply_mask_postprocessing(combined_mask)
@@ -378,26 +356,7 @@ class RemovalManager:
         """
         settings_mgr = get_settings_manager()
         max_size = settings_mgr.get_session_setting("minimax_resolution", 480)
-
-        h, w = image.shape[:2]
-        min_side = min(h, w)
-
-        if min_side > max_size:
-            # Downscale proportionally and align to multiple of 16 (rounded down)
-            scale = max_size / min_side
-            new_h = math.floor((h * scale) / 16) * 16
-            new_w = math.floor((w * scale) / 16) * 16
-        else:
-            # Keep same size, just align down to multiple of 16
-            new_h = math.floor(h / 16) * 16
-            new_w = math.floor(w / 16) * 16
-
-        # Only resize if necessary
-        if (new_w, new_h) != (w, h):
-            interpolation = cv2.INTER_NEAREST if mask else cv2.INTER_AREA
-            image = cv2.resize(image, (new_w, new_h), interpolation=interpolation)
-
-        return image
+        return core.resize_to_limit(image, max_size, multiple=16, mask=mask)
 
     def load_propainterx_model(self, parent_window=None):
         from propainterx.propainterx_pipeline import ProPainterXPipeline
@@ -447,23 +406,7 @@ class RemovalManager:
         """
         settings_mgr = get_settings_manager()
         max_size = settings_mgr.get_session_setting("propainterx_resolution", 720)
-
-        h, w = image.shape[:2]
-        min_side = min(h, w)
-
-        if min_side > max_size:
-            scale = max_size / min_side
-            new_h = math.floor((h * scale) / 8) * 8
-            new_w = math.floor((w * scale) / 8) * 8
-        else:
-            new_h = math.floor(h / 8) * 8
-            new_w = math.floor(w / 8) * 8
-
-        if (new_w, new_h) != (w, h):
-            interpolation = cv2.INTER_NEAREST if mask else cv2.INTER_AREA
-            image = cv2.resize(image, (new_w, new_h), interpolation=interpolation)
-
-        return image
+        return core.resize_to_limit(image, max_size, multiple=8, mask=mask)
 
     def _load_all_frames_and_masks_propainterx(self, points_list, inpaint_grow=0, start_frame=0, end_frame=None, on_progress=None):
         """
@@ -501,13 +444,11 @@ class RemovalManager:
             frame = cv2.imread(frame_path)
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-            combined_mask = np.zeros(frame.shape[:2], np.uint8)
-            for object_id in object_ids:
-                mask_path = os.path.join(core.mask_dir, f"{frame_number:05d}", f"{object_id}.png")
-                if os.path.exists(mask_path):
-                    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-                    if mask is not None:
-                        combined_mask = cv2.bitwise_or(combined_mask, mask)
+            # Combine masks for all objects on this frame (falls back to an
+            # all-black mask, matching the frame's shape, if none are found)
+            combined_mask, _ = core.load_combined_mask(frame_number, object_ids)
+            if combined_mask is None:
+                combined_mask = np.zeros(frame.shape[:2], np.uint8)
 
             combined_mask = core.apply_mask_postprocessing(combined_mask)
 
@@ -542,14 +483,8 @@ class RemovalManager:
         settings_mgr = get_settings_manager()
         self.propagated = False
 
-        # Get in/out points from settings
-        in_point = settings_mgr.get_session_setting("in_point", None)
-        out_point = settings_mgr.get_session_setting("out_point", None)
-
         # Determine frame range to process
-        start_frame = in_point if in_point is not None else 0
-        end_frame = out_point if out_point is not None else frame_count - 1
-        frames_to_process = end_frame - start_frame + 1
+        start_frame, end_frame, frames_to_process = core.get_frame_range()
 
         print(f"Processing removal from frame {start_frame} to {end_frame} ({frames_to_process} frames)")
 
