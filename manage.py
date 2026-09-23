@@ -3,8 +3,8 @@ import urllib.request
 
 # ===== CONFIG =====
 PYTHON_VERSION = "3.12"
-REPO_URL = "https://github.com/Zarxrax/Sammie-Roto-2.git"
-REPO_RAW_BASE = "https://raw.githubusercontent.com/Zarxrax/Sammie-Roto-2"
+REPO_URL = "https://github.com/magnoborgo/Sammie-Roto-2.git"
+REPO_RAW_BASE = "https://raw.githubusercontent.com/magnoborgo/Sammie-Roto-2"
 DEFAULT_BRANCH = "main"
 
 def get_uv_exe():
