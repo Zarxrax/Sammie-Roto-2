@@ -13,17 +13,14 @@ dependencies = [
     "OpenEXR~=3.4",
     "diffusers~=0.39",
     "einops~=0.8",
-    # macOS gets standard torch and torchvision, 
-    # other platforms require extras defined in the optional-dependencies
-    "torch==2.11.0 ; sys_platform == 'darwin'",
-    "torchvision==0.26.0 ; sys_platform == 'darwin'",
-    "accelerate~=1.14 ; sys_platform == 'darwin'",
+    "accelerate~=1.14",
 ]
 
 [project.optional-dependencies]
-cpu   = ["torch==2.11.0", "torchvision==0.26.0", "accelerate~=1.14"]
-cu126 = ["torch==2.11.0", "torchvision==0.26.0", "accelerate~=1.14"]
-cu130 = ["torch==2.11.0", "torchvision==0.26.0", "accelerate~=1.14"]
+macos = ["torch==2.14.0 ; sys_platform == 'darwin'", "torchvision==0.29.0 ; sys_platform == 'darwin'"]
+cpu   = ["torch==2.11.0", "torchvision==0.26.0"]
+cu126 = ["torch==2.11.0", "torchvision==0.26.0"]
+cu130 = ["torch==2.11.0", "torchvision==0.26.0"]
 rocm  = [
     "torch==2.11.0 ; sys_platform == 'linux'",
     "torchvision==0.26.0 ; sys_platform == 'linux'",
@@ -34,14 +31,14 @@ rocm  = [
     "rocm-sdk-devel==7.2.1 ; sys_platform == 'win32'",
     "rocm-sdk-libraries-custom==7.2.1 ; sys_platform == 'win32'",
     "rocm==7.2.1 ; sys_platform == 'win32'",
-    "accelerate~=1.14"
 ]
-xpu   = ["torch==2.11.0", "torchvision==0.26.0", "triton-xpu==3.7.0", "accelerate~=1.14"]
+xpu   = ["torch==2.11.0", "torchvision==0.26.0", "triton-xpu==3.7.0"]
 
 [tool.uv]
 package = false
 conflicts = [
   [
+    { extra = "macos" },
     { extra = "cpu" },
     { extra = "cu126" },
     { extra = "cu130" },

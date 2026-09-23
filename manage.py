@@ -77,7 +77,7 @@ def is_newer_version(remote_v, local_v):
 def get_installed_backend():
     """Detects which torch extra is currently installed (used for updates)."""
     if platform.system() == "Darwin":
-        return None
+        return "macos"
 
     if not os.path.exists(".venv"):
         return None
@@ -138,7 +138,7 @@ BACKEND_OPTIONS = [
 def choose_backend():
     """Manually prompt the user for their hardware backend."""
     if platform.system() == "Darwin":
-        return None
+        return "macos"
 
     print("\nSelect PyTorch backend:")
     for i, (_, label) in enumerate(BACKEND_OPTIONS, 1):
@@ -271,7 +271,6 @@ def setup(branch, reinstall=False):
 
     # -- Summarise and confirm ----------------------------------------------
     backend_labels = dict(BACKEND_OPTIONS)
-    backend_labels[None] = "CPU/Apple Silicon/MPS"
 
     print("\n--- Setup summary ---")
     print(f"  Branch           : {branch}")
