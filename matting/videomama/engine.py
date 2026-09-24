@@ -32,11 +32,20 @@ class VideoMaMaManager(MattingManager):
         print(f"VideoMaMa MPS allocation limit: {limit / 1024 ** 3:.1f} GiB")
 
     @staticmethod
+    def _cuda_device_index(device):
+        """Return a concrete CUDA index for APIs that reject bare ``cuda``."""
+        device = torch.device(device)
+        if device.type != "cuda":
+            raise ValueError(f"Expected a CUDA device, got {device}")
+        return device.index if device.index is not None else torch.cuda.current_device()
+
+    @staticmethod
     def _limit_cuda_memory(device, memory_gib, enabled=True):
         """Limit PyTorch's CUDA caching allocator on the selected device."""
-        total = torch.cuda.get_device_properties(device).total_memory
+        device_index = VideoMaMaManager._cuda_device_index(device)
+        total = torch.cuda.get_device_properties(device_index).total_memory
         fraction = min(0.95, memory_gib * 0.95 * 1024 ** 3 / total) if enabled else 1.0
-        torch.cuda.set_per_process_memory_fraction(fraction, device=device)
+        torch.cuda.set_per_process_memory_fraction(fraction, device=device_index)
         if enabled:
             print(f"VideoMaMa CUDA allocation limit: {total * fraction / 1024 ** 3:.1f} GiB")
 
@@ -461,8 +470,9 @@ class VideoMaMaManager(MattingManager):
                         from matting.videomama.spatial_tiling import run_tiled
                         tile_budget = memory_gib
                         if self.pipeline.device.type == "cuda":
+                            device_index = self._cuda_device_index(self.pipeline.device)
                             available_gib = (torch.cuda.get_device_properties(
-                                self.pipeline.device).total_memory / 1024 ** 3)
+                                device_index).total_memory / 1024 ** 3)
                             tile_budget = max(8, min(memory_gib, available_gib * 0.95))
                         output_frames = run_tiled(
                             self.pipeline, cond_frames, mask_frames,
