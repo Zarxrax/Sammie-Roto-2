@@ -1063,12 +1063,14 @@ def load_video(video_file, parent_window):
     progress_dialog.close()
 
     core.VideoInfo.total_frames = frame_count
+    settings_mgr.set_session_setting("sequence_start_frame", 0)  # not an image sequence
     return frame_count
 
 def detect_image_sequence(image_path):
     """
     Detect if an image is part of a sequence based on common naming patterns.
-    Returns (is_sequence, sequence_files) or (False, [])
+    Returns (is_sequence, sequence_files, base_name) or (False, [], None).
+    base_name is the filename prefix with the trailing frame number removed
     """
     directory = os.path.dirname(image_path)
     filename = os.path.basename(image_path)
@@ -1118,16 +1120,40 @@ def detect_image_sequence(image_path):
             sequence_files.sort(key=natural_sort_key)
 
             if len(sequence_files) > 1:
-                return True, sequence_files
+                return True, sequence_files, base_name
 
-    return False, []
+    return False, [], None
+
+
+def get_sequence_start_frame(files):
+    """
+    Return the frame number of the first file if the files form a consecutively
+    numbered sequence (each frame number is exactly one more than the previous).
+    Returns 0 for single images, sequences with gaps/duplicates, or files without
+    a trailing frame number.
+    """
+    if len(files) < 2:
+        return 0
+
+    numbers = []
+    for path in files:
+        stem = os.path.splitext(os.path.basename(path))[0]
+        match = re.search(r'(\d+)$', stem)
+        if not match:
+            return 0
+        numbers.append(int(match.group(1)))
+
+    first = numbers[0]
+    if all(n == first + i for i, n in enumerate(numbers)):
+        return first
+    return 0
 
 
 def load_image_sequence(image_path, parent_window):
     """
     Load an image or image sequence. Detects sequences automatically and prompts user.
     """
-    is_sequence, sequence_files = detect_image_sequence(image_path)
+    is_sequence, sequence_files, sequence_base_name = detect_image_sequence(image_path)
     files_to_load = [image_path]
 
     if is_sequence:
@@ -1202,6 +1228,19 @@ def load_image_sequence(image_path, parent_window):
             return 0
 
     progress_dialog.setValue(100)
+
+    # Remember the source numbering so sequence exports can start from the same frame number
+    settings_mgr.set_session_setting("sequence_start_frame", get_sequence_start_frame(files_to_load))
+
+    # For an actual multi-file sequence, store a "clean" path (frame number stripped)
+    # as video_file_path, so the {input_name} export filename tag doesn't end up
+    # with one source frame's number baked into it.
+    clean_base_name = sequence_base_name.rstrip('_-.') if sequence_base_name else sequence_base_name
+    if len(files_to_load) > 1 and clean_base_name:
+        clean_ext = os.path.splitext(files_to_load[0])[1]
+        clean_dir = os.path.dirname(files_to_load[0])
+        settings_mgr.set_session_setting("video_file_path", os.path.join(clean_dir, f"{clean_base_name}{clean_ext}"))
+
     return core.VideoInfo.total_frames
 
 

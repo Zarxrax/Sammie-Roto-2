@@ -91,6 +91,7 @@ class SessionSettings:
     color_space: int = 1    # 1=BT.709, 5=BT.601 etc.
     in_point: int = None
     out_point: int = None
+    sequence_start_frame: int = 0
     
     # Current state
     current_frame: int = 0

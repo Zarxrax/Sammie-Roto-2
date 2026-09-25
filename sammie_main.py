@@ -2757,8 +2757,10 @@ class MainWindow(QMainWindow):
             if not success:
                 print("Failed to load file or loading was cancelled.")
                 # Reset UI to empty state on failure
+                self.frame_slider.blockSignals(True)
                 self.frame_slider.setRange(0, 0)
                 self.frame_slider.setValue(0)
+                self.frame_slider.blockSignals(False)
                 self.viewer.clear_image()
     
     def handle_dropped_file(self, file_path):
@@ -2793,8 +2795,10 @@ class MainWindow(QMainWindow):
         self.settings_mgr.create_new_session(file_path)
         
         # Reset UI
+        self.frame_slider.blockSignals(True)
         self.frame_slider.setRange(0, 0)
         self.frame_slider.setValue(0)
+        self.frame_slider.blockSignals(False)
         self._reset_show_all_points_button_state()
         self.viewer.clear_image()
         self.sidebar.load_values_from_settings()
@@ -2813,9 +2817,10 @@ class MainWindow(QMainWindow):
             if framecount and framecount > 0:
                 # Save video info to session
                 video_info = core.VideoInfo
+                video_path_for_session = self.settings_mgr.get_session_setting("video_file_path", file_path) or file_path
                 self.settings_mgr.update_video_info(
                     video_info.width, video_info.height, video_info.fps, video_info.total_frames, 
-                    video_info.color_space, file_path
+                    video_info.color_space, video_path_for_session
                 )
                 
                 # If png or jpg was loaded, set the frame format to override the app setting
