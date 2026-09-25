@@ -1132,7 +1132,7 @@ class MainWindow(QMainWindow):
         self._setup_hotkeys()
         self._update_point_editing_state()
         print(f"Sammie-Roto version {__version__}")
-        self.update_checker.check_for_updates()
+        self.update_checker.check_for_updates(current_version=__version__)
 
         # Show the window immediately so it appears before model loading
         self.show()
