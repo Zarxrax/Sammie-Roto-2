@@ -45,7 +45,10 @@ class ApplicationSettings:
     default_matany_res: int = 720
     default_matany_overlap: int = 2
     default_matany_chunk: int = 16
+    default_videomama_memory_gib: int = 32
+    default_videomama_memory_enabled: bool = True
     default_matany_combined: bool = False
+    matting_auto_export: bool = False
 
     # Object Removal Processing defaults
     default_removal_method: str = "MiniMax-Remover"
@@ -119,6 +122,8 @@ class SessionSettings:
     matany_res: int = 1080
     matany_overlap: int = 2
     matany_chunk: int = 16
+    videomama_memory_gib: int = 32
+    videomama_memory_enabled: bool = True
     matany_combined: bool = False
 
     # Object removal parameters
@@ -285,6 +290,8 @@ class SettingsManager:
             matany_res = self.app_settings.default_matany_res,
             matany_overlap=self.app_settings.default_matany_overlap,
             matany_chunk=self.app_settings.default_matany_chunk,
+            videomama_memory_gib=self.app_settings.default_videomama_memory_gib,
+            videomama_memory_enabled=self.app_settings.default_videomama_memory_enabled,
             matany_combined=self.app_settings.default_matany_combined,
             removal_method=self.app_settings.default_removal_method,
             inpaint_method=self.app_settings.default_inpaint_method,
@@ -365,6 +372,8 @@ class SettingsManager:
             'matany_res': self.session_settings.matany_res,
             'matany_overlap': self.session_settings.matany_overlap,
             'matany_chunk': self.session_settings.matany_chunk,
+            'videomama_memory_gib': self.session_settings.videomama_memory_gib,
+            'videomama_memory_enabled': self.session_settings.videomama_memory_enabled,
             'matany_combined': self.session_settings.matany_combined
         }
     

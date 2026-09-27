@@ -131,6 +131,15 @@ class SettingsDialog(QDialog):
         self.default_matany_grow_spin = QSpinBox()
         self.default_matany_grow_spin.setRange(-20, 20)
         mat_layout.addRow("Default Shrink/Grow:", self.default_matany_grow_spin)
+
+        self.matting_auto_export_cb = QCheckBox("Matting auto-export")
+        self.matting_auto_export_cb.setToolTip(
+            "After successful matting, export using the saved Export dialog settings.\n"
+            "Filename: saved template (default: {input_name}-{output_type}) plus the format extension.\n"
+            "Location: saved export folder, or beside the input video when that option is selected.\n"
+            "Existing files require overwrite confirmation."
+        )
+        mat_layout.addRow(self.matting_auto_export_cb)
         
         layout.addWidget(mat_group)
 
@@ -232,6 +241,7 @@ class SettingsDialog(QDialog):
         
         self.default_matany_gamma_spin.setValue(app_settings.default_matany_gamma)
         self.default_matany_grow_spin.setValue(app_settings.default_matany_grow)
+        self.matting_auto_export_cb.setChecked(app_settings.matting_auto_export)
         
         # Object Removal defaults
         self.default_inpaint_grow_spin.setValue(app_settings.default_inpaint_grow)
@@ -260,6 +270,7 @@ class SettingsDialog(QDialog):
         app_settings.default_grow = self.default_grow_spin.value()
         app_settings.default_matany_gamma = self.default_matany_gamma_spin.value()
         app_settings.default_matany_grow = self.default_matany_grow_spin.value()
+        app_settings.matting_auto_export = self.matting_auto_export_cb.isChecked()
         
         # Object Removal defaults
         app_settings.default_inpaint_grow = self.default_inpaint_grow_spin.value()

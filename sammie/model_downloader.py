@@ -5,9 +5,9 @@ A reusable dialog for downloading model files with:
 - Progress bar per file + overall progress
 - MD5 checksum verification
 - .part extension during download, renamed on success
-- On-demand or batch usage via a central MODEL_REGISTRY
+- On-demand or batch usage via shared and engine-owned model registries
 
-All models are registered once in MODEL_REGISTRY at the bottom of this file.
+Engine folders can declare downloads in their own ``downloads.py`` module.
 
 Usage (on-demand, single model by key):
     from model_downloader import ensure_models
@@ -33,7 +33,10 @@ Usage (ad-hoc spec, bypassing the registry):
 from __future__ import annotations
 
 import hashlib
+from importlib import import_module
+from importlib.util import find_spec
 import os
+from pkgutil import iter_modules
 import sys
 from tqdm import tqdm
 from dataclasses import dataclass
@@ -425,21 +428,22 @@ def ensure_models(
     Returns True if all models are present (or were successfully downloaded),
     False if the user cancelled or a download failed.
     """
+    registry = get_model_registry()
     # Normalise to a flat list of DownloadSpec
     if isinstance(models, str) and models == "all":
-        specs = list(MODEL_REGISTRY.values())
+        specs = list(registry.values())
     else:
         if not isinstance(models, list):
             models = [models]
         specs = []
         for item in models:
             if isinstance(item, str):
-                if item not in MODEL_REGISTRY:
+                if item not in registry:
                     raise KeyError(
                         f"Unknown model key {item!r}. "
-                        f"Available keys: {list(MODEL_REGISTRY)}"
+                        f"Available keys: {list(registry)}"
                     )
-                specs.append(MODEL_REGISTRY[item])
+                specs.append(registry[item])
             elif isinstance(item, DownloadSpec):
                 specs.append(item)
             else:
@@ -455,74 +459,49 @@ def ensure_models(
 
 
 # ---------------------------------------------------------------------------
-# Model registry  ← edit this to add / remove models
+# Shared model registry. Matting engines declare their own downloads.
 # ---------------------------------------------------------------------------
 
-MODEL_REGISTRY: "dict[str, DownloadSpec]" = {
-    "Large": DownloadSpec(
-        url="https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt",
-        md5="2b30654b6112c42a115563c638d238d9",
-        dest_dir="checkpoints",
-    ),
-    "Base": DownloadSpec(
-        url="https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt",
-        md5="ec7bd7d23d280d5e3cfa45984c02eda5",
-        dest_dir="checkpoints",
-    ),
-    "Efficient": DownloadSpec(
-        url="https://huggingface.co/yunyangx/efficient-track-anything/resolve/main/efficienttam_s_512x512.pt",
-        md5="962e151a9dca3b75d8228a16e5264010",
-        dest_dir="checkpoints",
-    ),
-    "matanyone": DownloadSpec(
-        url="https://github.com/pq-yang/MatAnyone/releases/download/v1.0.0/matanyone.pth",
-        md5="a50eeaa149a37509feb45e3d6b06f41d",
-        dest_dir="checkpoints",
-    ),
-    "matanyone2": DownloadSpec(
-        url="https://github.com/pq-yang/MatAnyone2/releases/download/v1.0.0/matanyone2.pth",
-        md5="b1d3cfbb7596ecf3b88391198427ca95",
-        dest_dir="checkpoints",
-    ),
-    "minimax_transformer": DownloadSpec(
-        url="https://huggingface.co/zibojia/minimax-remover/resolve/main/transformer/diffusion_pytorch_model.safetensors",
-        md5="183c7a631e831f73f8da64c5c4d83e2f",
-        dest_dir="checkpoints/minimax/transformer",
-    ),
-    "minimax_vae": DownloadSpec(
-        url="https://huggingface.co/zibojia/minimax-remover/resolve/main/vae/diffusion_pytorch_model.safetensors",
-        md5="3f80444947443d8f36c0ed2497c20c8d",
-        dest_dir="checkpoints/minimax/vae",
-    ),
-    "videomama": DownloadSpec(
-        url="https://huggingface.co/SammyLim/VideoMaMa/resolve/main/unet/diffusion_pytorch_model.safetensors",
-        md5="c8d457d4d5eb90f274bd441df60c8e47",
-        dest_dir="checkpoints/videomama/unet",
-    ),
-    "svd_vae": DownloadSpec(
-        url="https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt/resolve/main/vae/diffusion_pytorch_model.fp16.safetensors",
-        md5="46a0af9a794fb405221988a7e2b1396b",
-        dest_dir="checkpoints/videomama/vae",
-    ),
-}
+MODEL_REGISTRY: "dict[str, DownloadSpec]" = {}
+
+
+def get_model_registry() -> dict[str, DownloadSpec]:
+    """Include checkpoint declarations from discovered engine folders."""
+    registry = dict(MODEL_REGISTRY)
+    for category in ("matting", "segmentation", "object_removal"):
+        package = import_module(category)
+        for module in iter_modules(package.__path__):
+            if not module.ispkg:
+                continue
+            module_name = f"{category}.{module.name}.downloads"
+            if find_spec(module_name) is None:
+                continue
+            for key, spec in import_module(module_name).DOWNLOADS.items():
+                if key in registry:
+                    raise ValueError(f"Duplicate model download key: {key}")
+                registry[key] = spec
+    return registry
 
 # ---------------------------------------------------------------------------
 # CLI entrypoint  —  python model_downloader.py [KEY …]
 # ---------------------------------------------------------------------------
  
 if __name__ == "__main__":
- 
+    script_dir = str(Path(__file__).resolve().parent)
+    project_dir = str(Path(__file__).resolve().parent.parent)
+    sys.path[:] = [project_dir] + [path for path in sys.path if path not in (script_dir, project_dir)]
+    registry = get_model_registry()
     keys = sys.argv[1:]
     if keys:
-        unknown = [k for k in keys if k not in MODEL_REGISTRY]
+        unknown = [k for k in keys if k not in registry]
         if unknown:
             print(f"Unknown model key(s): {unknown}", file=sys.stderr)
-            print(f"Available: {list(MODEL_REGISTRY)}", file=sys.stderr)
+            print(f"Available: {list(registry)}", file=sys.stderr)
             sys.exit(1)
-        specs = [MODEL_REGISTRY[k] for k in keys]
+        specs = [registry[k] for k in keys]
     else:
-        specs = list(MODEL_REGISTRY.values())  # all models
- 
+        specs = list(registry.values())  # all models
+
     for spec in specs:
         if spec.already_downloaded():
             print(f"{spec.filename} already downloaded.")
@@ -553,4 +532,3 @@ if __name__ == "__main__":
             )
  
         spec.part_path.rename(spec.final_path)
- 

@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QPushButton, QLabel, QLineEdit, QComboBox, QSpinBox, QCheckBox,
     QFileDialog, QProgressDialog, QMessageBox
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from sammie.core import VideoInfo
 from sammie.gui_widgets import show_message_dialog
 from sammie.export_formats import FormatRegistry, ExportSettings
@@ -102,13 +102,14 @@ class ExportPathManager:
 class ExportDialog(QDialog):
     """Main export dialog"""
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, auto=False):
         super().__init__(parent)
         self.parent_window = parent
         self.export_worker = None
         self.progress_dialog = None
         self.path_manager = ExportPathManager(parent.settings_mgr) if parent else None
         self.current_format = None
+        self.autoexport = auto
         
         self.setWindowTitle("Export Video")
         self.setModal(True)
@@ -116,6 +117,8 @@ class ExportDialog(QDialog):
         
         self._init_ui()
         self._load_saved_settings()
+        if self.autoexport:
+            QTimer.singleShot(0, self._start_export)
     
     def _init_ui(self):
         """Initialize dialog UI"""
@@ -734,9 +737,9 @@ class ExportDialog(QDialog):
         self.export_btn.setEnabled(True)
         
         # Show completion message
-        if success:
+        if success and not self.autoexport:
             show_message_dialog(self, title="Export Complete", message=message, type="info")
-        else:
+        elif not success:
             show_message_dialog(self, title="Export Failed", message=message, type="critical")
         
         # Clean up worker
@@ -744,6 +747,9 @@ class ExportDialog(QDialog):
             self.export_worker.quit()
             self.export_worker.wait()
             self.export_worker = None
+        if success and self.autoexport:
+            print(message)
+            self.accept()
     
     # === Settings Persistence ===
     
@@ -852,25 +858,11 @@ class ExportDialog(QDialog):
             in_point = settings_mgr.get_session_setting("in_point", None)
             out_point = settings_mgr.get_session_setting("out_point", None)
  
-        for frame_dirname in sorted(os.listdir(matting_dir)):
-            frame_dir = os.path.join(matting_dir, frame_dirname)
-            if not os.path.isdir(frame_dir):
-                continue
- 
+        found_ids = set()
+        for frame_num in range(core.VideoInfo.total_frames):
             # If in/out range is set, skip frames outside it
             if in_point is not None and out_point is not None:
-                try:
-                    frame_num = int(frame_dirname)
-                    if frame_num < in_point or frame_num > out_point:
-                        continue
-                except ValueError:
+                if frame_num < in_point or frame_num > out_point:
                     continue
- 
-            ids = [
-                int(os.path.splitext(f)[0])
-                for f in os.listdir(frame_dir)
-                if f.endswith('.png') and os.path.splitext(f)[0].isdigit()
-            ]
-            if ids:
-                return sorted(ids)
-        return []
+            found_ids.update(core.output_ids(matting_dir, frame_num))
+        return sorted(found_ids)
