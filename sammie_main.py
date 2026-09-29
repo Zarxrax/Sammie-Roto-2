@@ -38,7 +38,7 @@ from sammie.gui_widgets import (
 
 # ==================== VERSION ====================
 
-__version__ = "2.4.1"
+__version__ = "2.5.0"
 
 # ==================== LOGGING HELPER ====================
 
@@ -2172,7 +2172,9 @@ class MainWindow(QMainWindow):
         """Run object tracking using current points"""
         self.settings_mgr.save_session_settings()
         count = len(self.point_manager.points)
-        if count > 0:            
+        if count > 0:
+            self.sam_manager.deduplicated = False
+            self.update_deduplicate_status()
             self.sam_manager.replay_points(self.point_manager.get_all_points())
             if self.sam_manager.track_objects(parent_window=self) == 0: # if cancelled
                 self.sam_manager.replay_points(self.point_manager.get_all_points())
@@ -2192,6 +2194,8 @@ class MainWindow(QMainWindow):
         self.settings_mgr.save_session_settings()
         count = len(self.point_manager.points)
         if count > 0:
+            self.sam_manager.deduplicated = False
+            self.update_deduplicate_status()
             self.sam_manager.replay_points(self.point_manager.get_all_points())
             current_frame = self.frame_slider.value()
             if self.sam_manager.track_forward(parent_window=self, current_frame=current_frame) == 0: # if cancelled
@@ -2209,6 +2213,8 @@ class MainWindow(QMainWindow):
         self.settings_mgr.save_session_settings()
         count = len(self.point_manager.points)
         if count > 0:
+            self.sam_manager.deduplicated = False
+            self.update_deduplicate_status()
             self.sam_manager.replay_points(self.point_manager.get_all_points())
             current_frame = self.frame_slider.value()
             if self.sam_manager.track_backward(parent_window=self, current_frame=current_frame) == 0: # if cancelled
@@ -2225,6 +2231,8 @@ class MainWindow(QMainWindow):
         """Track objects one frame forward from the current frame"""
         count = len(self.point_manager.points)
         if count > 0:
+            self.sam_manager.deduplicated = False
+            self.update_deduplicate_status()
             current_frame = self.frame_slider.value()
             new_frame = self.sam_manager.track_one_frame_forward(parent_window=self, current_frame=current_frame)
             sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
@@ -2241,6 +2249,8 @@ class MainWindow(QMainWindow):
         """Track objects one frame backward from the current frame"""
         count = len(self.point_manager.points)
         if count > 0:
+            self.sam_manager.deduplicated = False
+            self.update_deduplicate_status()
             current_frame = self.frame_slider.value()
             new_frame = self.sam_manager.track_one_frame_backward(parent_window=self, current_frame=current_frame)
             sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
