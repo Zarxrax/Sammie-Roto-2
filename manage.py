@@ -1,4 +1,4 @@
-import os, sys, subprocess, platform, tomllib, shutil
+import os, sys, subprocess, platform, tomllib, shutil, shlex
 import urllib.request
 
 # ===== CONFIG =====
@@ -20,6 +20,31 @@ def get_uv_env():
     env = os.environ.copy()
     env.pop("VIRTUAL_ENV", None)
     return env
+
+def fix_permissions():
+    """Make launch scripts executable and clear download quarantine (macOS)."""
+    if platform.system() == "Windows":
+        return
+    app_dir = os.path.abspath(os.path.dirname(__file__))
+
+    for name in ("run_sammie.sh", "install.sh"):
+        path = os.path.join(app_dir, name)
+        if os.path.exists(path):
+            try:
+                os.chmod(path, os.stat(path).st_mode | 0o755)
+            except OSError as e:
+                print(f"[Warning: could not chmod {name}: {e}]")
+
+    if platform.system() == "Darwin":
+        # Skip the big generated folders; only the extracted download can be quarantined.
+        skip = {".venv", ".uv", ".git"}
+        for entry in os.listdir(app_dir):
+            if entry in skip:
+                continue
+            subprocess.run(
+                ["xattr", "-dr", "com.apple.quarantine", os.path.join(app_dir, entry)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
+            )
 
 def cleanup_cache():
     """After a successful install/reinstall/update, prunes the project cache."""
@@ -125,6 +150,10 @@ def pull_latest_code(branch):
 
     print("[Restoring all program files to original state...]")
     porcelain.reset(repo, "hard", f"origin/{branch}")
+
+    # The hard reset can rewrite files with their git-stored mode, so
+    # re-apply the exec bit and clear quarantine.
+    fix_permissions()
 
 # ===== BACKEND SELECTION =====
 BACKEND_OPTIONS = [
@@ -290,17 +319,15 @@ def setup(branch, reinstall=False):
     if pull_code:
         pull_latest_code(branch)
 
+    # Always make scripts executable / clear quarantine, even if the
+    # dependency install below fails partway.
+    fix_permissions()
+
     run_command([get_uv_exe(), "python", "install", "--no-bin", PYTHON_VERSION])
 
     sync_env(backend, reinstall=reinstall)
 
     create_shortcuts()
-
-    # Make run_sammie.sh executable on Unix-like systems
-    if platform.system() != "Windows":
-        run_sh = "run_sammie.sh"
-        if os.path.exists(run_sh):
-            os.chmod(run_sh, os.stat(run_sh).st_mode | 0o755)
 
     print("\nSetup Complete!")
     cleanup_cache()
@@ -333,8 +360,8 @@ def create_mac_app():
     with open(launcher_path, "w") as f:
         f.write(
             '#!/usr/bin/env bash\n'
-            'cd "$(dirname "$0")/../../../"\n'
-            './run_sammie.sh\n'
+            f'cd {shlex.quote(app_dir)}\n'
+            'exec /bin/bash ./run_sammie.sh\n'
         )
     os.chmod(launcher_path, os.stat(launcher_path).st_mode | 0o755)
 
