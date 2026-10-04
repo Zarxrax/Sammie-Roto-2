@@ -12,7 +12,7 @@
 Sammie-Roto 2 is an easy-to-use, cross-platform desktop application for AI assisted masking of video clips. It has 3 primary functions:
 - Video Segmentation using [SAM2](https://github.com/facebookresearch/sam2)
 - Video Matting using [MatAnyone](https://github.com/pq-yang/MatAnyone), [MatAnyone 2](https://github.com/pq-yang/MatAnyone2), and [VideoMaMa](https://github.com/cvlab-kaist/VideoMaMa)
-- Video Object Removal using [MiniMax-Remover](https://github.com/zibojia/MiniMax-Remover)
+- Video Object Removal using [MiniMax-Remover](https://github.com/zibojia/MiniMax-Remover) and [ProPainterX](https://github.com/Zarxrax/ProPainterX)
 
 Sammie-Roto 2 is free and open source, but runs models produced by several external projects and organizations. Some models may have restrictions on commercial usage. Please check with the relevant model provider if you have questions regarding licensing.
 
@@ -25,23 +25,33 @@ Sammie-Roto 2 is free and open source, but runs models produced by several exter
 
 ## Need more help? [Join the Discord](https://discord.gg/jb5qrFyGFF)!
 
-### Installation (Windows):
+### Installation
+#### Windows:
 - Download latest version from [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)
 - Extract the zip archive to any location that doesn't restrict write permissions (don't put it in Program Files)
 - Run 'install.bat' and follow the prompt.
 - Run 'run_sammie.bat' to launch the software (or double click the desktop shortcut).
 
-Everything is self-contained in the Sammie-Roto folder. If you want to remove the application, simply delete this folder.
+#### Mac
+- Download latest version from [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)
+- Unzip Sammie-Roto-2 into a folder in your home directory, e.g. ~/Sammie-Roto-2 (avoid Desktop, Documents and Downloads).
+- Open a terminal and navigate to the Sammie-Roto folder that you just extracted from the zip.
+- Execute the following command in the terminal: `bash install.sh` then follow the prompt.
+- When it finishes, launch from the Sammie-Roto-2 icon on your Desktop, from Spotlight, or with `bash run_sammie.sh`.
 
-### Installation (Linux, Mac)
+#### Linux
 - Download latest version from [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)
 - Extract the zip archive.
 - Open a terminal and navigate to the Sammie-Roto folder that you just extracted from the zip.
 - Execute the following command in the terminal: `bash install.sh` then follow the prompt.
-- MacOS users: double-click the desktop icon to launch the program. Linux users: `bash run_sammie.sh` or find it in the applications menu.
+- To launch the program, execute `bash run_sammie.sh` in the terminal or find the shortcut in the applications menu.
+
+### Uninstall
+If you want to remove the application, simply delete the Sammie-Roto folder. Shortcuts on your desktop or elsewhere can also be deleted.
 
 ### Updates
 **Full Changelog can be seen under [releases](https://github.com/Zarxrax/Sammie-Roto-2/releases)**
+- [10/04/2026] 2.5.0 - Adds an anime segmentation model, ProPainterX object removal, and several improvements and fixes.
 - [09/05/2026] 2.4.1 - Premilinary support for AMD GPUs on Windows, some bugfixes.
 - [08/22/2026] 2.4.0 - New installer/updater, additional segmentation tracking options, many small fixes and improvements.
 - [04/17/2026] 2.3.3 - Several large performance optimizations, and colorspace conversions are now handled correctly.
@@ -61,4 +71,5 @@ Everything is self-contained in the Sammie-Roto folder. If you want to remove th
 * [Wan2GP](https://github.com/deepbeepmeep/Wan2GP) (for optimized MatAnyone code)
 * [VideoMaMa](https://github.com/cvlab-kaist/VideoMaMa)
 * [MiniMax-Remover](https://github.com/zibojia/MiniMax-Remover)
+* [ProPainter](https://github.com/sczhou/ProPainter)
 * Some icons by [Yusuke Kamiyamane](http://p.yusukekamiyamane.com/)
