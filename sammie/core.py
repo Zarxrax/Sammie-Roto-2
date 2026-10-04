@@ -153,17 +153,36 @@ class DeviceManager:
             torch.xpu.empty_cache()
 
 
-class PointManager:
+class CallbackMixin:
+    """
+    Callback support for manager classes (PointManager, SamManager, 
+    MattingManager, RemovalManager). Provides self.callbacks, add_callback(), 
+    and a default _notify() that logs and swallows callback errors.
+    """
+
     def __init__(self):
-        self.points = []  # List of dicts: {'frame': int, 'object_id': int, 'positive': bool, 'x': int, 'y': int}
-        self.callbacks = []  # Callbacks for when points change
+        self.callbacks = []
 
     def add_callback(self, callback):
-        """Add callback for point changes"""
+        """Register a callback to be invoked on state changes"""
         self.callbacks.append(callback)
 
     def _notify(self, action, **kwargs):
-        """Notify callbacks of changes"""
+        """Notify all registered callbacks of a change"""
+        for callback in self.callbacks:
+            try:
+                callback(action, **kwargs)
+            except Exception as e:
+                print(f"Callback error: {e}")
+
+
+class PointManager(CallbackMixin):
+    def __init__(self):
+        super().__init__()
+        self.points = []  # List of dicts: {'frame': int, 'object_id': int, 'positive': bool, 'x': int, 'y': int}
+
+    def _notify(self, action, **kwargs):
+        """Notify callbacks of changes (overrides CallbackMixin to keep this class's distinct log prefix)"""
         for callback in self.callbacks:
             try:
                 callback(action, **kwargs)
@@ -357,6 +376,96 @@ def load_masks_for_frame(frame_number, points, return_combined=True, object_id_f
         return combined_mask
     else:
         return individual_masks
+
+
+def get_frame_range():
+    """
+    Resolve the (start_frame, end_frame, frames_to_process) tuple from the in_point/out_point settings
+    """
+    settings_mgr = get_settings_manager()
+    frame_count = VideoInfo.total_frames
+    in_point = settings_mgr.get_session_setting("in_point", None)
+    out_point = settings_mgr.get_session_setting("out_point", None)
+    start_frame = in_point if in_point is not None else 0
+    end_frame = out_point if out_point is not None else frame_count - 1
+    frames_to_process = end_frame - start_frame + 1
+    return start_frame, end_frame, frames_to_process
+
+
+def resize_to_limit(image, max_size, multiple=8, mask=False, interpolation=None,
+                     always_resize=False, zero_means_unlimited=False):
+    """
+    Resize `image` so its shorter side is at most `max_size`, then align both
+    resulting dimensions down to the nearest multiple of `multiple`.
+
+    Args:
+        image: numpy array (H, W) or (H, W, C)
+        max_size: cap for the shorter side
+        multiple: dimensions are aligned down to a multiple of this value
+        mask: if True and `interpolation` is not given, INTER_NEAREST is used
+              (preserves hard mask edges) instead of INTER_AREA
+        interpolation: explicit cv2 interpolation flag; overrides `mask` when set
+        always_resize: if True, cv2.resize is always called, even when the
+                       computed size matches the input size. If False (default),
+                       resizing is skipped when the size would be unchanged.
+        zero_means_unlimited: if True, a non-positive max_size disables the
+                               downscale step entirely (only the multiple-of-N
+                               alignment is applied).
+
+    Returns:
+        Resized numpy array.
+    """
+    h, w = image.shape[:2]
+    min_side = min(h, w)
+
+    scale = 1.0
+    if zero_means_unlimited and max_size <= 0:
+        scale = 1.0
+    elif min_side > max_size:
+        scale = max_size / min_side
+
+    new_h = (int(h * scale) // multiple) * multiple
+    new_w = (int(w * scale) // multiple) * multiple
+
+    if always_resize or (new_w, new_h) != (w, h):
+        if interpolation is None:
+            interpolation = cv2.INTER_NEAREST if mask else cv2.INTER_AREA
+        image = cv2.resize(image, (new_w, new_h), interpolation=interpolation)
+
+    return image
+
+
+def load_combined_mask(frame_number, object_ids, folder=None):
+    """
+    Load and union the mask files for the given object IDs on one frame. 
+    This assumes masks are binary, so it used by the segmentation pipeline.
+
+    Args:
+        frame_number: frame index
+        object_ids: iterable of object IDs to combine
+        folder: mask folder to read from (defaults to mask_dir)
+
+    Returns:
+        (combined_mask, loaded_count) — combined_mask is a single-channel
+        uint8 numpy array, or None if no mask file could be read for any of
+        the requested object IDs. loaded_count is how many masks contributed.
+    """
+    if folder is None:
+        folder = mask_dir
+
+    combined_mask = None
+    loaded_count = 0
+    for object_id in object_ids:
+        mask_path = os.path.join(folder, f"{frame_number:05d}", f"{object_id}.png")
+        if not os.path.exists(mask_path):
+            continue
+        m = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+        if m is None:
+            continue
+        loaded_count += 1
+        combined_mask = m if combined_mask is None else np.maximum(combined_mask, m)
+
+    return combined_mask, loaded_count
 
 
 # .........................................................................................

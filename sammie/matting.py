@@ -11,8 +11,7 @@ from sammie import core
 from sammie.settings_manager import get_settings_manager
 from sammie.model_downloader import ensure_models
 
-
-class MattingManager:
+class MattingManager(core.CallbackMixin):
     """
     Shared base class for matting managers.
     Provides common infrastructure: callbacks, image resize/restore, mask loading,
@@ -21,13 +20,9 @@ class MattingManager:
     """
 
     def __init__(self):
+        super().__init__()
         self.processor = None
         self.propagated = False  # whether we have propagated the mattes
-        self.callbacks = []
-
-    def add_callback(self, callback):
-        """Add callback for matting events"""
-        self.callbacks.append(callback)
 
     def _notify(self, action, **kwargs):
         """Notify callbacks of changes"""
@@ -56,26 +51,19 @@ class MattingManager:
         core.DeviceManager.clear_cache()
         print("Unloaded Matting model")
 
-    def _resize_image(self, image):
-            """Resize image and ensure dimensions are multiples of 8 for the model."""
+    def _resize_image(self, image, mask=False):
+            """
+            Resize image and ensure dimensions are multiples of 8 for the model.
+            Pass mask=True for mask arrays so they stay binary (INTER_NEAREST)
+            """
             settings_mgr = get_settings_manager()
             max_size = settings_mgr.get_session_setting("matany_res", 0)
-            h, w = image.shape[:2]
-            
-            # 1. Determine scaling factor
-            scale = 1.0
-            if max_size > 0:
-                min_side = min(h, w)
-                if min_side > max_size:
-                    scale = max_size / min_side
-
-            # 2. ALWAYS round to a multiple of 8
-            # This ensures [3, 1384, 600] instead of [3, 1390, 602]
-            new_h = (int(h * scale) // 8) * 8
-            new_w = (int(w * scale) // 8) * 8
-            
-            # 3. Always resize, even if scale is 1.0, to catch those extra pixels
-            return cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_AREA)
+            # matany_res == 0 means "no size limit" — only the multiple-of-8
+            # alignment is applied. Always resizes (even at scale 1.0) so the
+            # output dimensions are guaranteed multiples of 8.
+            interpolation = cv2.INTER_NEAREST if mask else cv2.INTER_AREA
+            return core.resize_to_limit(image, max_size, multiple=8, interpolation=interpolation,
+                                        always_resize=True, zero_means_unlimited=True)
     
     def _restore_image_size(self, image, original_size):
         """Restore image to original size. original_size must be (w, h) as expected by cv2."""
@@ -101,22 +89,13 @@ class MattingManager:
             tuple: (mask_tensor, original_size) or (None, None) if failed
         """
         if combine_ids:
-            union_mask = None
-            original_size = None
-            for oid in combine_ids:
-                mask_filename = os.path.join(core.mask_dir, f"{frame_number:05d}", f"{oid}.png")
-                if not os.path.exists(mask_filename):
-                    continue
-                m = cv2.imread(mask_filename, cv2.IMREAD_GRAYSCALE)
-                if m is None:
-                    continue
-                if original_size is None:
-                    original_size = m.shape[1::-1]
-                union_mask = m if union_mask is None else np.maximum(union_mask, m)
+            union_mask, _ = core.load_combined_mask(frame_number, combine_ids)
             if union_mask is None or not np.any(union_mask):
                 print(f"Combined mask is blank or missing for frame {frame_number}")
                 return None, None
-            mask = self._resize_image(union_mask)
+            original_size = union_mask.shape[1::-1]
+            union_mask = core.apply_mask_postprocessing(union_mask)
+            mask = self._resize_image(union_mask, mask=True)
             mask = torch.tensor(mask, dtype=torch.float32, device=device)
             return mask, original_size
 
@@ -132,7 +111,7 @@ class MattingManager:
 
         original_size = mask.shape[1::-1]
         mask = core.apply_mask_postprocessing(mask)
-        mask = self._resize_image(mask)
+        mask = self._resize_image(mask, mask=True)
         mask = torch.tensor(mask, dtype=torch.float32, device=device)
 
         return mask, original_size
@@ -147,18 +126,25 @@ class MattingManager:
         pbar = tqdm(total=total_operations, desc="Matting Progress", unit=unit)
         return progress_dialog, pbar
 
+    def _force_display_update(self, parent_window, frame_number):
+        """
+        Force the frame slider to reflect `frame_number`, bypassing the periodic
+        display_update_frequency throttle. Called when a processing run finishes,
+        is cancelled, or errors out.
+        """
+        if frame_number is None:
+            return
+        try:
+            parent_window.frame_slider.setValue(frame_number)
+            QApplication.processEvents()
+        except Exception as e:
+            print(f"Error updating display: {e}")
+
     def _get_frame_range(self):
         """
         Read in/out points from settings and return (start_frame, end_frame, frames_to_process).
         """
-        settings_mgr = get_settings_manager()
-        frame_count = core.VideoInfo.total_frames
-        in_point = settings_mgr.get_session_setting("in_point", None)
-        out_point = settings_mgr.get_session_setting("out_point", None)
-        start_frame = in_point if in_point is not None else 0
-        end_frame = out_point if out_point is not None else frame_count - 1
-        frames_to_process = end_frame - start_frame + 1
-        return start_frame, end_frame, frames_to_process
+        return core.get_frame_range()
 
     def _collect_image_paths(self, start_frame, end_frame):
         """Return a list of existing frame image paths in [start_frame, end_frame]."""
@@ -392,7 +378,8 @@ class MatAnyManager(MattingManager):
 
         # Special case for single frame
         if len(images) == 1:
-            return self._process_single_frame(images[0], mask, object_id, original_size, device, frame_number=start_frame)
+            return self._process_single_frame(images[0], mask, object_id, original_size, device,
+                                               frame_number=start_frame, pbar=pbar)
 
         current_operations = operations_completed
 
@@ -416,7 +403,7 @@ class MatAnyManager(MattingManager):
             mask, original_size = self._load_mask_for_matting(object_id, current_keyframe, device,
                                                               combine_ids=combine_ids)
             if mask is None:
-                print(f"Failed to load mask for object {object_id} at keyframe {current_keyframe}")
+                pbar.write(f"Failed to load mask for object {object_id} at keyframe {current_keyframe}")
                 return False
 
             # Determine end frame for this segment
@@ -436,7 +423,7 @@ class MatAnyManager(MattingManager):
 
         return True
 
-    def _process_single_frame(self, frame_path, mask, object_id, original_size, device, frame_number=0):
+    def _process_single_frame(self, frame_path, mask, object_id, original_size, device, frame_number=0, pbar=None):
         """Process a single frame for matting"""
         try:
             img = cv2.imread(frame_path)
@@ -460,7 +447,7 @@ class MatAnyManager(MattingManager):
             return True
 
         except Exception as e:
-            print(f"Error processing single frame: {e}")
+            pbar.write(f"Error processing single frame: {e}")
             return False
 
     def _process_forward(self, images, mask, object_id, start_frame, original_size, device, progress_dialog,
@@ -495,14 +482,16 @@ class MatAnyManager(MattingManager):
         display_update_frequency = settings_mgr.get_app_setting("display_update_frequency", 5)
 
         try:
+            last_frame_number = None
             for frame_number in range(start_frame, end_frame):
                 if progress_dialog.wasCanceled():
+                    self._force_display_update(parent_window, last_frame_number)
                     return False
 
                 # Map absolute frame number to array index
                 array_idx = frame_number - start_frame_offset
                 if array_idx < 0 or array_idx >= len(images):
-                    print(f"Warning: Frame {frame_number} out of range for images array")
+                    pbar.write(f"Warning: Frame {frame_number} out of range for images array")
                     continue
 
                 frame_path = images[array_idx]
@@ -540,6 +529,8 @@ class MatAnyManager(MattingManager):
                     except Exception as e:
                         print(f"Error updating display: {e}")
 
+                last_frame_number = frame_number
+
                 # Update progress
                 if pbar is not None:
                     pbar.update(1)
@@ -547,10 +538,13 @@ class MatAnyManager(MattingManager):
                 progress_dialog.setValue(current_progress)
                 QApplication.processEvents()
 
+            # Always leave the slider showing the last frame actually processed.
+            self._force_display_update(parent_window, last_frame_number)
             return True
 
         except Exception as e:
-            print(f"Error in forward processing: {e}")
+            pbar.write(f"Error in forward processing: {e}")
+            self._force_display_update(parent_window, last_frame_number)
             return False
 
     def _process_backward(self, images, mask, object_id, start_frame, original_size, device, progress_dialog,
@@ -562,14 +556,16 @@ class MatAnyManager(MattingManager):
         display_update_frequency = settings_mgr.get_app_setting("display_update_frequency", 5)
 
         try:
+            last_frame_number = None
             for frame_number in range(start_frame, start_frame_offset - 1, -1):
                 if progress_dialog.wasCanceled():
+                    self._force_display_update(parent_window, last_frame_number)
                     return False
 
                 # Map absolute frame number to array index
                 array_idx = frame_number - start_frame_offset
                 if array_idx < 0 or array_idx >= len(images):
-                    print(f"Warning: Frame {frame_number} out of range for images array")
+                    pbar.write(f"Warning: Frame {frame_number} out of range for images array")
                     continue
 
                 frame_path = images[array_idx]
@@ -607,6 +603,8 @@ class MatAnyManager(MattingManager):
                     except Exception as e:
                         print(f"Error updating display: {e}")
 
+                last_frame_number = frame_number
+
                 # Update progress
                 if pbar is not None:
                     pbar.update(1)
@@ -614,10 +612,13 @@ class MatAnyManager(MattingManager):
                 progress_dialog.setValue(operations_completed * 100 // total_operations)
                 QApplication.processEvents()
 
+            # Always leave the slider showing the last frame actually processed.
+            self._force_display_update(parent_window, last_frame_number)
             return True
 
         except Exception as e:
-            print(f"Error in backward processing: {e}")
+            pbar.write(f"Error in backward processing: {e}")
+            self._force_display_update(parent_window, last_frame_number)
             return False
 
 
@@ -759,7 +760,7 @@ class VideoMaMaManager(MattingManager):
                     break
 
                 pbar.set_description(f"Object {object_id}")
-                print(f"Processing object {object_id}...")
+                #pbar.write(f"Processing object {object_id}...")
 
                 batches_completed = self._process_object(
                     object_id, start_frame, end_frame, overlap, batch_size, extension,
@@ -966,10 +967,10 @@ class VideoMaMaManager(MattingManager):
 
         if crop_rect is not None:
             cx1, cy1, cx2, cy2 = crop_rect
-            print(f"Object {object_id}: crop rect ({cx1}, {cy1}) -> ({cx2}, {cy2})  "
+            pbar.write(f"Object {object_id}: crop rect ({cx1}, {cy1}) -> ({cx2}, {cy2})  "
                   f"[{cx2 - cx1 + 1}x{cy2 - cy1 + 1} of {original_w}x{original_h}]")
         else:
-            print(f"Object {object_id}: Processing full frame")
+            pbar.write(f"Object {object_id}: Processing full frame")
  
         windows = self._generate_windows(frames_to_process, batch_size, overlap)
         batches_completed = 0
@@ -983,9 +984,11 @@ class VideoMaMaManager(MattingManager):
         # Stores the last `overlap` committed alpha mattes at original resolution,
         # used for linear blending across the boundary after each non-first batch.
         prev_boundary_alphas = None
+        last_abs_frame = None
  
         for batch_idx, (window_start, window_end) in enumerate(windows):
             if progress_dialog.wasCanceled():
+                self._force_display_update(parent_window, last_abs_frame)
                 return None
  
             abs_start = start_frame + window_start
@@ -1003,7 +1006,7 @@ class VideoMaMaManager(MattingManager):
             )
  
             if not valid:
-                print(f"Warning: Skipping batch {batch_idx} for object {object_id} "
+                pbar.write(f"Warning: Skipping batch {batch_idx} for object {object_id} "
                     f"(frames {abs_start}-{abs_end - 1}) — missing data")
                 pbar.update(1)
                 batches_completed += 1
@@ -1038,10 +1041,12 @@ class VideoMaMaManager(MattingManager):
                     )
             except RuntimeError as e:
                 if str(e) == "USER_CANCELLED":
+                    self._force_display_update(parent_window, last_abs_frame)
                     return None  # signals cancel upstream
                 raise
             except Exception as e:
-                print(f"Error in VideoMaMa inference for batch {batch_idx}: {e}")
+                pbar.write(f"Error in VideoMaMa inference for batch {batch_idx}: {e}")
+                self._force_display_update(parent_window, last_abs_frame)
                 raise
  
             # --- CAPTURE SOFT MASKS FOR NEXT BATCH ---
@@ -1110,6 +1115,8 @@ class VideoMaMaManager(MattingManager):
                     except Exception:
                         pass
 
+                last_abs_frame = abs_frame
+
             prev_boundary_alphas = current_boundary_alphas if len(current_boundary_alphas) == overlap else None
  
             # Update progress
@@ -1120,7 +1127,9 @@ class VideoMaMaManager(MattingManager):
             QApplication.processEvents()
  
             core.DeviceManager.clear_cache()
- 
+
+        # Always leave the slider showing the last frame actually processed.
+        self._force_display_update(parent_window, last_abs_frame)
         return batches_completed
 
 # ---------------------------------------------------------------------------

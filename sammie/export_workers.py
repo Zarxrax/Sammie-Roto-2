@@ -274,6 +274,19 @@ class SequenceExportWorker(BaseExportWorker):
         super().__init__(settings, points, total_frames, parent_window)
         self.base_filename = base_filename
         self.format = FormatRegistry.get_format(settings.format_id)
+        # Added to the internal 0-based frame index when naming files, so exports
+        # keep the numbering of an imported sequence that didn't start at 0
+        self.sequence_offset = self._get_sequence_offset()
+    
+    def _get_sequence_offset(self) -> int:
+        """Read the imported sequence's start frame from the session settings (0 if none)"""
+        settings_mgr = getattr(self.parent_window, 'settings_mgr', None)
+        if settings_mgr is None:
+            return 0
+        try:
+            return max(0, int(settings_mgr.get_session_setting("sequence_start_frame", 0) or 0))
+        except (TypeError, ValueError):
+            return 0
     
     def run(self):
         try:
@@ -315,7 +328,7 @@ class SequenceExportWorker(BaseExportWorker):
             
             self.status_updated.emit(f"Exporting frame {frame_num + 1}/{self.end_frame + 1}...")
             
-            frame_filename = f"{self.base_filename}.{frame_num:04d}.exr"
+            frame_filename = f"{self.base_filename}.{frame_num + self.sequence_offset:04d}.exr"
             frame_path = os.path.join(output_dir, frame_filename)
             
             try:
@@ -408,7 +421,7 @@ class SequenceExportWorker(BaseExportWorker):
             
             self.status_updated.emit(f"Exporting frame {frame_num + 1}/{self.end_frame + 1}...")
             
-            frame_filename = f"{self.base_filename}.{frame_num:04d}.png"
+            frame_filename = f"{self.base_filename}.{frame_num + self.sequence_offset:04d}.png"
             frame_path = os.path.join(output_dir, frame_filename)
             
             try:

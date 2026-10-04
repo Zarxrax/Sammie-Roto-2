@@ -1,4 +1,4 @@
-import os, sys, subprocess, platform, tomllib, shutil
+import os, sys, subprocess, platform, tomllib, shutil, shlex
 import urllib.request
 
 # ===== CONFIG =====
@@ -20,6 +20,31 @@ def get_uv_env():
     env = os.environ.copy()
     env.pop("VIRTUAL_ENV", None)
     return env
+
+def fix_permissions():
+    """Make launch scripts executable and clear download quarantine (macOS)."""
+    if platform.system() == "Windows":
+        return
+    app_dir = os.path.abspath(os.path.dirname(__file__))
+
+    for name in ("run_sammie.sh", "install.sh"):
+        path = os.path.join(app_dir, name)
+        if os.path.exists(path):
+            try:
+                os.chmod(path, os.stat(path).st_mode | 0o755)
+            except OSError as e:
+                print(f"[Warning: could not chmod {name}: {e}]")
+
+    if platform.system() == "Darwin":
+        # Skip the big generated folders; only the extracted download can be quarantined.
+        skip = {".venv", ".uv", ".git"}
+        for entry in os.listdir(app_dir):
+            if entry in skip:
+                continue
+            subprocess.run(
+                ["xattr", "-dr", "com.apple.quarantine", os.path.join(app_dir, entry)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
+            )
 
 def cleanup_cache():
     """After a successful install/reinstall/update, prunes the project cache."""
@@ -77,7 +102,7 @@ def is_newer_version(remote_v, local_v):
 def get_installed_backend():
     """Detects which torch extra is currently installed (used for updates)."""
     if platform.system() == "Darwin":
-        return None
+        return "macos"
 
     if not os.path.exists(".venv"):
         return None
@@ -126,6 +151,10 @@ def pull_latest_code(branch):
     print("[Restoring all program files to original state...]")
     porcelain.reset(repo, "hard", f"origin/{branch}")
 
+    # The hard reset can rewrite files with their git-stored mode, so
+    # re-apply the exec bit and clear quarantine.
+    fix_permissions()
+
 # ===== BACKEND SELECTION =====
 BACKEND_OPTIONS = [
     ("cu130", "NVIDIA CUDA 13.0 (RTX, newer GPUs)"),
@@ -138,7 +167,7 @@ BACKEND_OPTIONS = [
 def choose_backend():
     """Manually prompt the user for their hardware backend."""
     if platform.system() == "Darwin":
-        return None
+        return "macos"
 
     print("\nSelect PyTorch backend:")
     for i, (_, label) in enumerate(BACKEND_OPTIONS, 1):
@@ -152,7 +181,7 @@ def choose_backend():
 
 def sync_env(backend, reinstall=False):
     """Uses uv sync to update or reinstall the environment."""
-    cmd = [get_uv_exe(), "sync", "--frozen"]
+    cmd = [get_uv_exe(), "sync", "--frozen", "--python", PYTHON_VERSION, "--python-preference", "only-managed"]
     if backend:
         cmd.extend(["--extra", backend])
     
@@ -191,8 +220,8 @@ def perform_update(branch):
     pull_latest_code(branch)
     sync_env(resolve_backend())
     create_shortcuts()
-    print("\nUpdate complete!")
     cleanup_cache()
+    print("\nUpdate complete!")
 
 # ===== CORE ACTIONS =====
 def handle_update(branch):
@@ -207,8 +236,8 @@ def handle_update(branch):
         if recover != "n":
             pull_latest_code(branch)
             sync_env(resolve_backend("continue recovery"))
-            print("[Recovery complete!]")
             cleanup_cache()
+            print("[Recovery complete!]")
         else:
             print("[No changes made. Consider using Reinstall/Repair from the main menu.]")
         return
@@ -255,10 +284,10 @@ def setup(branch, reinstall=False):
         pull_code = input(prompt).strip().lower() == "y"
     else:
         prompt = (
-            "\nPull the latest code from GitHub now? Recommended if you're "
-            "not sure the downloaded files are the newest release. (Y/n): "
+            "\nAlso pull the latest code from GitHub? Only needed if you think "
+            "the downloaded files are out of date. (y/N): "
         )
-        pull_code = input(prompt).strip().lower() != "n"
+        pull_code = input(prompt).strip().lower() == "y"
 
     # 3. Model download -- fresh install only
     download_models_now = False
@@ -271,7 +300,6 @@ def setup(branch, reinstall=False):
 
     # -- Summarise and confirm ----------------------------------------------
     backend_labels = dict(BACKEND_OPTIONS)
-    backend_labels[None] = "CPU/Apple Silicon/MPS"
 
     print("\n--- Setup summary ---")
     print(f"  Branch           : {branch}")
@@ -291,25 +319,24 @@ def setup(branch, reinstall=False):
     if pull_code:
         pull_latest_code(branch)
 
+    # Always make scripts executable / clear quarantine, even if the
+    # dependency install below fails partway.
+    fix_permissions()
+
     run_command([get_uv_exe(), "python", "install", "--no-bin", PYTHON_VERSION])
 
     sync_env(backend, reinstall=reinstall)
 
     create_shortcuts()
 
-    # Make run_sammie.sh executable on Unix-like systems
-    if platform.system() != "Windows":
-        run_sh = "run_sammie.sh"
-        if os.path.exists(run_sh):
-            os.chmod(run_sh, os.stat(run_sh).st_mode | 0o755)
-
-    print("\nSetup Complete!")
     cleanup_cache()
 
     # Run the model downloader last so all dependencies are in place.
     if download_models_now:
         print("\nDownloading all models...")
         run_command([get_uv_exe(), "run", os.path.join("sammie", "model_downloader.py")])
+
+    print("\nSetup Complete!")
 
 
 # ===== CREATE SHORTCUTS =====
@@ -334,8 +361,8 @@ def create_mac_app():
     with open(launcher_path, "w") as f:
         f.write(
             '#!/usr/bin/env bash\n'
-            'cd "$(dirname "$0")/../../../"\n'
-            './run_sammie.sh\n'
+            f'cd {shlex.quote(app_dir)}\n'
+            'exec /bin/bash ./run_sammie.sh\n'
         )
     os.chmod(launcher_path, os.stat(launcher_path).st_mode | 0o755)
 

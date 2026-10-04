@@ -474,6 +474,11 @@ MODEL_REGISTRY: "dict[str, DownloadSpec]" = {
         md5="962e151a9dca3b75d8228a16e5264010",
         dest_dir="checkpoints",
     ),
+    "Anime": DownloadSpec(
+        url="https://huggingface.co/Zarxrax/SAM2Anime/resolve/main/sam2.1_anime_v1.pt",
+        md5="ff092cd76b19e127ec021d3e28e08170",
+        dest_dir="checkpoints",
+    ),
     "matanyone": DownloadSpec(
         url="https://github.com/pq-yang/MatAnyone/releases/download/v1.0.0/matanyone.pth",
         md5="a50eeaa149a37509feb45e3d6b06f41d",
@@ -503,6 +508,21 @@ MODEL_REGISTRY: "dict[str, DownloadSpec]" = {
         url="https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt/resolve/main/vae/diffusion_pytorch_model.fp16.safetensors",
         md5="46a0af9a794fb405221988a7e2b1396b",
         dest_dir="checkpoints/videomama/vae",
+    ),
+    "propainter": DownloadSpec(
+        url="https://github.com/sczhou/ProPainter/releases/download/v0.1.0/ProPainter.pth",
+        md5="83e3941395917f6c1943dcf2f7655454",
+        dest_dir="checkpoints/propainterx",
+    ),
+    "flow_completion": DownloadSpec(
+        url="https://github.com/sczhou/ProPainter/releases/download/v0.1.0/recurrent_flow_completion.pth",
+        md5="2879dbdd08fa50c656ff3ff1659dd660",
+        dest_dir="checkpoints/propainterx",
+    ),
+    "memfof": DownloadSpec(
+        url="https://huggingface.co/egorchistov/optical-flow-MEMFOF-Tartan-T-TSKH/resolve/main/model.safetensors",
+        md5="17ca039b45c73b392ab77e3053fde7db",
+        dest_dir="checkpoints/propainterx/memfof",
     ),
 }
 

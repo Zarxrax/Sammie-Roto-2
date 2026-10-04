@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import (
     QPixmap, QMouseEvent, QWheelEvent, QPainter, QColor, QIcon,
-    QPen, QPalette, QKeyEvent
+    QPen, QPalette, QKeyEvent, QCursor
 )
 from PySide6.QtCore import (
     Qt, QPointF, QObject, Signal, QRect, QTimer
@@ -79,13 +79,13 @@ class ColorDisplayWidget(QLabel):
     def __init__(self, color_rgb, size=(20, 16)):
         super().__init__()
         self.color_rgb = color_rgb
-        self.size = size
+        self.swatch_size = size
         self.setFixedSize(*size)
         self.update_color()
     
     def update_color(self):
         """Renders the color rectangle with border"""
-        pixmap = QPixmap(*self.size)
+        pixmap = QPixmap(*self.swatch_size)
         pixmap.fill(Qt.GlobalColor.transparent)
         
         painter = QPainter(pixmap)
@@ -96,11 +96,11 @@ class ColorDisplayWidget(QLabel):
         else:
             r, g, b = self.color_rgb
         color = QColor(r, g, b)
-        painter.fillRect(1, 1, self.size[0]-2, self.size[1]-2, color)
+        painter.fillRect(1, 1, self.swatch_size[0]-2, self.swatch_size[1]-2, color)
         
         # Draw border
         painter.setPen(QColor(100, 100, 100))
-        painter.drawRect(0, 0, self.size[0]-1, self.size[1]-1)
+        painter.drawRect(0, 0, self.swatch_size[0]-1, self.swatch_size[1]-1)
         painter.end()
         
         self.setPixmap(pixmap)
@@ -155,21 +155,29 @@ class UpdateChecker(QObject):
     def __init__(self):
         super().__init__()
     
-    def check_for_updates(self, repo="Zarxrax/Sammie-Roto-2", timeout=5):
+    def check_for_updates(self, repo="Zarxrax/Sammie-Roto-2", timeout=5, current_version=None):
         """Check for updates in a background thread"""
+        if current_version is None:
+            try:
+                from sammie_main import __version__ as current_version
+            except Exception as e:
+                print(f"Update check skipped: could not determine current version ({e})")
+                return
+        
         def background_check():
             try:
                 url = f"https://api.github.com/repos/{repo}/releases/latest"
                 response = requests.get(url, timeout=timeout)
-                if response.status_code == 200:
-                    latest = response.json().get("tag_name", "").lstrip("v")
-                    from sammie_main import __version__
-                    if version.parse(latest) > version.parse(__version__):
-                        # Emit signal to main thread
-                        self.update_available.emit(__version__, latest)
+                response.raise_for_status()
+                latest = response.json().get("tag_name", "").lstrip("v")
+                if not latest:
+                    return  # no usable release tag
+                if version.parse(latest) > version.parse(current_version):
+                    # Emit signal to main thread
+                    self.update_available.emit(current_version, latest)
             except Exception as e:
-                # Optionally log the error
-                print(f"Update check failed silently: {e}")
+                # Never let a failed update check bother the user
+                print(f"Update check failed: {e}")
         
         threading.Thread(target=background_check, daemon=True).start()
 
@@ -387,61 +395,67 @@ class PointTable(QTableWidget):
         if not rows:
             return
         
-        # Block signals to prevent selection changes during deletion
+        # Block signals to prevent selection changes during deletion.
+        # try/finally guarantees they are re-enabled even if something raises.
         self.blockSignals(True)
+        try:
 
-        # Batch remove all points first
-        removed_points = []
-        affected_frames = set()  # Track which frames need mask regeneration
-        for row in rows:
-            if row >= self.rowCount():
-                continue
+            # Batch remove all points first
+            removed_points = []
+            affected_frames = set()  # Track which frames need mask regeneration
+            for row in rows:
+                if row >= self.rowCount():
+                    continue
             
-            # Get point data from row
-            frame_item = self.item(row, 0)
-            if not frame_item:
-                continue
+                # Get point data from row
+                frame_item = self.item(row, 0)
+                if not frame_item:
+                    continue
             
-            frame = int(frame_item.text())
-            affected_frames.add(frame) # This frame will be regenerated
+                frame = int(frame_item.text())
+                affected_frames.add(frame) # This frame will be regenerated
             
-            # Get object ID from the colored widget
-            object_id = 0
-            widget = self.cellWidget(row, 1)
-            if widget:
-                labels = widget.findChildren(QLabel)
-                for label in labels:
-                    try:
-                        object_id = int(label.text())
-                        break
-                    except ValueError:
-                        continue
+                # Get object ID from the colored widget
+                object_id = 0
+                widget = self.cellWidget(row, 1)
+                if widget:
+                    labels = widget.findChildren(QLabel)
+                    for label in labels:
+                        try:
+                            object_id = int(label.text())
+                            break
+                        except ValueError:
+                            continue
             
-            # Get coordinates
-            x_item = self.item(row, 3)
-            y_item = self.item(row, 4)
-            if not x_item or not y_item:
-                continue
+                # Get coordinates
+                x_item = self.item(row, 3)
+                y_item = self.item(row, 4)
+                if not x_item or not y_item:
+                    continue
             
-            x, y = int(x_item.text()), int(y_item.text())
+                x, y = int(x_item.text()), int(y_item.text())
             
-            # Remove point from manager
-            if hasattr(self, 'parent_window') and hasattr(self.parent_window, 'point_manager'):
-                removed_point = self.parent_window.point_manager.remove_point(frame, object_id, x, y)
-                if removed_point:
-                    removed_points.append(removed_point)
-                    print(f"Deleted point: Frame {frame}, Object {object_id}, Position ({x}, {y})")
-                elif len(rows) == 1:  # Single deletion - print warning
-                    print(f"Warning: Point not found in manager: Frame {frame}, Object {object_id}, Position ({x}, {y})")
+                # Remove point from manager
+                if hasattr(self, 'parent_window') and hasattr(self.parent_window, 'point_manager'):
+                    removed_point = self.parent_window.point_manager.remove_point(frame, object_id, x, y)
+                    if removed_point:
+                        removed_points.append(removed_point)
+                        print(f"Deleted point: Frame {frame}, Object {object_id}, Position ({x}, {y})")
+                    elif len(rows) == 1:  # Single deletion - print warning
+                        print(f"Warning: Point not found in manager: Frame {frame}, Object {object_id}, Position ({x}, {y})")
         
-        # Remove all rows from table
-        for row in rows:
-            self.removeRow(row)
-        self.clearSelection()
-        self._update_delete_buttons()
+            # Remove all rows from table
+            for row in rows:
+                self.removeRow(row)
+            self.clearSelection()
+            self._update_delete_buttons()
+        finally:
+            self.blockSignals(False)
 
-        # Unblock signals after deletion is complete
-        self.blockSignals(False)
+        # The selection was cleared while signals were blocked, so tell listeners
+        # explicitly (otherwise e.g. a selected-point highlight would go stale)
+        self.point_selected.emit([])
+        
         
         # Delete masks only for affected frames, then replay points to regenerate them
         if removed_points and hasattr(self, 'parent_window'):
@@ -486,8 +500,9 @@ class PointTable(QTableWidget):
         point_data = []
         if selected_rows:
             for row in selected_rows:
-                i_row = row.row()
-                point_data.append(self._get_point_from_row(i_row))
+                point = self._get_point_from_row(row.row())
+                if point is not None:  # skip rows that couldn't be read
+                    point_data.append(point)
             if point_data:
                 self.point_selected.emit(point_data)
         else:
@@ -559,18 +574,21 @@ class ImageViewer(QGraphicsView):
     
     def _setup_graphics_view(self):
         """Initialize the graphics view and scene"""
-        self.scene = QGraphicsScene(self)
-        self.setScene(self.scene)
+        self.graphics_scene = QGraphicsScene(self)
+        self.setScene(self.graphics_scene)
         
         self.pixmap_item = QGraphicsPixmapItem()
-        self.scene.addItem(self.pixmap_item)
+        self.graphics_scene.addItem(self.pixmap_item)
         
         # Rendering hints for higher quality scaling
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         
         self.setDragMode(QGraphicsView.NoDrag)
-        self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
-        self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
+        # Zoom anchoring is handled explicitly in set_zoom(). Qt's built-in anchors
+        # would re-scroll the view when scrollbars appear/disappear during a zoom
+        # (which resizes the viewport) and undo the cursor-anchored position.
+        self.setTransformationAnchor(QGraphicsView.NoAnchor)
+        self.setResizeAnchor(QGraphicsView.NoAnchor)
         self.setMouseTracking(True)
     
     def _init_variables(self):
@@ -684,20 +702,34 @@ class ImageViewer(QGraphicsView):
         self.fit_scale = min(scale_w, scale_h)
         self.min_scale = min(1.0, self.fit_scale)
     
-    def set_zoom(self, scale_factor):
-        """Set the zoom level to a specific scale factor"""
+    def set_zoom(self, scale_factor, anchor=None):
+        """Set the zoom level to a specific scale factor.
+
+        anchor: QPoint in viewport coordinates that should stay fixed on screen
+        while zooming (e.g. the mouse cursor). Defaults to the viewport center.
+        """
         if not self.original_pixmap:
             return
         
         # Clamp scale factor to valid range
         scale_factor = max(self.min_scale, min(self.max_scale, scale_factor))
         
-        # Preserve center point during zoom
-        center_before = self.mapToScene(self.viewport().rect().center())
-        self.resetTransform()
+        if anchor is None:
+            anchor = self.viewport().rect().center()
         
+        # Remember which scene point is under the anchor before zooming
+        scene_anchor = self.mapToScene(anchor)
+        
+        self.resetTransform()
         self.scale(scale_factor, scale_factor)
-        self.centerOn(center_before)
+        
+        # Scroll so that the same scene point is back under the anchor.
+        # Done via the scrollbars (rather than relying on Qt's transformation
+        # anchor) so the result is deterministic. When the image is smaller than
+        # the viewport the scrollbars have no range and Qt keeps it centered.
+        drift = self.mapFromScene(scene_anchor) - anchor
+        self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() + drift.x())
+        self.verticalScrollBar().setValue(self.verticalScrollBar().value() + drift.y())
         
         self.current_scale = scale_factor
         self._update_status_text()
@@ -751,13 +783,24 @@ class ImageViewer(QGraphicsView):
     # ==================== EVENT HANDLERS ====================
     
     def wheelEvent(self, event: QWheelEvent):
-        """Handle mouse wheel zoom"""
+        """Handle mouse wheel zoom, keeping the point under the cursor fixed"""
         if not self.original_pixmap:
             return
         
-        zoom_factor = 1.5 if event.angleDelta().y() > 0 else 1 / 1.5
-        new_scale = self.current_scale * zoom_factor
-        self.set_zoom(new_scale)
+        delta = event.angleDelta().y()
+        if delta == 0:
+            return  # e.g. horizontal-only scroll; don't treat it as zoom-out
+        
+        # One standard wheel notch (120 units) = 1.5x. Scaling by the actual
+        # delta keeps high-resolution wheels/trackpads smooth instead of
+        # jumping 1.5x on every tiny event.
+        zoom_factor = 1.5 ** (delta / 120)
+        cursor_pos = event.position().toPoint()
+        self.set_zoom(self.current_scale * zoom_factor, anchor=cursor_pos)
+        
+        # set_zoom only shows the zoom level; restore the pixel coordinates too
+        self._update_mouse_status(cursor_pos)
+        event.accept()
     
     def mousePressEvent(self, event: QMouseEvent):
         """Handle mouse press events for clicking and panning"""
@@ -865,14 +908,14 @@ class ImageViewer(QGraphicsView):
             ctrl_held = event.modifiers() & Qt.ControlModifier
             self._preview_is_positive = not bool(ctrl_held)
             # Trigger preview immediately at current mouse position
-            cursor_pos = self.mapFromGlobal(self.cursor().pos())
-            scene_pos = self.mapToScene(cursor_pos)
-            x, y = int(scene_pos.x()), int(scene_pos.y())
-            if (self.original_pixmap and
-                    0 <= x < self.original_pixmap.width() and
-                    0 <= y < self.original_pixmap.height()):
-                self._preview_pending_pos = (x, y)
-                self._preview_timer.start()
+            cursor_pos = self.viewport().mapFromGlobal(QCursor.pos())
+            if self.original_pixmap and self.viewport().rect().contains(cursor_pos):
+                scene_pos = self.mapToScene(cursor_pos)
+                x, y = int(scene_pos.x()), int(scene_pos.y())
+                if (0 <= x < self.original_pixmap.width() and
+                        0 <= y < self.original_pixmap.height()):
+                    self._preview_pending_pos = (x, y)
+                    self._preview_timer.start()
         elif event.key() == Qt.Key_Control and self._preview_active:
             # Ctrl pressed while Shift already held — switch to negative preview
             self._preview_is_positive = False
@@ -889,11 +932,7 @@ class ImageViewer(QGraphicsView):
             return
 
         if event.key() == Qt.Key_Shift:
-            self._preview_active = False
-            self._preview_timer.stop()
-            self._preview_pending_pos = None
-            self._preview_last_pos = None
-            self.preview_cancelled.emit()
+            self._cancel_preview()
         elif event.key() == Qt.Key_Control and self._preview_active:
             # Ctrl released while Shift still held — switch back to positive preview
             self._preview_is_positive = True
@@ -902,6 +941,21 @@ class ImageViewer(QGraphicsView):
                 self._preview_timer.start()
 
         super().keyReleaseEvent(event)
+
+    def _cancel_preview(self):
+        """Stop live preview and tell listeners to clear it"""
+        self._preview_active = False
+        self._preview_timer.stop()
+        self._preview_pending_pos = None
+        self._preview_last_pos = None
+        self.preview_cancelled.emit()
+
+    def focusOutEvent(self, event):
+        """Cancel live preview if focus is lost while Shift is held (e.g. Alt-Tab),
+        since the Shift key-release would never reach us"""
+        if self._preview_active:
+            self._cancel_preview()
+        super().focusOutEvent(event)
 
     def _emit_preview(self):
         """Emit the preview signal for the latest pending mouse position"""

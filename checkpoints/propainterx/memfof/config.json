@@ -1,0 +1,10 @@
+{
+  "backbone": "resnet34",
+  "corr_levels": 4,
+  "corr_radius": 4,
+  "dim": 512,
+  "num_blocks": 2,
+  "use_var": true,
+  "var_max": 10.0,
+  "var_min": 0.0
+}
