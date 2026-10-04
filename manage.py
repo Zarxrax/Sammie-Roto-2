@@ -220,8 +220,8 @@ def perform_update(branch):
     pull_latest_code(branch)
     sync_env(resolve_backend())
     create_shortcuts()
-    print("\nUpdate complete!")
     cleanup_cache()
+    print("\nUpdate complete!")
 
 # ===== CORE ACTIONS =====
 def handle_update(branch):
@@ -236,8 +236,8 @@ def handle_update(branch):
         if recover != "n":
             pull_latest_code(branch)
             sync_env(resolve_backend("continue recovery"))
-            print("[Recovery complete!]")
             cleanup_cache()
+            print("[Recovery complete!]")
         else:
             print("[No changes made. Consider using Reinstall/Repair from the main menu.]")
         return
@@ -284,10 +284,10 @@ def setup(branch, reinstall=False):
         pull_code = input(prompt).strip().lower() == "y"
     else:
         prompt = (
-            "\nPull the latest code from GitHub now? Recommended if you're "
-            "not sure the downloaded files are the newest release. (Y/n): "
+            "\nAlso pull the latest code from GitHub? Only needed if you think "
+            "the downloaded files are out of date. (y/N): "
         )
-        pull_code = input(prompt).strip().lower() != "n"
+        pull_code = input(prompt).strip().lower() == "y"
 
     # 3. Model download -- fresh install only
     download_models_now = False
@@ -329,13 +329,14 @@ def setup(branch, reinstall=False):
 
     create_shortcuts()
 
-    print("\nSetup Complete!")
     cleanup_cache()
 
     # Run the model downloader last so all dependencies are in place.
     if download_models_now:
         print("\nDownloading all models...")
         run_command([get_uv_exe(), "run", os.path.join("sammie", "model_downloader.py")])
+
+    print("\nSetup Complete!")
 
 
 # ===== CREATE SHORTCUTS =====
