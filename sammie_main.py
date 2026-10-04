@@ -638,7 +638,6 @@ class MattingTab(QWidget):
             instruction_content = """
             • Matting can be used to create mattes for objects with soft or poorly defined edges.<br>
             • <b>Add points and run tracking in the Segmentation tab</b> so that a mask is available on every frame, then press Run Matting.<br>
-            • VideoMaMa requires at least 8GB of VRAM.<br>
             • VideoMaMa processes the video frames in batches. There may be temporal instability at batch boundaries.<br>
             • VideoMaMa is free for non-commercial use and <a href="https://huggingface.co/stabilityai/stable-video-diffusion-img2vid/blob/main/LICENSE.md">limited commercial use</a>.<br>
             """
@@ -779,7 +778,8 @@ class ObjectRemovalTab(QWidget):
         # Create shared shrink/grow slider first (used by both methods)
         self._create_shared_shrink_grow(layout)
 
-        # Show appropriate parameters for initial method
+        # Show appropriate parameters and instructions for initial method
+        self._update_instructions(self.method_combo.currentText())
         self._update_parameters_visibility()
 
         layout.addStretch()
@@ -788,24 +788,14 @@ class ObjectRemovalTab(QWidget):
         """Create the instructions section for the object removal tab"""
         instructions_group = QGroupBox("Instructions")
         instructions_layout = QVBoxLayout(instructions_group)
-        
-        # Create the instruction text
-        instructions_text = QLabel()
-        instructions_text.setWordWrap(True)
-        instructions_text.setTextFormat(Qt.RichText)
-        
-        # Set the instruction content
-        instruction_content = """
-        • Object removal uses inpainting to fill in areas where objects have been removed.<br>
-        • You first need to <b>run tracking in the Segmentation tab</b>, so a mask is on every frame.<br>
-        • MiniMax-Remover uses VRAM proportionally to the number of frames in the video. Keep clips to a few seconds.<br>
-        • ProPainterX handles longer clips more efficiently than MiniMax-Remover, but quality is usually worse.<br>
-        """
-        
-        instructions_text.setText(instruction_content)
-        
-        # Style the text
-        instructions_text.setStyleSheet("""
+
+        self.instructions_text = QLabel()
+        self.instructions_text.setWordWrap(True)
+        self.instructions_text.setTextFormat(Qt.RichText)
+        self.instructions_text.setOpenExternalLinks(True)
+        self.instructions_text.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+
+        self.instructions_text.setStyleSheet("""
             QLabel {
                 background-color: palette(alternate-base);
                 padding: 10px;
@@ -815,10 +805,35 @@ class ObjectRemovalTab(QWidget):
                 line-height: 1.3;
             }
         """)
-        
-        instructions_layout.addWidget(instructions_text)
+
+        instructions_layout.addWidget(self.instructions_text)
         layout.addWidget(instructions_group)
-    
+
+    def _update_instructions(self, method):
+        """Update the instructions based on the selected removal method"""
+
+        if method == "MiniMax-Remover":
+            instruction_content = """
+            • Object removal uses inpainting to fill in areas where objects have been removed.<br>
+            • You first need to <b>run tracking in the Segmentation tab</b>, so a mask is on every frame.<br>
+            • MiniMax-Remover gives good quality, but VRAM use grows with the number of frames in the video. Keep clips to a few seconds.<br>
+            • MiniMax-Remover is licensed under <a href="https://spdx.org/licenses/CC-BY-NC-4.0">CC-BY-NC-4.0</a>.<br>
+            """
+
+        elif method == "ProPainterX":
+            instruction_content = """
+            • Object removal uses inpainting to fill in areas where objects have been removed.<br>
+            • You first need to <b>run tracking in the Segmentation tab</b>, so a mask is on every frame.<br>
+            • ProPainterX handles longer clips more efficiently than MiniMax-Remover, but quality is usually worse.<br>
+            • ProPainterX works best on objects that are in motion, and may produce artifacts on static objects.<br>
+            • ProPainterX is free for non-commercial use, requires <a href="https://github.com/sczhou/ProPainter?tab=License-1-ov-file">permission for commercial use</a>.<br>
+            """
+
+        else:
+            instruction_content = ""
+
+        self.instructions_text.setText(instruction_content)
+
     def _create_method_selection(self, layout):
         """Create method selection (MiniMax-Remover vs ProPainterX)"""
         method_group = QGroupBox("Method")
@@ -847,6 +862,7 @@ class ObjectRemovalTab(QWidget):
         """Handle method selection change"""
         settings_mgr = get_settings_manager()
         settings_mgr.set_session_setting("removal_method", method)
+        self._update_instructions(method)
         self._update_parameters_visibility()
     
     def _update_parameters_visibility(self):
@@ -1704,7 +1720,7 @@ class MainWindow(QMainWindow):
 
         elif current_view == "ObjectRemoval":
             # add mask overlay
-            self.show_removal_mask_checkbox = QCheckBox("Show mask")
+            self.show_removal_mask_checkbox = QCheckBox("Show mask outline")
             show_removal_mask = settings_mgr.get_session_setting("show_removal_mask", settings_mgr.app_settings.default_show_removal_mask)
             self.show_removal_mask_checkbox.setChecked(show_removal_mask)
             self.show_removal_mask_checkbox.stateChanged.connect(self.on_checkbox_changed)
