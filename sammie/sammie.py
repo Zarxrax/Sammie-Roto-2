@@ -861,10 +861,9 @@ def draw_masks(image, processed_masks):
     
 
 def draw_removal_overlay(image, mask):
-    """Draw masked overlay on the current frame for object removal"""
-    color_layer = np.full_like(image, 255, dtype=np.uint8)
-    alpha = mask.astype(np.float32) / 255.0
-    return cv2.blendLinear(image, color_layer, 1.0 - (alpha * 0.5), alpha * 0.5)
+    """Draw an outline (no fill) around the removal mask, using object 0's color"""
+    return draw_contours(image, {0: mask})
+
 
 def draw_contours(image, processed_masks):
     """Draw colored contours on the current frame (expects preprocessed masks)"""

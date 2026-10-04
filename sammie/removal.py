@@ -499,14 +499,22 @@ class RemovalManager(core.CallbackMixin):
         progress_dialog = QProgressDialog("Loading ProPainterX model...", "Cancel", 0, 0, parent_window)
         progress_dialog.setWindowTitle("Object Removal Progress")
         progress_dialog.setWindowModality(Qt.ApplicationModal)
+        progress_dialog.setAutoClose(False)
+        progress_dialog.setAutoReset(False)
+        progress_dialog.setMinimumDuration(0)
         progress_dialog.show()
         QApplication.processEvents()
 
-        if self.load_propainterx_model(parent_window=parent_window) is False:
+        try:
+            if self.load_propainterx_model(parent_window=parent_window) is False:
+                progress_dialog.close()
+                return 0
+        except Exception:
             progress_dialog.close()
-            return 0
+            raise
 
         progress_dialog.setRange(0, 100)
+        progress_dialog.setValue(0)
         # Create output directory if it doesn't exist (don't clear existing frames)
         os.makedirs(core.removal_dir, exist_ok=True)
 
@@ -518,10 +526,19 @@ class RemovalManager(core.CallbackMixin):
             progress_dialog.setValue(percent)
             QApplication.processEvents()
 
-        frames, masks = self._load_all_frames_and_masks_propainterx(
-            points, inpaint_grow=inpaint_grow, start_frame=start_frame, end_frame=end_frame,
-            on_progress=on_load_progress,
-        )
+        try:
+            frames, masks = self._load_all_frames_and_masks_propainterx(
+                points, inpaint_grow=inpaint_grow, start_frame=start_frame, end_frame=end_frame,
+                on_progress=on_load_progress,
+            )
+        except Exception:
+            progress_dialog.close()
+            raise
+
+        # Between loading and the first pipeline stage, show a busy state instead of a stale 100%
+        progress_dialog.setLabelText("Preparing ProPainterX...")
+        progress_dialog.setRange(0, 0)
+        QApplication.processEvents()
 
         if not frames:
             print("No frames to process.")
@@ -529,6 +546,8 @@ class RemovalManager(core.CallbackMixin):
             return 0
 
         def on_progress(stage_idx, stage_count, label, done, total):
+            if progress_dialog.maximum() == 0:
+                progress_dialog.setRange(0, 100)
             percent = int((done / total) * 100) if total else 100
             progress_dialog.setLabelText(f"Stage {stage_idx + 1}/{stage_count}: {label} ({done}/{total})")
             progress_dialog.setValue(percent)
