@@ -46,6 +46,15 @@ wheels = [
 ]
 
 [[package]]
+name = "annotated-doc"
+version = "0.0.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/5a/8e/38aa427ed5402449e226975b649c5dc73ccadfefeb95e6aecb8f8ea4b6b6/annotated_doc-0.0.5.tar.gz", hash = "sha256:c7e58ce09192557605d8bbd92836d7e1d520ac9580096042c0bfd197efacf1bb", size = 10758, upload-time = "2026-07-28T13:50:58.129Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3e/30/e900b21425a860e195f32e37657aa1f7c7f2b1bfb26f03ca209b90933c06/annotated_doc-0.0.5-py3-none-any.whl", hash = "sha256:117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101", size = 5302, upload-time = "2026-07-28T13:50:57.239Z" },
+]
+
+[[package]]
 name = "anyio"
 version = "4.14.2"
 source = { registry = "https://pypi.org/simple" }
@@ -237,12 +246,33 @@ wheels = [
 ]
 
 [[package]]
+name = "cloudpickle"
+version = "3.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/27/fb/576f067976d320f5f0114a8d9fa1215425441bb35627b1993e5afd8111e5/cloudpickle-3.1.2.tar.gz", hash = "sha256:7fda9eb655c9c230dab534f1983763de5835249750e85fbcef43aaa30a9a2414", size = 22330, upload-time = "2025-11-03T09:25:26.604Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/88/39/799be3f2f0f38cc727ee3b4f1445fe6d5e4133064ec2e4115069418a5bb6/cloudpickle-3.1.2-py3-none-any.whl", hash = "sha256:9acb47f6afd73f60dc1df93bb801b472f05ff42fa6c84167d25cb206be1fbf4a", size = 22228, upload-time = "2025-11-03T09:25:25.534Z" },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d8/53/6f443c9a4a8358a93a6792e2acffb9d9d5cb0a5cfd8802644b7b1c9a02e4/colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44", size = 27697, upload-time = "2022-10-25T02:36:22.414Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6", size = 25335, upload-time = "2022-10-25T02:36:20.889Z" },
+]
+
+[[package]]
+name = "colour-science"
+version = "0.4.7"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f4/66/6e2216ffae6f0008118c99d6f425f7591e688671ab99f5636f7f65021395/colour_science-0.4.7.tar.gz", hash = "sha256:b34773dc4dd3f9ba99cca5297fa10e9f532134d994b3a2308dacbe970dfd5079", size = 13283171, upload-time = "2025-12-06T08:15:08.229Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6d/9e/ce54e33f383d7e1432be9fb39557477779ccb155c60033c491609936dacf/colour_science-0.4.7-py3-none-any.whl", hash = "sha256:fe2383d86e507fc11a4b5206ff31a7399031e0dce527e22ec06eeb491d45d9a7", size = 9065613, upload-time = "2025-12-06T08:15:14.908Z" },
 ]
 
 [[package]]
@@ -448,6 +478,21 @@ wheels = [
 ]
 
 [[package]]
+name = "gguf"
+version = "0.19.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pyyaml" },
+    { name = "requests" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/48/ae/17f1308ae45cd7b08ebb521747d5b23f4efc4d172038a4e228dd5106c3ff/gguf-0.19.0.tar.gz", hash = "sha256:dbadcd6cc7ccd44256f2229fe7c2dff5e8aa5cf0612ab987fd2b1a57e428923f", size = 111220, upload-time = "2026-05-06T13:04:03.667Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/bb/d71d6da82763528c2c2ed6b59a9d6142c6595545a4c448e2085d155e88c2/gguf-0.19.0-py3-none-any.whl", hash = "sha256:70bcd10edfe697fb2dad6e40af2234b9d8ece9a41a99761405121ebda1c3c1cd", size = 118475, upload-time = "2026-05-06T13:04:02.588Z" },
+]
+
+[[package]]
 name = "h11"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -649,6 +694,94 @@ wheels = [
 ]
 
 [[package]]
+name = "ltx-core"
+version = "1.4.2"
+source = { directory = "matting/ltx_alpha/vendor/ltx-core" }
+dependencies = [
+    { name = "accelerate" },
+    { name = "av" },
+    { name = "colour-science" },
+    { name = "einops" },
+    { name = "mps-sdpa", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (platform_machine != 'arm64' and extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (platform_machine != 'arm64' and extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (platform_machine != 'arm64' and extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (platform_machine != 'arm64' and extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (platform_machine != 'arm64' and extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (platform_machine != 'arm64' and extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (platform_machine != 'arm64' and extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (platform_machine != 'arm64' and extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (platform_machine != 'arm64' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform != 'darwin' and extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (sys_platform != 'darwin' and extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform != 'darwin' and extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (sys_platform != 'darwin' and extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform != 'darwin' and extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform != 'darwin' and extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (sys_platform != 'darwin' and extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform != 'darwin' and extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (sys_platform != 'darwin' and extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform != 'darwin' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "numpy" },
+    { name = "safetensors" },
+    { name = "torch", version = "2.9.1+rocm7.2.1", source = { url = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/torch-2.9.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl" }, marker = "(sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-13-sammie-roto-2-cpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torch", version = "2.11.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-sammie-roto-2-rocm') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-cu126' and extra != 'extra-13-sammie-roto-2-cu130' and extra != 'extra-13-sammie-roto-2-rocm' and extra != 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-13-sammie-roto-2-cpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torch", version = "2.11.0+cu126", source = { registry = "https://download.pytorch.org/whl/cu126" }, marker = "extra == 'extra-13-sammie-roto-2-cu126' or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torch", version = "2.11.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "extra == 'extra-13-sammie-roto-2-cu130' or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torch", version = "2.11.0+rocm7.2", source = { registry = "https://download.pytorch.org/whl/rocm7.2" }, marker = "(sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torch", version = "2.11.0+xpu", source = { registry = "https://download.pytorch.org/whl/xpu" }, marker = "(extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra != 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-cu126' and extra != 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torchaudio" },
+    { name = "torchvision", version = "0.24.1+rocm7.2.1", source = { url = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/torchvision-0.24.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl" }, marker = "(sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torchvision", version = "0.26.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-13-sammie-roto-2-cpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torchvision", version = "0.26.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-sammie-roto-2-rocm') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-cu126' and extra != 'extra-13-sammie-roto-2-cu130' and extra != 'extra-13-sammie-roto-2-rocm' and extra != 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torchvision", version = "0.26.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-13-sammie-roto-2-cpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torchvision", version = "0.26.0+cu126", source = { registry = "https://download.pytorch.org/whl/cu126" }, marker = "extra == 'extra-13-sammie-roto-2-cu126' or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torchvision", version = "0.26.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "extra == 'extra-13-sammie-roto-2-cu130' or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torchvision", version = "0.26.0+rocm7.2", source = { registry = "https://download.pytorch.org/whl/rocm7.2" }, marker = "(sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torchvision", version = "0.26.0+xpu", source = { registry = "https://download.pytorch.org/whl/xpu" }, marker = "(extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra != 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-cu126' and extra != 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "transformers" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "accelerate" },
+    { name = "av" },
+    { name = "colour-science" },
+    { name = "einops" },
+    { name = "mps-sdpa", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'", specifier = ">=0.2.0" },
+    { name = "natten", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux' and extra == 'natten') or (platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'natten')", specifier = "==0.21.7+torch2130cu132" },
+    { name = "numpy" },
+    { name = "safetensors" },
+    { name = "torch", specifier = "~=2.7" },
+    { name = "torch", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux' and extra == 'natten') or (platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'natten')", specifier = "==2.13.0" },
+    { name = "torchaudio" },
+    { name = "torchvision" },
+    { name = "transformers", specifier = ">=5.8.0,<5.15" },
+]
+provides-extras = ["natten"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "scikit-image", specifier = ">=0.25.2" }]
+
+[[package]]
+name = "ltx-pipelines"
+version = "1.4.2"
+source = { directory = "matting/ltx_alpha/vendor/ltx-pipelines" }
+dependencies = [
+    { name = "av" },
+    { name = "cloudpickle" },
+    { name = "ltx-core" },
+    { name = "openimageio" },
+    { name = "pillow" },
+    { name = "tqdm" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "av" },
+    { name = "cloudpickle", specifier = ">=3.1" },
+    { name = "ltx-core" },
+    { name = "openimageio" },
+    { name = "pillow" },
+    { name = "tqdm" },
+]
+
+[[package]]
+name = "markdown-it-py"
+version = "4.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "mdurl" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/06/ff/7841249c247aa650a76b9ee4bbaeae59370dc8bfd2f6c01f3630c35eb134/markdown_it_py-4.2.0.tar.gz", hash = "sha256:04a21681d6fbb623de53f6f364d352309d4094dd4194040a10fd51833e418d49", size = 82454, upload-time = "2026-05-07T12:08:28.36Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/81/4da04ced5a082363ecfa159c010d200ecbd959ae410c10c0264a38cac0f5/markdown_it_py-4.2.0-py3-none-any.whl", hash = "sha256:9f7ebbcd14fe59494226453aed97c1070d83f8d24b6fc3a3bcf9a38092641c4a", size = 91687, upload-time = "2026-05-07T12:08:27.182Z" },
+]
+
+[[package]]
 name = "markupsafe"
 version = "3.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -712,6 +845,15 @@ wheels = [
 ]
 
 [[package]]
+name = "mdurl"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
+]
+
+[[package]]
 name = "mkl"
 version = "2025.3.1"
 source = { registry = "https://pypi.org/simple" }
@@ -735,12 +877,60 @@ wheels = [
 ]
 
 [[package]]
+name = "mps-sdpa"
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ninja", marker = "sys_platform == 'darwin' or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "numpy", marker = "sys_platform == 'darwin' or (sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-13-sammie-roto-2-cpu') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-cu126') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-cu126') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'linux' and extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-rocm') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'win32' and extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "psutil", marker = "sys_platform == 'darwin' or (sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-13-sammie-roto-2-cpu') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-cu126') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-cu126') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'linux' and extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-rocm') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'win32' and extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "pyobjc-core", marker = "sys_platform == 'darwin' or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "pyobjc-framework-metal", marker = "sys_platform == 'darwin' or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "pyobjc-framework-metalperformanceshadersgraph", marker = "sys_platform == 'darwin' or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-13-sammie-roto-2-cpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torch", version = "2.11.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-sammie-roto-2-rocm') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-cu126' and extra != 'extra-13-sammie-roto-2-cu130' and extra != 'extra-13-sammie-roto-2-rocm' and extra != 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torch", version = "2.11.0+cu126", source = { registry = "https://download.pytorch.org/whl/cu126" }, marker = "extra == 'extra-13-sammie-roto-2-cu126' or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torch", version = "2.11.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "extra == 'extra-13-sammie-roto-2-cu130' or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torch", version = "2.11.0+xpu", source = { registry = "https://download.pytorch.org/whl/xpu" }, marker = "(extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra != 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-cu126' and extra != 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f0/c2/cf52e4364c4a5f9db84238a34974a9498e5922720349ec6f6a3700cd492c/mps_sdpa-0.2.0.tar.gz", hash = "sha256:1d6b6024801657bbdc4a6420ec7a0b52191ab0b88d847143a3ea1728ba3f93b5", size = 81037, upload-time = "2026-04-30T16:12:53.581Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b1/eb/629b9846b972471c4edacb244e1f59d72862fa57b7bc92a8c7fc5dabd9b0/mps_sdpa-0.2.0-py3-none-any.whl", hash = "sha256:2fa980c7028968164a6ae15e4ed380447c76411f4a258184f23d80cf5272f3fd", size = 58151, upload-time = "2026-04-30T16:12:52.089Z" },
+]
+
+[[package]]
 name = "networkx"
 version = "3.6.1"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/6a/51/63fe664f3908c97be9d2e4f1158eb633317598cfa6e1fc14af5383f17512/networkx-3.6.1.tar.gz", hash = "sha256:26b7c357accc0c8cde558ad486283728b65b6a95d85ee1cd66bafab4c8168509", size = 2517025, upload-time = "2025-12-08T17:02:39.908Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9e/c9/b2622292ea83fbb4ec318f5b9ab867d0a28ab43c5717bb85b0a5f6b3b0a4/networkx-3.6.1-py3-none-any.whl", hash = "sha256:d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762", size = 2068504, upload-time = "2025-12-08T17:02:38.159Z" },
+]
+
+[[package]]
+name = "ninja"
+version = "1.13.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ac/92/410b7917d16ab54c04b05cc32b9284803671d91cf79d33be6009c28d4ea8/ninja-1.13.2.tar.gz", hash = "sha256:525bfa3fc88aa30a4467df270fd5be6f9fcae8061d54d4df74ea1dc5abd5a975", size = 243739, upload-time = "2026-08-30T15:49:51.897Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b5/b8/90a9518f2264637084d6199bc20c2f3fb97fefc4c474d277720150c3bd6d/ninja-1.13.2-py3-none-macosx_10_9_universal2.whl", hash = "sha256:fd82e26c0706ad4ab88e5fdd26f3fab0a987a90f810160f6c322e752c6af298b", size = 306611, upload-time = "2026-08-30T15:49:28.267Z" },
+    { url = "https://files.pythonhosted.org/packages/35/54/7368ce188625e39acc03ee362bb86cc9bfa6ad15e25c50889ae36e2889b3/ninja-1.13.2-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:d775a5e43e9088f507a6250d57fcf5678eb31268c545feb5064ffeee33735622", size = 177180, upload-time = "2026-08-30T15:49:29.59Z" },
+    { url = "https://files.pythonhosted.org/packages/80/1a/0b5601ece2a5de97253e7c7c442b70315333955593c2b55616fd17f1706f/ninja-1.13.2-py3-none-manylinux2014_i686.manylinux_2_17_i686.whl", hash = "sha256:81d95081c0ad7c95f67bf682220361ed2a32659d7861b4766b03433c58f22516", size = 199485, upload-time = "2026-08-30T15:49:30.72Z" },
+    { url = "https://files.pythonhosted.org/packages/48/23/fcbe234a66966e35928c47b86336f92a7612db4781665f4e5f5fddef9630/ninja-1.13.2-py3-none-manylinux2014_ppc64le.manylinux_2_17_ppc64le.whl", hash = "sha256:227cbc3ae3e5e429692388103cae8c09451df086cd2d342dae0795af0d162547", size = 197676, upload-time = "2026-08-30T15:49:32.026Z" },
+    { url = "https://files.pythonhosted.org/packages/24/eb/a6ca97ef0ff7bb8bdcb395ec65a716e65d7c1f40896c3afe0090bb3e1535/ninja-1.13.2-py3-none-manylinux2014_s390x.manylinux_2_17_s390x.whl", hash = "sha256:1684c60d031c54c1d049541b64243c0c567dca5463dbd77682a8901780af293d", size = 187980, upload-time = "2026-08-30T15:49:33.372Z" },
+    { url = "https://files.pythonhosted.org/packages/6e/53/ebfed7b689c338dd8ebeec9c0730c8d56821292f14e2536e5f3ef1a05744/ninja-1.13.2-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:65a24341b5ac09fcadcc37082660be40a94174e51a937fabf6e2cae26225fa2c", size = 183365, upload-time = "2026-08-30T15:49:34.53Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/d6/dcf06d7ab44ade992ae5aa1228feff317684b463a1bd47e8642b30ac922e/ninja-1.13.2-py3-none-manylinux_2_28_armv7l.manylinux_2_31_armv7l.whl", hash = "sha256:aa3d2ae5706a2c4d1e93edc951d1c6cbb45107413c404f8fde1741239efbc9a0", size = 155089, upload-time = "2026-08-30T15:49:35.72Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/6b/6513c09c33382b17c05b4349b8e81437b18680d0d7ec6fb8f7edc29adda1/ninja-1.13.2-py3-none-manylinux_2_31_riscv64.whl", hash = "sha256:919572cbc3f233261ecd41fe1f3efc9d44aa02464a4588867e06a8b4f6f416ea", size = 152149, upload-time = "2026-08-30T15:49:36.971Z" },
+    { url = "https://files.pythonhosted.org/packages/4d/70/d59fa4261f5ce586f43d8716de1da33d813afc116f0bf9173bf4cdbfdb2a/ninja-1.13.2-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:0e083700470c02ca154a855ae6d692d03564f5064cae52e113896f9ccc078418", size = 525392, upload-time = "2026-08-30T15:49:38.136Z" },
+    { url = "https://files.pythonhosted.org/packages/37/04/c8c2dc5b2f5fee79a1691d490256b178b7e1af97d56769117422ae8a23cc/ninja-1.13.2-py3-none-musllinux_1_2_armv7l.whl", hash = "sha256:59d71c3e15b6b6f3d903eb0c27285544e0747ca59925ada7037bb1af781ad4b3", size = 466268, upload-time = "2026-08-30T15:49:39.479Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/6d/fce288647e53e96e0f0929a3c5b23986aae1b7101ea8889a3090237c5d13/ninja-1.13.2-py3-none-musllinux_1_2_i686.whl", hash = "sha256:f90f84affc441e219f15fe52532806c1c9dbd22fb66c3addddce88a3deaabab7", size = 605088, upload-time = "2026-08-30T15:49:40.826Z" },
+    { url = "https://files.pythonhosted.org/packages/10/a2/d8eedd25d0ae80b9e874aea362013e67416877c8f732eb4d5e7c971fdb9c/ninja-1.13.2-py3-none-musllinux_1_2_ppc64le.whl", hash = "sha256:b2f687437fac460b27b7eadc99039b1163016fb4ba7276e2782a192d9f24ee0e", size = 610806, upload-time = "2026-08-30T15:49:42.168Z" },
+    { url = "https://files.pythonhosted.org/packages/14/0f/696d96821fad1b5767fd311c1569dde8881a57412369bfe7b11bcbfde036/ninja-1.13.2-py3-none-musllinux_1_2_riscv64.whl", hash = "sha256:09de9ab04f7352f51570c73fd4913acb1e6c24be0a72cd8b80243d4d3ed04925", size = 533978, upload-time = "2026-08-30T15:49:43.451Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/69/28844ca579156776a202217a7cd66f60d06a0710a935e879bb89ce396ecc/ninja-1.13.2-py3-none-musllinux_1_2_s390x.whl", hash = "sha256:6a87bf42b123abe2f37737300185f0a303a891899da85d73a3613ee80547e578", size = 653822, upload-time = "2026-08-30T15:49:44.724Z" },
+    { url = "https://files.pythonhosted.org/packages/f5/5f/c511f2952f94ab2966d60edd9c34e744ea32f2724b1184b62270bde55b3a/ninja-1.13.2-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:915bd482c4be41c75120fd67a22e0bb3f0fbb3bbc5f95b89787deadd59e27ef2", size = 544460, upload-time = "2026-08-30T15:49:46.29Z" },
+    { url = "https://files.pythonhosted.org/packages/79/e7/fb0e828e89ac77ef77183a0834f17c4108e66088732fed86a3cc3c776a7a/ninja-1.13.2-py3-none-win32.whl", hash = "sha256:792cadbb9decfd1f776d4d0a6930feb46d08302eb57c176bcf26b09de5748e9f", size = 270319, upload-time = "2026-08-30T15:49:47.942Z" },
+    { url = "https://files.pythonhosted.org/packages/3f/dd/3766b5f4d32e8a9b97d195496b0b01fbbe2e1a41669dab0cd6492a6ce199/ninja-1.13.2-py3-none-win_amd64.whl", hash = "sha256:1293f4078278b70d0ee4b6cc8f3a9e030656c9b2f59909970343c4fe76070118", size = 311798, upload-time = "2026-08-30T15:49:49.351Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/8d/59a31fa508070d042571d9d226b541a21000756817313f397da22287ad34/ninja-1.13.2-py3-none-win_arm64.whl", hash = "sha256:1db9852e528efa7702f5123969f86678663e46d57ff28ab13f5fd84d64a85fb1", size = 290620, upload-time = "2026-08-30T15:49:50.639Z" },
 ]
 
 [[package]]
@@ -1400,6 +1590,99 @@ wheels = [
 ]
 
 [[package]]
+name = "pygments"
+version = "2.21.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/49/2e/ced460408999b33da6b31b0021b0f37d329e202d4169aeb164493778f25b/pygments-2.21.0.tar.gz", hash = "sha256:610ca751c9bc2492b38eb9a38a7fbc93edbbb2d7182edaf34e66ae493dee5c8c", size = 5005329, upload-time = "2026-08-17T08:02:48.824Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/71/46/17f022dd3e953bf20a04a028a21ec746d942f8d2af30fa0f124fa0e6a684/pygments-2.21.0-py3-none-any.whl", hash = "sha256:2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9", size = 1250147, upload-time = "2026-08-17T08:02:44.912Z" },
+]
+
+[[package]]
+name = "pyobjc-core"
+version = "12.2.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a5/78/abc4ce5920305780aeb36b4067a86253378b36e29ba96673a3deb02eb03a/pyobjc_core-12.2.2.tar.gz", hash = "sha256:3906452339cd06a3bb07df103c2511d4cb0f7a22d8771c0b802eba15d9a642b6", size = 1067701, upload-time = "2026-08-11T19:43:39.059Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/86/b2/bbf7f049880ab40d110e66f25122342a1f6c98d6fe3c59bb98985503c660/pyobjc_core-12.2.2-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:122e6ad302a2abf5d4d4adb0156db751600ddf2768441696cba17b31323085e7", size = 6427637, upload-time = "2026-08-11T14:51:36.038Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/ed/a8bf040caf3704023d74086b7fb96cf4ed2e844e24bd94e5248ba214b700/pyobjc_core-12.2.2-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:950bd2d9c74634398c4e3d24ef2f213d4e23d705083697464fa67afedc53c1ad", size = 6427113, upload-time = "2026-08-11T15:04:39.424Z" },
+    { url = "https://files.pythonhosted.org/packages/e7/5a/760f8b9e116edd43c57e33844dc17619158fbdd311250d4209910192d72d/pyobjc_core-12.2.2-cp313-cp313t-macosx_10_13_universal2.whl", hash = "sha256:3772b406edb3ff78171530a17cda1c4a7817f87b87ded0d8715b3fa664df16db", size = 6666817, upload-time = "2026-08-11T19:30:17.01Z" },
+    { url = "https://files.pythonhosted.org/packages/13/37/486d38a173b0b8dce973a3e13c74cf402ed1b8621586b5963bc9efd49a48/pyobjc_core-12.2.2-cp314-cp314-macosx_10_15_universal2.whl", hash = "sha256:2062e8ad30a310441cd022544a897553408bebeaa7820d5edba3c96fd7fd693b", size = 6421184, upload-time = "2026-08-11T19:30:21.081Z" },
+    { url = "https://files.pythonhosted.org/packages/04/f1/d138fd9b9a66ea8db56a8138b77d3413b85da3defe13363a19f364f85529/pyobjc_core-12.2.2-cp314-cp314t-macosx_10_15_universal2.whl", hash = "sha256:2c7ef3d2f865b4b3ebb14ec3556f7a3e8abb6d130c67275cd9daa08dbd6e4e4e", size = 6671824, upload-time = "2026-08-11T19:30:25.005Z" },
+    { url = "https://files.pythonhosted.org/packages/d5/85/577e2265cccf59daf48c460f0a8deeaf7dbe2991227a8859ab1eeab4945e/pyobjc_core-12.2.2-cp315-cp315-macosx_10_15_universal2.whl", hash = "sha256:89acc6bc13aaa6e3f52b0ce652ede7e201edb6bf062741b246b0c5a44582f25f", size = 6477694, upload-time = "2026-08-11T19:30:28.821Z" },
+    { url = "https://files.pythonhosted.org/packages/77/0a/bd9f830c64c6f334530831e75c01bfe0a770a3fbb00fddc70329223118b3/pyobjc_core-12.2.2-cp315-cp315t-macosx_10_15_universal2.whl", hash = "sha256:59a77038ebe0ab1240f61c341e7fb67b8674f2b4cd41bc71a6472511a12b50f7", size = 6712233, upload-time = "2026-08-11T19:30:33.032Z" },
+]
+
+[[package]]
+name = "pyobjc-framework-cocoa"
+version = "12.2.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyobjc-core", marker = "sys_platform == 'darwin' or (sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-13-sammie-roto-2-cpu') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-cu126') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-cu126') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'linux' and extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-rocm') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'win32' and extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/75/76/49c6da2c6a831020b4854ba20079d5a1030474bffc776b7b73c2eeff8c15/pyobjc_framework_cocoa-12.2.2.tar.gz", hash = "sha256:c96c0ef69a71afbbb0e6a7d594b455c5fe47d62e0db376ee7a2b4b828c16ace9", size = 3132831, upload-time = "2026-08-11T19:44:02.288Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fd/2f/b67e73d8bc367e03fe7861cd9c49fff9dcfa6db83bc0630c0adcfb25b7fa/pyobjc_framework_cocoa-12.2.2-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:e106f395531e67694376b0f1184612cbeea3ec8b9bf56b55ef41d026171d2a2d", size = 388117, upload-time = "2026-08-11T19:32:43.161Z" },
+    { url = "https://files.pythonhosted.org/packages/db/e1/5d9b04ebb60042b9cb49adc2d33115e2f2c2e4ff7d548017bfaff8b7f536/pyobjc_framework_cocoa-12.2.2-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:600b1723184ca094931330e79355274949965460e23de38628d601b5a967baf9", size = 388181, upload-time = "2026-08-11T19:32:44.537Z" },
+    { url = "https://files.pythonhosted.org/packages/b4/25/2a343357d5fe09bbe9c0e294dc03450866a0d6c1792fad36b6bcc00174c0/pyobjc_framework_cocoa-12.2.2-cp313-cp313t-macosx_10_13_universal2.whl", hash = "sha256:875f2aad73963faa81a6b36ae674fd494a4658d6d999e1075e0e2aca3d2391df", size = 392275, upload-time = "2026-08-11T19:32:45.631Z" },
+    { url = "https://files.pythonhosted.org/packages/1f/1a/b99521999b9f54b89aad928ddff0faad507abfe33bc46599454bfa48a4b2/pyobjc_framework_cocoa-12.2.2-cp314-cp314-macosx_10_15_universal2.whl", hash = "sha256:889d7bbd4ba2d4941078bfbbfb882138e51dbead27df006abfe0f2e0d49b5b2e", size = 388368, upload-time = "2026-08-11T19:32:46.781Z" },
+    { url = "https://files.pythonhosted.org/packages/6d/26/0c697dbc73dcc76bc0f68ea5aeed25bf7b05217df5102659e878501b2d5f/pyobjc_framework_cocoa-12.2.2-cp314-cp314t-macosx_10_15_universal2.whl", hash = "sha256:de69c5933750f3a4599ed962eccd92b6a71914c7e4318dacc7895738a8ae60d7", size = 392404, upload-time = "2026-08-11T19:32:47.918Z" },
+    { url = "https://files.pythonhosted.org/packages/df/82/502f740fd8f4e9ef741c9d40ba67467ab2c8196f2c09dcba12936d28a4fd/pyobjc_framework_cocoa-12.2.2-cp315-cp315-macosx_10_15_universal2.whl", hash = "sha256:0e8ace0d44a00d281281a723d17fcd05eea7544a38a6a512e1fd018ddb7aece2", size = 388585, upload-time = "2026-08-11T19:32:49.171Z" },
+    { url = "https://files.pythonhosted.org/packages/7d/3b/07ce3c0ab8d1e9e1bed74fea1bf1cce73527a365a7a23c755051d3be9865/pyobjc_framework_cocoa-12.2.2-cp315-cp315t-macosx_10_15_universal2.whl", hash = "sha256:8fe5b2e79c9530f667b4e58a87a3a15ea62f86a5d19eec405517ecbd4f454868", size = 392693, upload-time = "2026-08-11T19:32:50.283Z" },
+]
+
+[[package]]
+name = "pyobjc-framework-metal"
+version = "12.2.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyobjc-core", marker = "sys_platform == 'darwin' or (sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-13-sammie-roto-2-cpu') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-cu126') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-cu126') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'linux' and extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-rocm') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'win32' and extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin' or (sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-13-sammie-roto-2-cpu') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-cu126') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-cu126') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'linux' and extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-rocm') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'win32' and extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b8/1c/c15b606d805a392696806f119ad3ac42ff3bfbfa4b3a46aaebebffc99076/pyobjc_framework_metal-12.2.2.tar.gz", hash = "sha256:0e7289281cb44ac9f4379ad9c6a6602a7a15fd491acc35949cdc05c5b9790b94", size = 238970, upload-time = "2026-08-11T19:44:55.48Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ef/ce/3a1869818af2140f7bcbb1959bf2ee4b93abe4d5bc51fc7fa1acae6261a9/pyobjc_framework_metal-12.2.2-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:fb0421195ded2a02a83c94dbc1bf815b4a879c51804c43bcaf4680a6dc1b4aa2", size = 75928, upload-time = "2026-08-11T19:38:19.474Z" },
+    { url = "https://files.pythonhosted.org/packages/ba/36/c5c732b4b8e47aab7c988c26a523b3a01f1052721d515243f135a593ab25/pyobjc_framework_metal-12.2.2-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:121e5501f850999982a7cdc3cce04fa48ce5e1005c6757fa696e1d10d960a84f", size = 75951, upload-time = "2026-08-11T19:38:20.294Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/2e/9a1a2ae62332d6a91391aef6dbf1be458a079a390513dc89e1d66e2dec1b/pyobjc_framework_metal-12.2.2-cp313-cp313t-macosx_10_13_universal2.whl", hash = "sha256:64865408c918872470fd52b3f92a9287bce9fe1e9f4bfb5289f8a02e2bdf2077", size = 76511, upload-time = "2026-08-11T19:38:21.259Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/b0/9458ecf710f5f06e33ec3e614d8f7784cca60c38fe04573b03702fc968d2/pyobjc_framework_metal-12.2.2-cp314-cp314-macosx_10_15_universal2.whl", hash = "sha256:c317b2a3312e5f5d753a554496669815de71c50481ab393d8fc99e63da46db3c", size = 75953, upload-time = "2026-08-11T19:38:22.08Z" },
+    { url = "https://files.pythonhosted.org/packages/b4/0a/6f4e256e5d6a4f0c4359e4bf1a3e5d82b6635bd7eedd8eb1da90812281f6/pyobjc_framework_metal-12.2.2-cp314-cp314t-macosx_10_15_universal2.whl", hash = "sha256:6f4d6001e86b28db2ab63e6a9d52741073e68f2b9e705e9a2e27b9ba266b93fa", size = 76568, upload-time = "2026-08-11T19:38:23.35Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/d8/c25faaadbb63497711cf28e189a330bc957d013451201c63107ce811607a/pyobjc_framework_metal-12.2.2-cp315-cp315-macosx_10_15_universal2.whl", hash = "sha256:56edbd775af718d6cd0a3cb3eecc0abbb0cfc72ae656a0d2317e794050f38e1e", size = 76078, upload-time = "2026-08-11T19:38:24.183Z" },
+    { url = "https://files.pythonhosted.org/packages/de/ac/d267ad8f66d7e612b0ddb4475a624d4dae014f9d7638f8143eca1351a7be/pyobjc_framework_metal-12.2.2-cp315-cp315t-macosx_10_15_universal2.whl", hash = "sha256:c77574aad25613735827b9622dc56ae8a7f408bb101d376fb89304eec104530d", size = 76703, upload-time = "2026-08-11T19:38:25.045Z" },
+]
+
+[[package]]
+name = "pyobjc-framework-metalperformanceshaders"
+version = "12.2.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyobjc-core", marker = "sys_platform == 'darwin' or (sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-13-sammie-roto-2-cpu') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-cu126') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-cu126') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'linux' and extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-rocm') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'win32' and extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "pyobjc-framework-metal", marker = "sys_platform == 'darwin' or (sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-13-sammie-roto-2-cpu') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-cu126') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-cu126') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'linux' and extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-rocm') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'win32' and extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/97/72/0fc5b9c2c55afa713df917ad45f92ca9a2d90b4d670e0b526485cc199d5f/pyobjc_framework_metalperformanceshaders-12.2.2.tar.gz", hash = "sha256:0113925764bc02071389e20066fb687b13edabc9fba2a55235542554251fe5e4", size = 190960, upload-time = "2026-08-11T19:44:57.757Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/67/87/1c4af25c5178e8ad5fb3cab3899caa273ad00279341975692350da0315a5/pyobjc_framework_metalperformanceshaders-12.2.2-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:f4ed7098abed9e7c4743f0677d97da134cfb6298e5803c3c700be5f2c209622e", size = 34177, upload-time = "2026-08-11T19:38:42.623Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/55/c69a659359a959493b1a4c31cd1e30d4784ae3bb5aaa4548aaf852fc3917/pyobjc_framework_metalperformanceshaders-12.2.2-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:4762072469ac6f6143c9a9d9a7f315c064676ed2cd7e0039b269278b5d48f972", size = 34204, upload-time = "2026-08-11T19:38:43.421Z" },
+    { url = "https://files.pythonhosted.org/packages/98/4d/ac5939c3df77885f7f9e1e6d19912389bc11d86f0e2404953a1efc568ed4/pyobjc_framework_metalperformanceshaders-12.2.2-cp313-cp313t-macosx_10_13_universal2.whl", hash = "sha256:b0704534649f1ea027ae56692cb9cc8ed30684eb7b2698ea600139f3797fefc6", size = 34400, upload-time = "2026-08-11T19:38:44.355Z" },
+    { url = "https://files.pythonhosted.org/packages/e7/cf/1a3bef58672aee66ebc8be385bf9337fa2c559308b6a9661bdbcf850fdc2/pyobjc_framework_metalperformanceshaders-12.2.2-cp314-cp314-macosx_10_15_universal2.whl", hash = "sha256:72cef170aed400d79f416fc3e4df57d54c58931c1287e879ac21081fc10b0ef9", size = 34264, upload-time = "2026-08-11T19:38:45.335Z" },
+    { url = "https://files.pythonhosted.org/packages/f9/71/e8d2944c6b85f0a49abbf0e4da730c1dc703b103cf2684973ccb1d0e365c/pyobjc_framework_metalperformanceshaders-12.2.2-cp314-cp314t-macosx_10_15_universal2.whl", hash = "sha256:8db850433801fbf692be30d1fef6604e78c5a1a9cf2b041d2d00148742e12ee3", size = 34482, upload-time = "2026-08-11T19:38:46.123Z" },
+    { url = "https://files.pythonhosted.org/packages/2a/57/fb89c3b5aa14fd2fb76b45fde97a987634f7e134b6472356783725e598d5/pyobjc_framework_metalperformanceshaders-12.2.2-cp315-cp315-macosx_10_15_universal2.whl", hash = "sha256:2187ac6be16ea3b9eb36be8f117ba00b94b4ba7895601e84122eac02e8230c1b", size = 34283, upload-time = "2026-08-11T19:38:46.887Z" },
+    { url = "https://files.pythonhosted.org/packages/34/db/fb7a0b3089f785e238088cbe98e11119354b6749d92a7acb9f9a9b59c2a7/pyobjc_framework_metalperformanceshaders-12.2.2-cp315-cp315t-macosx_10_15_universal2.whl", hash = "sha256:30f3ebc3be3e762ddd9ecdb0fdef63bf37c58d952114696d5c6a2de55810c5c8", size = 34505, upload-time = "2026-08-11T19:38:47.85Z" },
+]
+
+[[package]]
+name = "pyobjc-framework-metalperformanceshadersgraph"
+version = "12.2.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyobjc-core", marker = "sys_platform == 'darwin' or (sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-13-sammie-roto-2-cpu') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-cu126') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-cu126') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'linux' and extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-rocm') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'win32' and extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "pyobjc-framework-metalperformanceshaders", marker = "sys_platform == 'darwin' or (sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-13-sammie-roto-2-cpu') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-cu126') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-cu126') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-cu130') or (sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'linux' and extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-rocm') or (sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (sys_platform == 'win32' and extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/35/26/9b98ea7bb2452cbd8f0af0aef30dae40d5f34fcfec7310fb0a0687dae654/pyobjc_framework_metalperformanceshadersgraph-12.2.2.tar.gz", hash = "sha256:77d9afbed19220a3207393d72c44c4e891d005543816d87dcf49d0c5f1d1bc6d", size = 60412, upload-time = "2026-08-11T19:44:58.697Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/64/01/fd26bdedc74aebdbb63c565284d79e8425a98568d464430661b97bd793a3/pyobjc_framework_metalperformanceshadersgraph-12.2.2-py2.py3-none-any.whl", hash = "sha256:1e94705ba9c5bad35fe9f6dc20a085a975a2b624f859d8481039b3edd5559481", size = 7135, upload-time = "2026-08-11T19:38:48.751Z" },
+]
+
+[[package]]
 name = "pyside6-essentials"
 version = "6.9.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1564,6 +1847,19 @@ wheels = [
 ]
 
 [[package]]
+name = "rich"
+version = "15.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "markdown-it-py" },
+    { name = "pygments" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c0/8f/0722ca900cc807c13a6a0c696dacf35430f72e0ec571c4275d2371fca3e9/rich-15.0.0.tar.gz", hash = "sha256:edd07a4824c6b40189fb7ac9bc4c52536e9780fbbfbddf6f1e2502c31b068c36", size = 230680, upload-time = "2026-04-12T08:24:00.75Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/82/3b/64d4899d73f91ba49a8c18a8ff3f0ea8f1c1d75481760df8c68ef5235bf5/rich-15.0.0-py3-none-any.whl", hash = "sha256:33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb", size = 310654, upload-time = "2026-04-12T08:24:02.83Z" },
+]
+
+[[package]]
 name = "rocm"
 version = "7.2.1"
 source = { url = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm-7.2.1.tar.gz" }
@@ -1636,16 +1932,21 @@ wheels = [
 
 [[package]]
 name = "sammie-roto-2"
-version = "2.5.1"
+version = "2.5.2"
 source = { virtual = "." }
 dependencies = [
     { name = "accelerate", marker = "sys_platform == 'darwin' or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
     { name = "av" },
     { name = "diffusers" },
     { name = "einops" },
+    { name = "gguf" },
+    { name = "huggingface-hub" },
+    { name = "ltx-core" },
+    { name = "ltx-pipelines" },
     { name = "openimageio" },
     { name = "pyside6-essentials" },
     { name = "requests" },
+    { name = "safetensors" },
     { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-13-sammie-roto-2-cpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
     { name = "torch", version = "2.11.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'darwin' and extra == 'extra-13-sammie-roto-2-rocm') or (sys_platform == 'darwin' and extra != 'extra-13-sammie-roto-2-cpu' and extra != 'extra-13-sammie-roto-2-cu126' and extra != 'extra-13-sammie-roto-2-cu130' and extra != 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu')" },
     { name = "torch", version = "2.11.0+cu126", source = { registry = "https://download.pytorch.org/whl/cu126" }, marker = "(sys_platform == 'darwin' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
@@ -1707,6 +2008,10 @@ requires-dist = [
     { name = "av", specifier = "~=18.1" },
     { name = "diffusers", specifier = "~=0.39" },
     { name = "einops", specifier = "~=0.8" },
+    { name = "gguf", specifier = ">=0.17,<1" },
+    { name = "huggingface-hub", specifier = ">=0.36,<2" },
+    { name = "ltx-core", directory = "matting/ltx_alpha/vendor/ltx-core" },
+    { name = "ltx-pipelines", directory = "matting/ltx_alpha/vendor/ltx-pipelines" },
     { name = "openimageio", specifier = ">=3.1,<4" },
     { name = "pyside6-essentials", specifier = "==6.9.3" },
     { name = "requests", specifier = "~=2.34" },
@@ -1714,6 +2019,7 @@ requires-dist = [
     { name = "rocm-sdk-core", marker = "sys_platform == 'win32' and extra == 'rocm'", url = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm_sdk_core-7.2.1-py3-none-win_amd64.whl" },
     { name = "rocm-sdk-devel", marker = "sys_platform == 'win32' and extra == 'rocm'", url = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm_sdk_devel-7.2.1-py3-none-win_amd64.whl" },
     { name = "rocm-sdk-libraries-custom", marker = "sys_platform == 'win32' and extra == 'rocm'", url = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/rocm_sdk_libraries_custom-7.2.1-py3-none-win_amd64.whl" },
+    { name = "safetensors", specifier = ">=0.6,<1" },
     { name = "torch", marker = "sys_platform == 'darwin'", specifier = "==2.11.0" },
     { name = "torch", marker = "sys_platform == 'linux' and extra == 'rocm'", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/rocm7.2", conflict = { package = "sammie-roto-2", extra = "rocm" } },
     { name = "torch", marker = "sys_platform == 'win32' and extra == 'rocm'", url = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/torch-2.9.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl" },
@@ -1741,6 +2047,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/0d/1c/73e719955c59b8e424d015ab450f51c0af856ae46ea2da83eba51cc88de1/setuptools-81.0.0.tar.gz", hash = "sha256:487b53915f52501f0a79ccfd0c02c165ffe06631443a886740b91af4b7a5845a", size = 1198299, upload-time = "2026-02-06T21:10:39.601Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e1/e3/c164c88b2e5ce7b24d667b9bd83589cf4f3520d97cad01534cd3c4f55fdb/setuptools-81.0.0-py3-none-any.whl", hash = "sha256:fdd925d5c5d9f62e4b74b30d6dd7828ce236fd6ed998a08d81de62ce5a6310d6", size = 1062021, upload-time = "2026-02-06T21:10:37.175Z" },
+]
+
+[[package]]
+name = "shellingham"
+version = "1.5.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/58/15/8b3609fd3830ef7b27b655beb4b4e9c62313a4e8da8c676e142cc210d58e/shellingham-1.5.4.tar.gz", hash = "sha256:8dbca0739d487e5bd35ab3ca4b36e11c4078f3a234bfce294b0a0291363404de", size = 10310, upload-time = "2023-10-24T04:13:40.426Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e0/f9/0595336914c5619e5f28a1fb793285925a8cd4b432c9da0a987836c7f822/shellingham-1.5.4-py2.py3-none-any.whl", hash = "sha256:7ecfff8f2fd72616f7481040475a65b2bf8af90a56c89140852d1120324e8686", size = 9755, upload-time = "2023-10-24T04:13:38.866Z" },
 ]
 
 [[package]]
@@ -1786,6 +2101,32 @@ source = { registry = "https://pypi.org/simple" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a1/a4/38e8b5a27b66ab286168ba6c449771ed71d71ec76524e7f12401474a5151/tcmlib-1.4.1-py2.py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:0d5bd98db48d31bec7fedba5c23599bf9ae43c7016d4c3946d25242d320cee89", size = 2731276, upload-time = "2025-10-22T17:57:02.392Z" },
     { url = "https://files.pythonhosted.org/packages/eb/4d/2b1d55dba475f602197e284b9a5e5460139a9c5ef2bfb63c8d2a1fafc163/tcmlib-1.4.1-py2.py3-none-win_amd64.whl", hash = "sha256:5202a1fd8541182fbd4ef72848784e4bf94340152d7ddff33d401d30930fa53c", size = 370347, upload-time = "2025-10-22T18:00:36.37Z" },
+]
+
+[[package]]
+name = "tokenizers"
+version = "0.22.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "huggingface-hub" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/73/6f/f80cfef4a312e1fb34baf7d85c72d4411afde10978d4657f8cdd811d3ccc/tokenizers-0.22.2.tar.gz", hash = "sha256:473b83b915e547aa366d1eee11806deaf419e17be16310ac0a14077f1e28f917", size = 372115, upload-time = "2026-01-05T10:45:15.988Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/92/97/5dbfabf04c7e348e655e907ed27913e03db0923abb5dfdd120d7b25630e1/tokenizers-0.22.2-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:544dd704ae7238755d790de45ba8da072e9af3eea688f698b137915ae959281c", size = 3100275, upload-time = "2026-01-05T10:41:02.158Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/47/174dca0502ef88b28f1c9e06b73ce33500eedfac7a7692108aec220464e7/tokenizers-0.22.2-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:1e418a55456beedca4621dbab65a318981467a2b188e982a23e117f115ce5001", size = 2981472, upload-time = "2026-01-05T10:41:00.276Z" },
+    { url = "https://files.pythonhosted.org/packages/d6/84/7990e799f1309a8b87af6b948f31edaa12a3ed22d11b352eaf4f4b2e5753/tokenizers-0.22.2-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:2249487018adec45d6e3554c71d46eb39fa8ea67156c640f7513eb26f318cec7", size = 3290736, upload-time = "2026-01-05T10:40:32.165Z" },
+    { url = "https://files.pythonhosted.org/packages/78/59/09d0d9ba94dcd5f4f1368d4858d24546b4bdc0231c2354aa31d6199f0399/tokenizers-0.22.2-cp39-abi3-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:25b85325d0815e86e0bac263506dd114578953b7b53d7de09a6485e4a160a7dd", size = 3168835, upload-time = "2026-01-05T10:40:38.847Z" },
+    { url = "https://files.pythonhosted.org/packages/47/50/b3ebb4243e7160bda8d34b731e54dd8ab8b133e50775872e7a434e524c28/tokenizers-0.22.2-cp39-abi3-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:bfb88f22a209ff7b40a576d5324bf8286b519d7358663db21d6246fb17eea2d5", size = 3521673, upload-time = "2026-01-05T10:40:56.614Z" },
+    { url = "https://files.pythonhosted.org/packages/e0/fa/89f4cb9e08df770b57adb96f8cbb7e22695a4cb6c2bd5f0c4f0ebcf33b66/tokenizers-0.22.2-cp39-abi3-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:1c774b1276f71e1ef716e5486f21e76333464f47bece56bbd554485982a9e03e", size = 3724818, upload-time = "2026-01-05T10:40:44.507Z" },
+    { url = "https://files.pythonhosted.org/packages/64/04/ca2363f0bfbe3b3d36e95bf67e56a4c88c8e3362b658e616d1ac185d47f2/tokenizers-0.22.2-cp39-abi3-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:df6c4265b289083bf710dff49bc51ef252f9d5be33a45ee2bed151114a56207b", size = 3379195, upload-time = "2026-01-05T10:40:51.139Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/76/932be4b50ef6ccedf9d3c6639b056a967a86258c6d9200643f01269211ca/tokenizers-0.22.2-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:369cc9fc8cc10cb24143873a0d95438bb8ee257bb80c71989e3ee290e8d72c67", size = 3274982, upload-time = "2026-01-05T10:40:58.331Z" },
+    { url = "https://files.pythonhosted.org/packages/1d/28/5f9f5a4cc211b69e89420980e483831bcc29dade307955cc9dc858a40f01/tokenizers-0.22.2-cp39-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:29c30b83d8dcd061078b05ae0cb94d3c710555fbb44861139f9f83dcca3dc3e4", size = 9478245, upload-time = "2026-01-05T10:41:04.053Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/fb/66e2da4704d6aadebf8cb39f1d6d1957df667ab24cff2326b77cda0dcb85/tokenizers-0.22.2-cp39-abi3-musllinux_1_2_armv7l.whl", hash = "sha256:37ae80a28c1d3265bb1f22464c856bd23c02a05bb211e56d0c5301a435be6c1a", size = 9560069, upload-time = "2026-01-05T10:45:10.673Z" },
+    { url = "https://files.pythonhosted.org/packages/16/04/fed398b05caa87ce9b1a1bb5166645e38196081b225059a6edaff6440fac/tokenizers-0.22.2-cp39-abi3-musllinux_1_2_i686.whl", hash = "sha256:791135ee325f2336f498590eb2f11dc5c295232f288e75c99a36c5dbce63088a", size = 9899263, upload-time = "2026-01-05T10:45:12.559Z" },
+    { url = "https://files.pythonhosted.org/packages/05/a1/d62dfe7376beaaf1394917e0f8e93ee5f67fea8fcf4107501db35996586b/tokenizers-0.22.2-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:38337540fbbddff8e999d59970f3c6f35a82de10053206a7562f1ea02d046fa5", size = 10033429, upload-time = "2026-01-05T10:45:14.333Z" },
+    { url = "https://files.pythonhosted.org/packages/fd/18/a545c4ea42af3df6effd7d13d250ba77a0a86fb20393143bbb9a92e434d4/tokenizers-0.22.2-cp39-abi3-win32.whl", hash = "sha256:a6bf3f88c554a2b653af81f3204491c818ae2ac6fbc09e76ef4773351292bc92", size = 2502363, upload-time = "2026-01-05T10:45:20.593Z" },
+    { url = "https://files.pythonhosted.org/packages/65/71/0670843133a43d43070abeb1949abfdef12a86d490bea9cd9e18e37c5ff7/tokenizers-0.22.2-cp39-abi3-win_amd64.whl", hash = "sha256:c9ea31edff2968b44a88f97d784c2f16dc0729b8b143ed004699ebca91f05c48", size = 2747786, upload-time = "2026-01-05T10:45:18.411Z" },
+    { url = "https://files.pythonhosted.org/packages/72/f4/0de46cfa12cdcbcd464cc59fde36912af405696f687e53a091fb432f694c/tokenizers-0.22.2-cp39-abi3-win_arm64.whl", hash = "sha256:9ce725d22864a1e965217204946f830c37876eee3b2ba6fc6255e8e903d5fcbc", size = 2612133, upload-time = "2026-01-05T10:45:17.232Z" },
 ]
 
 [[package]]
@@ -2085,6 +2426,33 @@ wheels = [
 ]
 
 [[package]]
+name = "torchaudio"
+version = "2.11.0"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f1/b1/77658817acacd01a72b714440c62f419efc4d90170e704e8e7a2c0918988/torchaudio-2.11.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:a1cf1acc883bee9cb906a933572fed6a8a933f86ef34e9ea7d803f72317e8c1b", size = 684226, upload-time = "2026-03-23T18:13:40.023Z" },
+    { url = "https://files.pythonhosted.org/packages/78/28/c7adc053039f286c2aca0038b766cbe3294e66fec6b29a820e95128f9ede/torchaudio-2.11.0-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:bc653defca1c16154398517a1adc98d0fb7f1dd08e58ced217558d213c2c6e29", size = 1626670, upload-time = "2026-03-23T18:13:42.162Z" },
+    { url = "https://files.pythonhosted.org/packages/88/d8/d6d0f896e064aa67377484efef4911cdcc07bce2929474e1417cc0af18c2/torchaudio-2.11.0-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:6503c0bdb29daf2e6281bb70ea2dfe2c3553b782b619eb5d73bdadd8a3f7cecf", size = 1771992, upload-time = "2026-03-23T18:13:33.188Z" },
+    { url = "https://files.pythonhosted.org/packages/23/a8/941277ecc39f7a0a169d554302a1f1afd87c1d94a8aec828891916cea59a/torchaudio-2.11.0-cp312-cp312-win_amd64.whl", hash = "sha256:478110f981e5d40a8d82221732c57a56c85a1d5895fb8fe646e86ee15eded3bd", size = 328663, upload-time = "2026-03-23T18:13:19.218Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/9e/f76fcd9877c8c78f258ee34e0fb8291fdb91e6218d582d9ca66b1e4bd4ae/torchaudio-2.11.0-cp313-cp313-macosx_12_0_arm64.whl", hash = "sha256:e3f9696a9ef1d49acc452159b052370c636406d072e9d8f10895fda87b591ea9", size = 679904, upload-time = "2026-03-23T18:13:28.329Z" },
+    { url = "https://files.pythonhosted.org/packages/85/70/249c1498ebdad3e7752866635ec0855fc0dcf898beccda5a9d2b9df8e4d0/torchaudio-2.11.0-cp313-cp313-manylinux_2_28_aarch64.whl", hash = "sha256:b034d7672f1c415434f48ef17807f2cce47f29e8795338c751d4e596c9fbe8b5", size = 1618523, upload-time = "2026-03-23T18:13:15.703Z" },
+    { url = "https://files.pythonhosted.org/packages/4f/98/be13fe35d9aa5c26381c0e453c828a789d15c007f8f7d08c95341d19974d/torchaudio-2.11.0-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:1c1101c1243ef0e4063ec63298977e2d3655c15cf88d9eb0a1bd4fe2db9f47ea", size = 1771992, upload-time = "2026-03-23T18:13:35.343Z" },
+    { url = "https://files.pythonhosted.org/packages/e2/8b/2bbb3dca6ff28cba0de250874d5ef4fc2822c47a934b59b3974cff3219ef/torchaudio-2.11.0-cp313-cp313-win_amd64.whl", hash = "sha256:986f4df5ed17b003dc52489468601720090e65f964f8bebccf90eb45bba75744", size = 328662, upload-time = "2026-03-23T18:13:18.308Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/ce/52c652d30af7d6e96c8f1735d26131e94708e3f38d852b8fa97958804dd8/torchaudio-2.11.0-cp313-cp313t-macosx_12_0_arm64.whl", hash = "sha256:bda09ea630ae7207384fb0f28c35e4f8c0d82dd6eba020b6b335ad0caa9fed49", size = 680814, upload-time = "2026-03-23T18:13:17.08Z" },
+    { url = "https://files.pythonhosted.org/packages/06/95/1ad1507482e7263e556709a3f5f87fecd375a0742cdaf238806c8e72eaad/torchaudio-2.11.0-cp313-cp313t-manylinux_2_28_aarch64.whl", hash = "sha256:9fe3083c62e035646483a14e180d33561bdc2eed436c9ab1259c137fb7120b4a", size = 1618546, upload-time = "2026-03-23T18:13:29.686Z" },
+    { url = "https://files.pythonhosted.org/packages/98/4c/480328ba07487eb9890406720304d0d460dd7a6a64098614f5aa53b662ca/torchaudio-2.11.0-cp313-cp313t-manylinux_2_28_x86_64.whl", hash = "sha256:13cff988697ccbad539987599f9dc672f40c417bed67570b365e4e5002bbd096", size = 1771991, upload-time = "2026-03-23T18:13:30.843Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/98/5d4790e2d6548768999acd34999d5aeefce8bcc23a07afaa5f03e723f557/torchaudio-2.11.0-cp313-cp313t-win_amd64.whl", hash = "sha256:ed404c4399ad7f172c86a47c1b25293d322d1d58e26b10b0456a86cf67d37d84", size = 328661, upload-time = "2026-03-23T18:13:34.359Z" },
+    { url = "https://files.pythonhosted.org/packages/39/fe/ffa618b4f0d9732d7df7a2fa2bd48657d896599bc224e5af3c70d46c546b/torchaudio-2.11.0-cp314-cp314-macosx_12_0_arm64.whl", hash = "sha256:cc09cd1f6015b8549e7fe255fb1be5346b57e7fee06541d3f3dbb012d8c4715f", size = 679901, upload-time = "2026-03-23T18:13:25.472Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/54/f414d7b92dd0b3094a2409c95a97bd6c49aa0620da722a0e55462f9bd9cb/torchaudio-2.11.0-cp314-cp314-manylinux_2_28_aarch64.whl", hash = "sha256:79fb3cb99169fd41bd9719647261402a164da0d105a4d81f42a3260844ec5e79", size = 1618527, upload-time = "2026-03-23T18:13:26.68Z" },
+    { url = "https://files.pythonhosted.org/packages/a8/a8/bf2e1f6ce24c990192400ae49b4acc1a0d0295b6c6a06bceecdc46ce08de/torchaudio-2.11.0-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:00e9f71ab9c656f0abdb40c515bd65d4658ab0ad380dee27a2efd7d51dabd3d6", size = 1771995, upload-time = "2026-03-23T18:13:23.373Z" },
+    { url = "https://files.pythonhosted.org/packages/83/6f/b0efb44e0bfe8dd4d78d76ae3be280354e1fb5c8631c782785d74cd8a7b1/torchaudio-2.11.0-cp314-cp314-win_amd64.whl", hash = "sha256:1424638adb8bb40087bc7b6eb103e8e4fe398210f09076f33b7b5e61501b5d66", size = 328662, upload-time = "2026-03-23T18:13:32.243Z" },
+    { url = "https://files.pythonhosted.org/packages/60/84/1c792b0b700eac9a96772cfd9f96c097b17bca3234a2fde3c64b8063660d/torchaudio-2.11.0-cp314-cp314t-macosx_12_0_arm64.whl", hash = "sha256:da2725e250866da42a12934c9a6552f65a18b7187fd7a6221387f0e605fb3b96", size = 679926, upload-time = "2026-03-23T18:13:24.452Z" },
+    { url = "https://files.pythonhosted.org/packages/9a/a0/62a5842062f739239691f2e57523e0570dd06704ad987755f7644a3afa23/torchaudio-2.11.0-cp314-cp314t-manylinux_2_28_aarch64.whl", hash = "sha256:1be3767064364ae82705bdf2b15c1e8b41fea82c4cd04d47428a8684b634b6ed", size = 1618552, upload-time = "2026-03-23T18:13:21.09Z" },
+    { url = "https://files.pythonhosted.org/packages/6d/89/c293d818f9f899db93bf291b42401c05ae29acfb2e53d5341c30ea703e62/torchaudio-2.11.0-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:67f6edac29ed004652c11db5c19d9debb5d835695930574f564efc8bdd061bba", size = 1771986, upload-time = "2026-03-23T18:13:22.153Z" },
+    { url = "https://files.pythonhosted.org/packages/93/f7/ee5da8c03f1a3c7662c6c6a119f24a4b3e646da94be56dce3201e3a6ee9b/torchaudio-2.11.0-cp314-cp314t-win_amd64.whl", hash = "sha256:88fb5e29f670a33d9bac6aabb1d2734460cf6e461bde5cdc352826035851b16d", size = 328661, upload-time = "2026-03-23T18:13:20.1Z" },
+]
+
+[[package]]
 name = "torchvision"
 version = "0.24.1+rocm7.2.1"
 source = { url = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/torchvision-0.24.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl" }
@@ -2092,9 +2460,9 @@ resolution-markers = [
     "sys_platform == 'win32'",
 ]
 dependencies = [
-    { name = "numpy", marker = "sys_platform == 'win32'" },
-    { name = "pillow", marker = "sys_platform == 'win32'" },
-    { name = "torch", version = "2.9.1+rocm7.2.1", source = { url = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/torch-2.9.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl" }, marker = "sys_platform == 'win32'" },
+    { name = "numpy", marker = "(sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "pillow", marker = "(sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torch", version = "2.9.1+rocm7.2.1", source = { url = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/torch-2.9.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl" }, marker = "(sys_platform == 'win32' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu')" },
 ]
 wheels = [
     { url = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/torchvision-0.24.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl", hash = "sha256:b5c34d76a2f01fb97e1e0f224bd97fc3a58ec1ee1ef2376af2d72086e9aca34c" },
@@ -2174,9 +2542,9 @@ resolution-markers = [
     "sys_platform != 'darwin'",
 ]
 dependencies = [
-    { name = "numpy", marker = "sys_platform != 'darwin'" },
-    { name = "pillow", marker = "sys_platform != 'darwin'" },
-    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
+    { name = "numpy", marker = "(sys_platform != 'darwin' and extra == 'extra-13-sammie-roto-2-cpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "pillow", marker = "(sys_platform != 'darwin' and extra == 'extra-13-sammie-roto-2-cpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-13-sammie-roto-2-cpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/cpu/torchvision-0.26.0%2Bcpu-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:17f0b542331fc94230b4214c6d123f038af7330fd81019608c0d2402f3bc3079", upload-time = "2026-03-23T15:36:09Z" },
@@ -2258,9 +2626,9 @@ resolution-markers = [
     "sys_platform == 'linux'",
 ]
 dependencies = [
-    { name = "numpy", marker = "sys_platform == 'linux'" },
-    { name = "pillow", marker = "sys_platform == 'linux'" },
-    { name = "torch", version = "2.11.0+rocm7.2", source = { registry = "https://download.pytorch.org/whl/rocm7.2" }, marker = "sys_platform == 'linux'" },
+    { name = "numpy", marker = "(sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "pillow", marker = "(sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "torch", version = "2.11.0+rocm7.2", source = { registry = "https://download.pytorch.org/whl/rocm7.2" }, marker = "(sys_platform == 'linux' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu')" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/rocm7.2/torchvision-0.26.0%2Brocm7.2-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:2d766e7b69bfaf2fc29471ed95727fd19fa7aa88124fcf1f1808fd03bf86f226", upload-time = "2026-03-23T15:36:37Z" },
@@ -2302,6 +2670,26 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/21/3b/6c24bec5be5e743ffd99576daa5cc077722fc7d5bbc00bd133fa0c698dc6/tqdm-4.70.0.tar.gz", hash = "sha256:55b0b0dbd97462d06ebee91e4dac24ed4d4702be82b24f07e6c1d27e08cea220", size = 795438, upload-time = "2026-07-27T11:33:15.271Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f9/1c/01bfd571a64e7f270e6bab5e33777debe0edc56759233ce84f27dec92d14/tqdm-4.70.0-py3-none-any.whl", hash = "sha256:7f585706bfddbdebf89daac705b2dfcc16890130727d3197ca62c732b4310953", size = 80184, upload-time = "2026-07-27T11:33:13.167Z" },
+]
+
+[[package]]
+name = "transformers"
+version = "5.14.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "huggingface-hub" },
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "pyyaml" },
+    { name = "regex" },
+    { name = "safetensors" },
+    { name = "tokenizers" },
+    { name = "tqdm" },
+    { name = "typer" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5a/fb/2a2ba88f325e68a921d8b69ff63b477830b2e73ade9a3c8c8cab2f06d741/transformers-5.14.1.tar.gz", hash = "sha256:60d196c27781eacf8637e2b533f517582907ad6f9ae142046d6b69431a5b2173", size = 9295927, upload-time = "2026-07-16T09:41:57.773Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6f/67/8d85ca2323233ae3c0365a659c4e52ee1f587b440e4bc577e7d8e4416d0f/transformers-5.14.1-py3-none-any.whl", hash = "sha256:9db974c4079ede2d1a3ea7ca5a240df33f2cc26fc2b36ba64c5f2a4f43b6e725", size = 11625234, upload-time = "2026-07-16T09:41:54.143Z" },
 ]
 
 [[package]]
@@ -2351,6 +2739,21 @@ wheels = [
     { url = "https://download-r2.pytorch.org/whl/triton_xpu-3.7.0-cp314-cp314-win_amd64.whl", hash = "sha256:c6cc245805e85be3bd0db8672e8f340dac4c5c53cac66d8d6458739c327c91af", upload-time = "2026-05-12T14:54:01Z" },
     { url = "https://download-r2.pytorch.org/whl/triton_xpu-3.7.0-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:72a24f72c6701fe6ae26e65923c8f8e6f9406decf7dfcc8f90762d33ee0bb90c", upload-time = "2026-05-12T14:54:33Z" },
     { url = "https://download-r2.pytorch.org/whl/triton_xpu-3.7.0-cp314-cp314t-win_amd64.whl", hash = "sha256:0c05cbc35e72ee4c96a457185448f0ee5b0bfc29988f42e7166a1e4c58703ed4", upload-time = "2026-05-12T14:54:59Z" },
+]
+
+[[package]]
+name = "typer"
+version = "0.27.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "annotated-doc" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu126') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cpu' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-cu130') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu126' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-rocm') or (extra == 'extra-13-sammie-roto-2-cu130' and extra == 'extra-13-sammie-roto-2-xpu') or (extra == 'extra-13-sammie-roto-2-rocm' and extra == 'extra-13-sammie-roto-2-xpu')" },
+    { name = "rich" },
+    { name = "shellingham" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/03/51/d33db42cc72ffd8c30777547b42d01f0cbf9d95a770457698d0174b3ed71/typer-0.27.3.tar.gz", hash = "sha256:d0396f770a560ab1b0a8504e13b5f254b728cedb05c61cf0359e944e50ce8901", size = 205303, upload-time = "2026-10-06T17:24:16.61Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/07/ea/2e31b67051e91a133189e9c000c222502ddc6969856416de0d095de4c0b0/typer-0.27.3-py3-none-any.whl", hash = "sha256:e50022f28b82a86313e54501317a1db64bf8f8d036ff8cfe5ca7e47675454aff", size = 123312, upload-time = "2026-10-06T17:24:15.054Z" },
 ]
 
 [[package]]

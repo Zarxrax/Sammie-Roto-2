@@ -1,6 +1,6 @@
 [project]
 name = "Sammie-Roto-2"
-version = "2.5.1"
+version = "2.5.2"
 description = "Sammie Roto 2 application"
 requires-python = ">=3.12"
 
@@ -12,6 +12,11 @@ dependencies = [
     "tqdm~=4.70",
     "diffusers~=0.39",
     "einops~=0.8",
+    "huggingface-hub>=0.36,<2",
+    "safetensors>=0.6,<1",
+    "gguf>=0.17,<1",
+    "ltx-core==1.4.2",
+    "ltx-pipelines==1.4.2",
     # macOS gets standard torch and torchvision, 
     # other platforms require extras defined in the optional-dependencies
     "torch==2.11.0 ; sys_platform == 'darwin'",
@@ -50,6 +55,8 @@ conflicts = [
 ]
 
 [tool.uv.sources]
+ltx-core = { path = "matting/ltx_alpha/vendor/ltx-core" }
+ltx-pipelines = { path = "matting/ltx_alpha/vendor/ltx-pipelines" }
 torch = [
   { index = "pytorch-cu130", extra = "cu130" },
   { index = "pytorch-cu126", extra = "cu126" },

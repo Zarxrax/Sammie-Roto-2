@@ -60,8 +60,9 @@ from PySide6.QtWidgets import (
 class DownloadSpec:
     """Describes a single file to download."""
     url: str
-    md5: str
+    md5: str | None
     dest_dir: str
+    gated: bool = False
 
     @property
     def filename(self) -> str:
@@ -160,7 +161,21 @@ class _DownloadWorker(QObject):
         self.all_done.emit()
 
     def _download_one(self, idx: int, spec: DownloadSpec) -> None:
-        self._current_response = self._session.get(spec.url, stream=True, timeout=30)
+        headers = None
+        if spec.gated:
+            try:
+                from huggingface_hub import get_token
+                token = get_token()
+            except ImportError:
+                token = None
+            if not token:
+                raise RuntimeError(
+                    "This gated model requires Hugging Face authentication. "
+                    "Accept the model license, then run `hf auth login`."
+                )
+            headers = {"Authorization": f"Bearer {token}"}
+        self._current_response = self._session.get(
+            spec.url, stream=True, timeout=30, headers=headers)
         response = self._current_response
         response.raise_for_status()
 
@@ -190,8 +205,8 @@ class _DownloadWorker(QObject):
         self._current_response = None
 
         # Verify checksum
-        actual_md5 = _md5(spec.part_path)
-        if actual_md5 != spec.md5:
+        actual_md5 = _md5(spec.part_path) if spec.md5 else None
+        if spec.md5 and actual_md5 != spec.md5:
             spec.part_path.unlink(missing_ok=True)
             raise RuntimeError(
                 f"Checksum mismatch for {spec.filename}.\n"
@@ -431,7 +446,10 @@ def ensure_models(
     registry = get_model_registry()
     # Normalise to a flat list of DownloadSpec
     if isinstance(models, str) and models == "all":
-        specs = list(registry.values())
+        # Gated downloads need engine-specific license and authentication UI.
+        # Download public models during bulk setup and let the owning engine
+        # request gated access when it is first used.
+        specs = [spec for spec in registry.values() if not spec.gated]
     else:
         if not isinstance(models, list):
             models = [models]

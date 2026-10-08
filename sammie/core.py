@@ -90,6 +90,19 @@ def output_ids(folder, frame_index):
     return ids
 
 
+def has_segmentation_masks():
+    """Return whether the current session contains any native segmentation mask."""
+    if not os.path.isdir(mask_dir):
+        return False
+    try:
+        return any(
+            entry.is_file() and entry.name.lower().endswith(".png")
+            for entry in os.scandir(mask_dir)
+        )
+    except OSError:
+        return False
+
+
 def remove_output_objects(folder, frame_index, keep_ids=()):
     for object_id in output_ids(folder, frame_index):
         if object_id not in keep_ids:

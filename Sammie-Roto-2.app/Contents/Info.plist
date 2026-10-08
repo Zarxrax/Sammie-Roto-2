@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Sammie-Roto-2</string>
+    <key>CFBundleIconFile</key>
+    <string>icon.icns</string>
+    <key>CFBundleExecutable</key>
+    <string>launcher</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.zarxrax.sammie-roto-2</string>
+    <key>CFBundleVersion</key>
+    <string>2.5.1</string>
+    <key>CFBundleShortVersionString</key>
+    <string>2.5.1</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+</dict>
+</plist>

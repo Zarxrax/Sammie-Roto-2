@@ -13,6 +13,7 @@
 
 python-3.12.8-embed-amd64/
 temp/
+.tmp/
 sammie_debug.log
 sammie_settings.json
 sammie_settings.conf
@@ -25,6 +26,10 @@ checkpoints/minimax/transformer/diffusion_pytorch_model.safetensors
 checkpoints/minimax/vae/diffusion_pytorch_model.safetensors
 checkpoints/videomama/unet/diffusion_pytorch_model.safetensors
 checkpoints/videomama/vae/diffusion_pytorch_model.fp16.safetensors
+checkpoints/ltx2.5/ltx-2.5-22b-distilled-transformer-bf16.safetensors
+checkpoints/ltx2.5/*.gguf
+checkpoints/ltx2.5/ltx-2.5-video-vae-bf16.safetensors
+checkpoints/ltx2.5/ltx-2.5-22b-ic-lora-alpha-gen-0.9.safetensors
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -27,6 +27,7 @@ class EngineSpec:
     unsupported_device_types: tuple[str, ...] = ()
     order: int = 100
     save_defaults: Callable | None = None
+    requires_segmentation: bool = True
 
 
 def get_engine_specs():

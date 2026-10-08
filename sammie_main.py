@@ -34,6 +34,10 @@ from sammie.export_dialog import ExportDialog
 from sammie.settings_dialog import SettingsDialog
 from sammie.settings_manager import get_settings_manager, initialize_settings, ApplicationSettings
 
+APP_ICON_PATH = Path(__file__).resolve().parent / "sammie" / "resources" / (
+    "icon.ico" if os.name == "nt" else "icon.png"
+)
+
 # Import GUI widgets
 from sammie.gui_widgets import (
     ConsoleRedirect, ColorDisplayWidget, UpdateChecker, ClickableLabel,
@@ -43,7 +47,7 @@ from sammie.gui_widgets import (
 
 # ==================== VERSION ====================
 
-__version__ = "2.5.1"
+__version__ = "2.5.2"
 
 # ==================== LOGGING HELPER ====================
 
@@ -480,7 +484,7 @@ class MattingTab(QWidget):
 
         res_layout = QHBoxLayout()
         self.matany_res_combo = QComboBox()
-        self.matany_res_combo.addItems(["352", "480", "576", "720", "1080", "1440", "2160", "Full"])
+        self.matany_res_combo.addItems(["352", "480", "576", "720", "1080"])
         self.matany_res_combo.setToolTip("If the video short side exceeds this value, it is downsampled before matting.")
         self.matany_res_combo.currentTextChanged.connect(self._save_resolution_setting)
         res_layout.addWidget(QLabel("Internal Resolution:"))
@@ -624,15 +628,21 @@ class MattingTab(QWidget):
         get_settings_manager().set_session_setting("matany_model", spec.id)
         self.instructions_text.setText(spec.instructions_html)
         self.engine_settings_stack.setCurrentIndex(index)
+        self.combined_mask_checkbox.setVisible(spec.requires_segmentation)
+        self.update_segmentation_crop_availability()
+
+    def update_segmentation_crop_availability(self):
+        """Enable engine crop controls only when segmentation masks exist."""
+        available = core.has_segmentation_masks()
+        for index in range(self.engine_settings_stack.count()):
+            widget = self.engine_settings_stack.widget(index)
+            if hasattr(widget, "set_segmentation_available"):
+                widget.set_segmentation_available(available)
 
     def _save_resolution_setting(self, value):
         """Save resolution combo box value to session settings"""
-        if value == "Full":
-            resolution = 0
-        else:
-            resolution = int(value)
         settings_mgr = get_settings_manager()
-        settings_mgr.set_session_setting("matany_res", resolution)
+        settings_mgr.set_session_setting("matany_res", int(value))
         
     def _save_slider_value(self, key, value):
         """Save slider value to session settings"""
@@ -661,12 +671,10 @@ class MattingTab(QWidget):
         # Load resolution
         resolution = settings_mgr.get_session_setting("matany_res", 1080)
 
-        if resolution == 0:
-            self.matany_res_combo.setCurrentText("Full")
-        else:
-            index = self.matany_res_combo.findText(str(resolution))
-            if index >= 0:
-                self.matany_res_combo.setCurrentIndex(index)
+        index = self.matany_res_combo.findText(str(resolution))
+        if index < 0:
+            index = self.matany_res_combo.findText("1080")
+        self.matany_res_combo.setCurrentIndex(index)
 
         # Load combined checkbox
         combined = settings_mgr.get_session_setting("matany_combined", False)
@@ -916,7 +924,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.settings_mgr = initialize_settings()
         self.setWindowTitle(f"Sammie-Roto {__version__}")
-        self.setWindowIcon(QIcon(":/icon.ico"))
+        self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
         self.is_playing = False
         self.play_timer = QTimer(self)
         self.play_timer.timeout.connect(self.play_next_frame)
@@ -1777,6 +1785,8 @@ class MainWindow(QMainWindow):
         elif action == 'replay_complete':
             # Update display after replay is complete
             self._update_current_frame_display()
+        if hasattr(self, 'matting_tab'):
+            self.matting_tab.update_segmentation_crop_availability()
 
     def _update_current_frame_display(self, preview_mask=None):
         """Update the current frame display with masks and points"""
@@ -2241,7 +2251,9 @@ class MainWindow(QMainWindow):
         if engine_spec.save_defaults:
             engine_spec.save_defaults(self.settings_mgr)
 
-        if object_ids:
+        if object_ids or not engine_spec.requires_segmentation:
+            if not engine_spec.requires_segmentation:
+                self.sidebar.segmentation_tab.object_spinbox.setValue(0)
             #load models
             print(f"Loading {matting_model} model...")
             progress = QProgressDialog("Loading...", None, 0, 0, self)
@@ -2336,6 +2348,8 @@ class MainWindow(QMainWindow):
                 self.matany_manager.propagated = False
                 self.removal_manager.propagated = False
             self.update_deduplicate_status()
+        if hasattr(self, 'matting_tab'):
+            self.matting_tab.update_segmentation_crop_availability()
 
     def update_deduplicate_status(self):
         """Update the Deduplicate button text based on deduplication status"""
@@ -3116,7 +3130,7 @@ Examples:
             return
 
     app = QApplication(sys.argv)
-    app.setWindowIcon(QIcon(":/icon.ico"))
+    app.setWindowIcon(QIcon(str(APP_ICON_PATH)))
 
     window = MainWindow(initial_file=file_to_load)
     #window.show() is now called inside __init__

@@ -7,6 +7,11 @@ import os
 import traceback
 from sammie.resources import resources
 
+APP_ICON_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "sammie", "resources",
+    "icon.ico" if os.name == "nt" else "icon.png",
+)
+
 def show_splash(app):
     splash_pix = QPixmap(":/splash.webp")
     splash = QSplashScreen(splash_pix, Qt.SplashScreen)
@@ -126,7 +131,7 @@ if __name__ == "__main__":
         pass
 
     app = QApplication(sys.argv)
-    app.setWindowIcon(QIcon(":/icon.ico"))
+    app.setWindowIcon(QIcon(APP_ICON_PATH))
     
     # Check for single instance
     lock_file, is_first = check_single_instance()
@@ -149,7 +154,7 @@ if __name__ == "__main__":
             window = MainWindow(initial_file=file_to_load)
             window.show()
             splash.finish(window)
-            window.setWindowIcon(QIcon(":/icon.ico"))
+            window.setWindowIcon(QIcon(APP_ICON_PATH))
         except ImportError as e:
             splash.close()
             error_msg = f"Failed to import required modules: {str(e)}"

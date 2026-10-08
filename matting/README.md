@@ -11,7 +11,8 @@ An engine folder supplies:
   `matting.registry`. Each spec has a stable `id`, a UI `label`, a
   `manager_factory`, and `instructions_html`. Optional fields define an
   engine settings widget, unsupported device types, display order, and a
-  callback for saving engine-specific defaults.
+  callback for saving engine-specific defaults. Set `requires_segmentation=False`
+  for full-frame engines that run directly from the source video.
 - A manager derived from `matting.base.MattingManager`, with `BACKEND` equal to
   the spec ID and implementations of `load_matting_model()` and `run_matting()`.
   `run_matting()` returns `1` on success and `0` on cancellation or failure.

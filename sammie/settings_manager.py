@@ -49,6 +49,10 @@ class ApplicationSettings:
     default_videomama_memory_enabled: bool = True
     default_matany_combined: bool = False
     matting_auto_export: bool = False
+    ltx_alpha_transformer_quant: str = "Q4_K_M"
+    default_ltx_alpha_chunk_frames: int = 49
+    default_ltx_alpha_crop_mode: str = "chunk"
+    default_ltx_alpha_seed: int = 1234
 
     # Object Removal Processing defaults
     default_removal_method: str = "MiniMax-Remover"
@@ -125,6 +129,9 @@ class SessionSettings:
     videomama_memory_gib: int = 32
     videomama_memory_enabled: bool = True
     matany_combined: bool = False
+    ltx_alpha_chunk_frames: int = 49
+    ltx_alpha_crop_mode: str = "chunk"
+    ltx_alpha_seed: int = 1234
 
     # Object removal parameters
     removal_method: str = "MiniMax-Remover"
@@ -293,6 +300,9 @@ class SettingsManager:
             videomama_memory_gib=self.app_settings.default_videomama_memory_gib,
             videomama_memory_enabled=self.app_settings.default_videomama_memory_enabled,
             matany_combined=self.app_settings.default_matany_combined,
+            ltx_alpha_chunk_frames=self.app_settings.default_ltx_alpha_chunk_frames,
+            ltx_alpha_crop_mode=self.app_settings.default_ltx_alpha_crop_mode,
+            ltx_alpha_seed=self.app_settings.default_ltx_alpha_seed,
             removal_method=self.app_settings.default_removal_method,
             inpaint_method=self.app_settings.default_inpaint_method,
             inpaint_radius=self.app_settings.default_inpaint_radius,

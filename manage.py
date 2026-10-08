@@ -99,18 +99,24 @@ def get_installed_backend():
 
 # ===== GIT LOGIC =====
 def init_git_tracking():
-    """Initializes git tracking for the install (adds an 'origin' remote
-    pointing at REPO_URL) without fetching or touching any local files.
-    Safe to call any time — does nothing if .git already exists."""
+    """Initialize Git tracking and make the update remote point at this fork.
+
+    Existing installations may still have the original Sammie repository as
+    ``origin``.  Reset the URL before every fetch so "latest version" always
+    means the fork configured by ``REPO_URL``.
+    """
     from dulwich.repo import Repo
-    from dulwich import porcelain
 
-    if os.path.exists(".git"):
-        return
+    if not os.path.exists(".git"):
+        print("[Initializing Git tracking...]")
+        repo = Repo.init(".")
+    else:
+        repo = Repo(".")
 
-    print("[Initializing Git tracking...]")
-    repo = Repo.init(".")
-    porcelain.remote_add(repo, "origin", REPO_URL)
+    config = repo.get_config()
+    config.set((b"remote", b"origin"), b"url", REPO_URL.encode("utf-8"))
+    config.set((b"remote", b"origin"), b"fetch", b"+refs/heads/*:refs/remotes/origin/*")
+    config.write_to_path()
 
 def pull_latest_code(branch):
     """Ensures the local files exactly match the given branch of the repository"""
