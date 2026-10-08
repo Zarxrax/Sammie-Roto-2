@@ -171,6 +171,7 @@ celerybeat.pid
 .env
 .envrc
 .venv
+.uv/
 .runtime_cache/
 env/
 venv/
