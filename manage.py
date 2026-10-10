@@ -519,7 +519,36 @@ def is_app_running():
             return False  # Process doesn't exist — stale lock
         except PermissionError:
             return True   # Process exists but we can't signal it — assume running
+
+def check_unextracted_archive():
+    """Detects if the application is being run directly from inside a temporary or unextracted archive."""
+    app_dir = os.path.abspath(os.path.dirname(__file__))
+    app_dir_lower = app_dir.lower()
+
+    temp_candidates = []
+    for var in ("TEMP", "TMP"):
+        val = os.environ.get(var)
+        if val:
+            temp_candidates.append(os.path.abspath(val).lower())
+
+    is_in_temp = any(app_dir_lower.startswith(t) for t in temp_candidates)
+    has_archive_ext = any(ext in app_dir_lower for ext in [".zip" + os.sep, ".tar" + os.sep, ".7z" + os.sep])
+    has_temp_marker = any(marker in app_dir_lower for marker in ["temp1_", "temp2_", "temp3_", "7zo", "rar$"])
+
+    if has_archive_ext or (is_in_temp and (has_temp_marker or "temp" in app_dir_lower)):
+        print("\n" + "=" * 70)
+        print("ERROR: You appear to be running Sammie-Roto directly from inside a ZIP file!")
+        print()
+        print("Windows and Python cannot install or run properly from a temporary folder.")
+        print("Please extract the downloaded archive first:")
+        print("  1. Right-click the downloaded ZIP file.")
+        print("  2. Select 'Extract All...' and choose a permanent folder.")
+        print("  3. Run install.bat from the extracted folder.")
+        print("=" * 70 + "\n")
+        sys.exit(1)
+
 def main():
+    check_unextracted_archive()
     dev_mode = "--dev" in sys.argv[1:]
 
     # If app is not installed, bypass main menu and proceed to setup
