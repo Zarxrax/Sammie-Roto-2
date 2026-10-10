@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableDelayedExpansion
 
 :: Change directory to the script location
 cd /d "%~dp0"
@@ -79,7 +79,7 @@ if "%BOOTSTRAP_VALID%"=="0" (
 
     :: Clean up any dangling Python junctions (e.g. from a moved or packaged folder)
     if exist "%UV_DIR%\python" (
-        powershell -ExecutionPolicy Bypass -NoProfile -Command "Get-ChildItem -Path '%UV_DIR%\python' -Force -ErrorAction SilentlyContinue | Where-Object { $_.LinkType -eq 'Junction' -and !(Test-Path $_.Target) } | Remove-Item -Force" >nul 2>&1
+        powershell -ExecutionPolicy Bypass -NoProfile -Command "Get-ChildItem -Path '%UV_DIR%\python' -Force -ErrorAction SilentlyContinue | Where-Object { $_.LinkType -eq 'Junction' -and -not (Test-Path $_.Target) } | Remove-Item -Force" >nul 2>&1
     )
 
     echo Setting up installer environment...
@@ -99,14 +99,16 @@ if "%BOOTSTRAP_VALID%"=="0" (
     )
 )
 
-:: Execute the install script
-echo Running installer...
-"%BOOTSTRAP_PY%" manage.py %*
-
-:: Catch error from install script
-set "MANAGE_EXIT=%ERRORLEVEL%"
-if not "%MANAGE_EXIT%"=="0" (
-    echo  Setup did not finish cleanly (exit code %MANAGE_EXIT%^).
+:: Execute the install script in an in-memory block to guard against self-modification.
+:: If manage.py pulls git commits that rewrite install.bat on disk, cmd.exe keeps
+:: executing from the buffered block in memory rather than reading corrupted offsets.
+(
+    echo Running installer...
+    "%BOOTSTRAP_PY%" manage.py %*
+    set "MANAGE_EXIT=!ERRORLEVEL!"
+    if not "!MANAGE_EXIT!"=="0" (
+        echo  Setup did not finish cleanly ^(exit code !MANAGE_EXIT!^).
+    )
+    pause
+    exit /b !MANAGE_EXIT!
 )
-
-pause
