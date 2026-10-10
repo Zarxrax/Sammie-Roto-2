@@ -1,4 +1,4 @@
-import os, sys, subprocess, platform, tomllib, shutil, shlex
+import os, sys, subprocess, platform, tomllib, shutil, shlex, re
 import urllib.request
 
 # ===== CONFIG =====
@@ -155,7 +155,7 @@ def pull_latest_code(branch):
     # re-apply the exec bit and clear quarantine.
     fix_permissions()
 
-# ===== BACKEND SELECTION =====
+# ===== BACKEND SELECTION & HARDWARE DETECTION =====
 BACKEND_OPTIONS = [
     ("cu130", "NVIDIA CUDA 13.0 (RTX, newer GPUs)"),
     ("cu126", "NVIDIA CUDA 12.6 (GTX, older GPUs)"),
@@ -164,20 +164,214 @@ BACKEND_OPTIONS = [
     ("cpu",   "CPU (Slow)"),
 ]
 
-def choose_backend():
-    """Manually prompt the user for their hardware backend."""
+BACKEND_LABELS = {
+    "cu130": "NVIDIA CUDA 13.0 (RTX, newer GPUs)",
+    "cu126": "NVIDIA CUDA 12.6 (GTX, older GPUs)",
+    "xpu":   "Intel Arc/Xe (XPU)",
+    "rocm":  "AMD ROCm",
+    "cpu":   "CPU (Slow)",
+    "macos": "Apple Silicon / macOS Metal (MPS)",
+}
+
+DOC_LINKS = {
+    "cu130": "https://developer.nvidia.com/cuda-gpus",
+    "cu126": "https://developer.nvidia.com/cuda/gpus/legacy",
+    "rocm":  "https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html",
+    "xpu":   "https://pytorch-extension.intel.com/installation?platform=gpu",
+}
+
+def detect_system_gpus() -> list[str]:
+    """Detects installed graphics controllers across Windows, Linux, and macOS."""
+    system = platform.system()
+    gpus: list[str] = []
+
+    if system == "Windows":
+        # Fast path: Windows Registry query (~0.1ms, zero subprocess overhead)
+        try:
+            import winreg
+            class_key_path = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, class_key_path) as key:
+                subkeys, _, _ = winreg.QueryInfoKey(key)
+                for i in range(subkeys):
+                    name = winreg.EnumKey(key, i)
+                    if name.isdigit():
+                        try:
+                            with winreg.OpenKey(key, name) as subkey:
+                                desc, _ = winreg.QueryValueEx(subkey, "DriverDesc")
+                                if desc and not any(skip in desc.lower() for skip in ["remote desktop", "miracast", "basic display"]):
+                                    if desc not in gpus:
+                                        gpus.append(desc)
+                        except OSError:
+                            pass
+        except Exception:
+            pass
+
+        # Fallback path 1: PowerShell Get-CimInstance
+        if not gpus:
+            try:
+                res = subprocess.run(
+                    ["powershell", "-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_VideoController).Name"],
+                    capture_output=True, text=True, timeout=4
+                )
+                for line in res.stdout.splitlines():
+                    line = line.strip()
+                    if line and line not in gpus:
+                        gpus.append(line)
+            except Exception:
+                pass
+
+        # Fallback path 2: nvidia-smi
+        if not gpus:
+            try:
+                res = subprocess.run(
+                    ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                    capture_output=True, text=True, timeout=2
+                )
+                for line in res.stdout.splitlines():
+                    line = line.strip()
+                    if line and line not in gpus:
+                        gpus.append(line)
+            except Exception:
+                pass
+
+    elif system == "Linux":
+        try:
+            res = subprocess.run(["lspci"], capture_output=True, text=True, timeout=3)
+            for line in res.stdout.splitlines():
+                if any(term in line for term in ["VGA compatible controller", "3D controller", "Display controller"]):
+                    desc = line.split(":", 2)[-1].strip()
+                    if desc and desc not in gpus:
+                        gpus.append(desc)
+        except Exception:
+            pass
+
+        if not gpus:
+            try:
+                res = subprocess.run(
+                    ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                    capture_output=True, text=True, timeout=2
+                )
+                for line in res.stdout.splitlines():
+                    line = line.strip()
+                    if line and line not in gpus:
+                        gpus.append(line)
+            except Exception:
+                pass
+
+    elif system == "Darwin":
+        try:
+            res = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True, timeout=2)
+            brand = res.stdout.strip()
+            if brand:
+                gpus.append(brand)
+        except Exception:
+            pass
+
+    return gpus
+
+
+def recommend_backend(gpus: list[str]) -> tuple[str, str, str | None]:
+    """Evaluates detected hardware and returns (backend_code, user_explanation, doc_url)."""
+    system = platform.system()
+
+    if system == "Darwin":
+        chip = gpus[0] if gpus else (platform.processor() or "Apple Mac")
+        if "apple" in chip.lower() or re.search(r"\bm[1-9]\b", chip.lower()):
+            return ("macos", f"Apple Silicon ({chip}) with Metal Performance Shaders (MPS) acceleration.", None)
+        return ("macos", f"Intel Mac ({chip}). Apple Silicon is recommended; will run on CPU.", None)
+
+    if not gpus:
+        return (
+            "cpu",
+            "No dedicated GPU detected. CPU mode is recommended (rotoscoping models will run slowly).",
+            None,
+        )
+
+    # Score each GPU to prioritize dedicated over integrated (e.g., RTX over Intel UHD)
+    candidates: list[tuple[int, str, str, str | None]] = []
+    for gpu in gpus:
+        name_l = gpu.lower()
+
+        # Modern NVIDIA (RTX, GTX 16xx, modern Quadro/Tesla)
+        if any(tag in name_l for tag in ["nvidia", "geforce", "quadro", "tesla", "rtx"]):
+            if re.search(r"\bgtx\s*(10\d\d|[789]\d\d)\b", name_l) or "pascal" in name_l or "maxwell" in name_l:
+                candidates.append((10, "cu126", f"Older NVIDIA GPU detected ({gpu}). CUDA 12.6 is recommended for Pascal/Maxwell architectures.", DOC_LINKS["cu126"]))
+            else:
+                candidates.append((10, "cu130", f"Modern NVIDIA GPU detected ({gpu}). CUDA 13.0 provides optimal performance.", DOC_LINKS["cu130"]))
+
+        # Intel Arc / Xe discrete
+        elif "arc" in name_l:
+            candidates.append((9, "xpu", f"Intel Arc discrete GPU detected ({gpu}). Intel XPU acceleration supported.", DOC_LINKS["xpu"]))
+
+        # AMD Radeon discrete
+        elif "radeon" in name_l or "amd" in name_l:
+            if "graphics" in name_l and not re.search(r"rx\s*\d", name_l):
+                candidates.append((1, "cpu", f"AMD Integrated Graphics detected ({gpu}). ROCm requires a supported dedicated GPU; CPU is recommended.", None))
+            else:
+                candidates.append((8, "rocm", f"AMD Radeon GPU detected ({gpu}). ROCm officially supports RX 7000 & 6000 series.", DOC_LINKS["rocm"]))
+
+        # Intel Integrated (UHD / HD / Iris)
+        elif "intel" in name_l and any(k in name_l for k in ["uhd", "hd graphics", "iris"]):
+            candidates.append((1, "cpu", f"Intel Integrated Graphics detected ({gpu}). XPU acceleration requires an Intel Arc discrete GPU; CPU is recommended.", None))
+
+    if candidates:
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        _, code, msg, url = candidates[0]
+        return (code, msg, url)
+
+    return ("cpu", f"Unrecognized display adapter ({gpus[0]}). CPU is recommended unless you know your hardware supports CUDA, ROCm, or XPU.", None)
+
+
+def choose_backend() -> str:
+    """Displays hardware analysis and prompts the user with a recommended default."""
+    gpus = detect_system_gpus()
+    rec_code, rec_reason, doc_url = recommend_backend(gpus)
+
+    # macOS single-backend path
     if platform.system() == "Darwin":
+        print("\n--- Hardware Detection ---")
+        print(f"  Detected : {gpus[0] if gpus else 'Apple Mac'}")
+        print(f"  Status   : {rec_reason}")
+        print("--------------------------")
         return "macos"
 
-    print("\nSelect PyTorch backend:")
-    for i, (_, label) in enumerate(BACKEND_OPTIONS, 1):
-        print(f"{i}) {label}")
+    # Determine recommended option index (1-based)
+    default_idx = 1
+    for idx, (code, _) in enumerate(BACKEND_OPTIONS, 1):
+        if code == rec_code:
+            default_idx = idx
+            break
 
-    choice = input("> ").strip()
-    try:
-        return BACKEND_OPTIONS[int(choice) - 1][0]
-    except (ValueError, IndexError):
-        return "cpu"
+    print("\n--- Hardware Detection ---")
+    if gpus:
+        if len(gpus) == 1:
+            print(f"  Detected GPU   : {gpus[0]}")
+        else:
+            print(f"  Detected GPUs  : {', '.join(gpus)}")
+    else:
+        print("  Detected GPU   : None detected (or only basic display adapter)")
+    print(f"  Recommendation : {rec_reason}")
+    if doc_url:
+        print(f"  Documentation  : {doc_url}")
+    print("--------------------------")
+
+    print("\nSelect PyTorch backend:")
+    for i, (code, label) in enumerate(BACKEND_OPTIONS, 1):
+        indicator = " [Recommended]" if code == rec_code else ""
+        print(f"  {i}) {label}{indicator}")
+
+    # Input loop with clear re-prompting on invalid input
+    while True:
+        choice = input(f"\nEnter choice (1-{len(BACKEND_OPTIONS)}) [Press Enter for option {default_idx}]: ").strip()
+        if not choice:
+            return BACKEND_OPTIONS[default_idx - 1][0]
+        try:
+            num = int(choice)
+            if 1 <= num <= len(BACKEND_OPTIONS):
+                return BACKEND_OPTIONS[num - 1][0]
+        except ValueError:
+            pass
+        print(f"  [Please enter a number between 1 and {len(BACKEND_OPTIONS)}, or press Enter for option {default_idx}]")
 
 def sync_env(backend, reinstall=False):
     """Uses uv sync to update or reinstall the environment."""
@@ -299,13 +493,10 @@ def setup(branch, reinstall=False):
         download_models_now = model_choice == "2"
 
     # -- Summarise and confirm ----------------------------------------------
-    backend_labels = dict(BACKEND_OPTIONS)
-
     print("\n--- Setup summary ---")
     print(f"  Branch           : {branch}")
     print(f"  Pull latest code : {'Yes' if pull_code else 'No'}")
-    if platform.system() != "Darwin":
-        print(f"  PyTorch backend  : {backend_labels.get(backend, backend)}")
+    print(f"  PyTorch backend  : {BACKEND_LABELS.get(backend, backend)}")
     if not reinstall:
         print(f"  Download models  : {'Download all now (~10GB)' if download_models_now else 'Download as needed'}")
     print("---------------------")
