@@ -63,7 +63,25 @@ if not exist "%UV_EXE%" (
 :: One-time bootstrap venv for running manage.py itself (needs dulwich for git operations).
 set "BOOTSTRAP_DIR=%UV_DIR%\bootstrap"
 set "BOOTSTRAP_PY=%BOOTSTRAP_DIR%\Scripts\python.exe"
-if not exist "%BOOTSTRAP_PY%" (
+
+:: Validate existing bootstrap environment (detects moved directories or broken trampolines)
+set "BOOTSTRAP_VALID=0"
+if exist "%BOOTSTRAP_PY%" (
+    "%BOOTSTRAP_PY%" -c "import dulwich" >nul 2>&1
+    if not errorlevel 1 set "BOOTSTRAP_VALID=1"
+)
+
+if "%BOOTSTRAP_VALID%"=="0" (
+    if exist "%BOOTSTRAP_DIR%" (
+        echo Existing installer environment is invalid or was moved. Recreating...
+        rmdir /s /q "%BOOTSTRAP_DIR%" >nul 2>&1
+    )
+
+    :: Clean up any dangling Python junctions (e.g. from a moved or packaged folder)
+    if exist "%UV_DIR%\python" (
+        powershell -ExecutionPolicy Bypass -NoProfile -Command "Get-ChildItem -Path '%UV_DIR%\python' -Force -ErrorAction SilentlyContinue | Where-Object { $_.LinkType -eq 'Junction' -and !(Test-Path $_.Target) } | Remove-Item -Force" >nul 2>&1
+    )
+
     echo Setting up installer environment...
     "%UV_EXE%" venv --python 3.12 "%BOOTSTRAP_DIR%"
     if errorlevel 1 (

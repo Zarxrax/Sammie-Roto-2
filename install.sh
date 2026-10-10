@@ -55,7 +55,17 @@ fi
 # One-time bootstrap venv for running manage.py itself (needs dulwich for git operations).
 BOOTSTRAP_DIR="$UV_DIR/bootstrap"
 BOOTSTRAP_PY="$BOOTSTRAP_DIR/bin/python"
-if [ ! -f "$BOOTSTRAP_PY" ]; then
+
+BOOTSTRAP_VALID=0
+if [ -f "$BOOTSTRAP_PY" ] && "$BOOTSTRAP_PY" -c "import dulwich" >/dev/null 2>&1; then
+    BOOTSTRAP_VALID=1
+fi
+
+if [ "$BOOTSTRAP_VALID" -eq 0 ]; then
+    if [ -d "$BOOTSTRAP_DIR" ]; then
+        echo "Existing installer environment is invalid or was moved. Recreating..."
+        rm -rf "$BOOTSTRAP_DIR"
+    fi
     echo "Setting up installer environment..."
     "$UV_EXE" venv --python 3.12 "$BOOTSTRAP_DIR"
     if [ $? -ne 0 ]; then
