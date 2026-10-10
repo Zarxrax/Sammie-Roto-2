@@ -5,8 +5,12 @@ setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 
 :: Check if running directly from an unextracted ZIP or temporary directory
-echo "%~dp0" | findstr /I /C:".zip\\" /C:"\AppData\Local\Temp\" /C:"\Temp\Temp" /C:"\Temp\7z" /C:"\Temp\Rar$" >nul
-if not errorlevel 1 (
+set "HERE=%~dp0"
+set "IN_TEMP=0"
+if /i not "!HERE:.zip\=!"=="!HERE!" set "IN_TEMP=1"
+if /i not "!HERE:\AppData\Local\Temp\=!"=="!HERE!" set "IN_TEMP=1"
+if defined TEMP if /i not "!HERE:%TEMP%\=!"=="!HERE!" set "IN_TEMP=1"
+if "!IN_TEMP!"=="1" (
     echo ======================================================================
     echo ERROR: You appear to be running this script directly from inside a ZIP file!
     echo.
@@ -25,6 +29,7 @@ if not errorlevel 1 (
 set "UV_DIR=%~dp0.uv"
 set "UV_EXE=%UV_DIR%\uv.exe"
 set "UV_VERSION=0.12.5"
+if not defined UV_HTTP_TIMEOUT set "UV_HTTP_TIMEOUT=100"
 
 if not exist "%UV_DIR%" mkdir "%UV_DIR%"
 
@@ -60,21 +65,28 @@ if "%FS_SUPPORTS_LINKS%"=="1" (
 
 :: Install uv locally if missing
 if not exist "%UV_EXE%" (
-    echo Downloading uv to isolated folder...
+    echo Downloading uv ^(package manager used for setup^)...
 
-    powershell -ExecutionPolicy Bypass -Command "$env:UV_INSTALL_DIR='%UV_DIR%'; irm https://astral.sh/uv/%UV_VERSION%/install.ps1 | iex"
+    powershell -ExecutionPolicy Bypass -Command "$env:UV_INSTALL_DIR='%UV_DIR%'; irm https://astral.sh/uv/%UV_VERSION%/install.ps1 | iex" > "%UV_DIR%\uv_install.log" 2>&1
 
     if errorlevel 1 (
-        echo Failed to install uv.
+        echo Failed to install uv. Details:
+        type "%UV_DIR%\uv_install.log"
         pause
         exit /b 1
     )
 
     if not exist "%UV_EXE%" (
-        echo uv.exe was not installed.
+        echo uv.exe was not installed. Details:
+        type "%UV_DIR%\uv_install.log"
         pause
         exit /b 1
     )
+
+    del "%UV_DIR%\uv_install.log" >nul 2>&1
+    echo uv downloaded.
+    echo.
+    echo Preparing Python and the installer. Please wait...
 )
 
 :: One-time bootstrap venv for running manage.py itself (needs dulwich for git operations).
@@ -100,7 +112,7 @@ if "%BOOTSTRAP_VALID%"=="0" (
     )
 
     echo Setting up installer environment...
-    "%UV_EXE%" venv --python 3.12 "%BOOTSTRAP_DIR%"
+    "%UV_EXE%" venv --python 3.12 --python-preference only-managed "%BOOTSTRAP_DIR%"
     if errorlevel 1 (
         echo Failed to create installer environment.
         pause

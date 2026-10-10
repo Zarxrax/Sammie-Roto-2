@@ -7,6 +7,7 @@ cd "$SCRIPT_DIR"
 UV_DIR="$SCRIPT_DIR/.uv"
 UV_EXE="$UV_DIR/uv"
 UV_VERSION="0.12.5"
+export UV_HTTP_TIMEOUT="${UV_HTTP_TIMEOUT:-300}"
 
 mkdir -p "$UV_DIR"
 
@@ -37,19 +38,28 @@ fi
 
 # Install uv locally if missing
 if [ ! -f "$UV_EXE" ]; then
-    echo "Downloading uv to isolated folder..."
-    # Use the official shell installer script
-    curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | UV_INSTALL_DIR="$UV_DIR" UV_NO_MODIFY_PATH=1 sh
+    echo "Downloading uv (package manager used for setup)..."
+    UV_LOG="$UV_DIR/uv_install.log"
+
+    curl -LsSf --retry 3 --retry-delay 2 "https://astral.sh/uv/${UV_VERSION}/install.sh" \
+        | UV_INSTALL_DIR="$UV_DIR" UV_NO_MODIFY_PATH=1 sh > "$UV_LOG" 2>&1
 
     if [ $? -ne 0 ]; then
-        echo "Failed to install uv."
+        echo "Failed to install uv. Details:"
+        cat "$UV_LOG"
         exit 1
     fi
 
     if [ ! -f "$UV_EXE" ]; then
-        echo "uv was not installed."
+        echo "uv was not installed. Details:"
+        cat "$UV_LOG"
         exit 1
     fi
+
+    rm -f "$UV_LOG"
+    echo "uv downloaded."
+    echo
+    echo "Preparing Python and the installer. Please wait..."
 fi
 
 # One-time bootstrap venv for running manage.py itself (needs dulwich for git operations).
@@ -67,7 +77,7 @@ if [ "$BOOTSTRAP_VALID" -eq 0 ]; then
         rm -rf "$BOOTSTRAP_DIR"
     fi
     echo "Setting up installer environment..."
-    "$UV_EXE" venv --python 3.12 "$BOOTSTRAP_DIR"
+    "$UV_EXE" venv --python 3.12 --python-preference only-managed "$BOOTSTRAP_DIR"
     if [ $? -ne 0 ]; then
         echo "Failed to create installer environment."
         exit 1
