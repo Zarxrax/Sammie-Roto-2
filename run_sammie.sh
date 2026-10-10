@@ -5,6 +5,33 @@ cd "$(dirname "$0")"
 SCRIPT_DIR="$(pwd)"
 UV_DIR="$SCRIPT_DIR/.uv"
 
+VENV_DIR="$SCRIPT_DIR/.venv"
+VENV_PY="$VENV_DIR/bin/python"
+
+# 1. Check if program is not installed yet
+if [ ! -d "$VENV_DIR" ] || [ ! -f "$UV_DIR/uv" ]; then
+    echo "======================================================================"
+    echo "Sammie-Roto is not installed yet."
+    echo "======================================================================"
+    read -rp "Would you like to run the installer now? (Y/n): " RUN_INSTALL
+    if [[ "$RUN_INSTALL" =~ ^[Nn] ]]; then
+        exit 0
+    fi
+    exec bash ./install.sh "$@"
+fi
+
+# 2. Check if virtual environment is valid
+if [ ! -f "$VENV_PY" ] || ! "$VENV_PY" -c "exit(0)" >/dev/null 2>&1; then
+    echo "======================================================================"
+    echo "The virtual environment appears to be broken or was moved."
+    echo "======================================================================"
+    read -rp "Would you like to run the installer to repair it? (Y/n): " RUN_REPAIR
+    if [[ "$RUN_REPAIR" =~ ^[Nn] ]]; then
+        exit 0
+    fi
+    exec bash ./install.sh "$@"
+fi
+
 export UV_PYTHON_INSTALL_DIR="$UV_DIR/python"
 export UV_CACHE_DIR="$UV_DIR/uv_cache"
 
