@@ -4,6 +4,23 @@ setlocal EnableDelayedExpansion
 :: Change directory to the script location
 cd /d "%~dp0"
 
+:: Check if running directly from an unextracted ZIP or temporary directory
+echo "%~dp0" | findstr /I /C:".zip\\" /C:"\AppData\Local\Temp\" /C:"\Temp\Temp" /C:"\Temp\7z" /C:"\Temp\Rar$" >nul
+if not errorlevel 1 (
+    echo ======================================================================
+    echo ERROR: You appear to be running this script directly from inside a ZIP file!
+    echo.
+    echo Windows cannot install the program properly from a temporary folder.
+    echo Please extract the downloaded ZIP file first:
+    echo   1. Right-click the downloaded ZIP file.
+    echo   2. Select "Extract All..." and extract to a permanent folder.
+    echo   3. Open the extracted folder and run install.bat from there.
+    echo ======================================================================
+    echo.
+    pause
+    exit /b 1
+)
+
 :: Define environment variables
 set "UV_DIR=%~dp0.uv"
 set "UV_EXE=%UV_DIR%\uv.exe"
