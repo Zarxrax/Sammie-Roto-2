@@ -3,8 +3,12 @@ setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 
 :: Check if running directly from an unextracted ZIP or temporary directory
-echo "%~dp0" | findstr /I /C:".zip\\" /C:"\AppData\Local\Temp\" /C:"\Temp\Temp" /C:"\Temp\7z" /C:"\Temp\Rar$" >nul
-if not errorlevel 1 (
+set "HERE=%~dp0"
+set "IN_TEMP=0"
+if /i not "!HERE:.zip\=!"=="!HERE!" set "IN_TEMP=1"
+if /i not "!HERE:\AppData\Local\Temp\=!"=="!HERE!" set "IN_TEMP=1"
+if defined TEMP if /i not "!HERE:%TEMP%\=!"=="!HERE!" set "IN_TEMP=1"
+if "!IN_TEMP!"=="1" (
     echo ======================================================================
     echo ERROR: You appear to be running Sammie-Roto directly from inside a ZIP file!
     echo.
