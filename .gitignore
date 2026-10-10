@@ -1,7 +1,5 @@
 # Sammie-Roto specific files and folders
-.uv/bootstrap/
-.uv/python/
-.uv/uv_cache/
+.uv/
 python-3.12.8-embed-amd64/
 temp/
 sammie_debug.log
@@ -11,9 +9,13 @@ checkpoints/matanyone.pth
 checkpoints/matanyone2.pth
 checkpoints/sam2.1_hiera_base_plus.pt
 checkpoints/sam2.1_hiera_large.pt
+checkpoints/sam2.1_anime_v1.pt
 checkpoints/efficienttam_s_512x512.pt
 checkpoints/minimax/transformer/diffusion_pytorch_model.safetensors
 checkpoints/minimax/vae/diffusion_pytorch_model.safetensors
+checkpoints/propainterx/ProPainter.pth
+checkpoints/propainterx/recurrent_flow_completion.pth
+checkpoints/propainterx/memfof/model.safetensors
 checkpoints/videomama/unet/diffusion_pytorch_model.safetensors
 checkpoints/videomama/vae/diffusion_pytorch_model.fp16.safetensors
 
