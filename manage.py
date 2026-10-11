@@ -519,6 +519,7 @@ def is_app_running():
             return False  # Process doesn't exist — stale lock
         except PermissionError:
             return True   # Process exists but we can't signal it — assume running
+
 def main():
     dev_mode = "--dev" in sys.argv[1:]
 
