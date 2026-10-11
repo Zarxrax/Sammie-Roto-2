@@ -4,6 +4,33 @@ set -o pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Check if running directly from an unextracted archive or temporary directory
+IN_TEMP=0
+case "$SCRIPT_DIR" in
+    *.zip/*|*.tar/*|*.tar.*/*|*.7z/*|*/Temporary\ Items/*) IN_TEMP=1 ;;
+esac
+if [ -n "$TMPDIR" ] && [[ "$SCRIPT_DIR" == "$TMPDIR"* ]]; then
+    case "$SCRIPT_DIR" in
+        *file-roller*|*ark*|*temp1_*|*temp2_*|*temp3_*|*7zo*|*rar*|*zip*) IN_TEMP=1 ;;
+    esac
+fi
+if [[ "$SCRIPT_DIR" == /tmp/file-roller* || "$SCRIPT_DIR" == /tmp/ark* ]]; then
+    IN_TEMP=1
+fi
+if [ "$IN_TEMP" -eq 1 ]; then
+    echo "======================================================================"
+    echo "ERROR: You appear to be running this script directly from inside an archive!"
+    echo
+    echo "The program cannot install properly from a temporary archive folder."
+    echo "Please extract the downloaded archive first to a permanent location."
+    echo "======================================================================"
+    echo
+    if [ -t 0 ]; then
+        read -rp "Press Enter to close..." _
+    fi
+    exit 1
+fi
+
 UV_DIR="$SCRIPT_DIR/.uv"
 UV_EXE="$UV_DIR/uv"
 UV_VERSION="0.12.5"

@@ -24,6 +24,33 @@ notify_error() {
     fi
 }
 
+# Check if running directly from an unextracted archive or temporary directory
+IN_TEMP=0
+case "$SCRIPT_DIR" in
+    *.zip/*|*.tar/*|*.tar.*/*|*.7z/*|*/Temporary\ Items/*) IN_TEMP=1 ;;
+esac
+if [ -n "$TMPDIR" ] && [[ "$SCRIPT_DIR" == "$TMPDIR"* ]]; then
+    case "$SCRIPT_DIR" in
+        *file-roller*|*ark*|*temp1_*|*temp2_*|*temp3_*|*7zo*|*rar*|*zip*) IN_TEMP=1 ;;
+    esac
+fi
+if [[ "$SCRIPT_DIR" == /tmp/file-roller* || "$SCRIPT_DIR" == /tmp/ark* ]]; then
+    IN_TEMP=1
+fi
+if [ "$IN_TEMP" -eq 1 ]; then
+    if [ ! -t 0 ]; then
+        notify_error "You appear to be running Sammie-Roto directly from inside an archive. Please extract the downloaded archive before running."
+    fi
+    echo "======================================================================"
+    echo "ERROR: You appear to be running Sammie-Roto directly from inside an archive!"
+    echo "Please extract the downloaded archive before running the program."
+    echo "======================================================================"
+    if [ -t 0 ]; then
+        read -rp "Press Enter to close..." _
+    fi
+    exit 1
+fi
+
 # 1. Check if program is not installed yet
 if [ ! -d "$VENV_DIR" ] || [ ! -f "$UV_DIR/uv" ]; then
     if [ ! -t 0 ]; then
