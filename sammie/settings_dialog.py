@@ -212,6 +212,14 @@ class SettingsDialog(QDialog):
         
         layout.addWidget(deduplication_group)
 
+        # Updates settings group
+        updates_group = QGroupBox("Updates")
+        updates_layout = QFormLayout(updates_group)
+        self.check_updates_cb = QCheckBox()
+        self.check_updates_cb.setToolTip("Automatically check for new versions of Sammie-Roto when the application starts.")
+        updates_layout.addRow("Check for Updates on Startup:", self.check_updates_cb)
+        layout.addWidget(updates_group)
+
         return tab
     
     def _load_current_values(self):
@@ -242,6 +250,7 @@ class SettingsDialog(QDialog):
         self.display_update_slider.setValue(app_settings.display_update_frequency)
         self.display_update_label.setText(str(app_settings.display_update_frequency))
         self.deduplication_threshold_spin.setValue(app_settings.dedupe_threshold)
+        self.check_updates_cb.setChecked(getattr(app_settings, 'check_for_updates_on_startup', True))
     
     
     def _save_current_values(self):
@@ -269,6 +278,7 @@ class SettingsDialog(QDialog):
         app_settings.frame_format = self.frame_format_combo.currentText()
         app_settings.display_update_frequency = self.display_update_slider.value()
         app_settings.dedupe_threshold = self.deduplication_threshold_spin.value()
+        app_settings.check_for_updates_on_startup = self.check_updates_cb.isChecked()
             
     
     def accept(self):

@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QCheckBox, QLineEdit, QMessageBox, QDialog, QProgressDialog
 )
 from PySide6.QtGui import (
-    QAction, QShortcut, QKeySequence, QTextCursor, QIcon, QPixmap, QFont, QDesktopServices
+    QAction, QShortcut, QKeySequence, QTextCursor, QIcon, QPixmap, QFont, QDesktopServices, QCursor
 )
 from PySide6.QtCore import Qt, QTimer, QUrl
 
@@ -31,14 +31,29 @@ from sammie.settings_manager import get_settings_manager, initialize_settings, A
 
 # Import GUI widgets
 from sammie.gui_widgets import (
-    ConsoleRedirect, ColorDisplayWidget, UpdateChecker, ClickableLabel,
+    ConsoleRedirect, ColorDisplayWidget, ClickableLabel,
     HotkeysHelpDialog, PointTable, ImageViewer, ColorPickerWidget,
     FrameSlider, show_message_dialog
 )
+from sammie.update_checker import UpdateCheckWorker
+from sammie.update_dialog import UpdateBannerWidget, UpdateDialog, launch_updater_and_exit
 
 # ==================== VERSION ====================
 
-__version__ = "2.5.0"
+def get_app_version():
+    """Load the application version dynamically from pyproject.toml."""
+    try:
+        pyproject_path = Path(__file__).resolve().parent / "pyproject.toml"
+        if pyproject_path.exists():
+            import tomllib
+            with open(pyproject_path, "rb") as f:
+                data = tomllib.load(f)
+                return data.get("project", {}).get("version", "2.5.0")
+    except Exception:
+        pass
+    return "2.5.0"
+
+__version__ = get_app_version()
 
 # ==================== LOGGING HELPER ====================
 
@@ -1134,9 +1149,10 @@ class MainWindow(QMainWindow):
         self.point_manager.add_callback(self._on_points_changed)
         self.sam_manager.add_callback(self._on_segmentation_changed)
         
-        # Initialize update checker
-        self.update_checker = UpdateChecker()
-        self.update_checker.update_available.connect(self.on_update_available)
+        # Initialize update checker state
+        self.update_info = None
+        self.bg_update_worker = None
+        self.manual_update_worker = None
         self.update_menu_action = None  # Will store the update menu action when created
         
         # Load session settings
@@ -1148,7 +1164,10 @@ class MainWindow(QMainWindow):
         self._setup_hotkeys()
         self._update_point_editing_state()
         print(f"Sammie-Roto version {__version__}")
-        self.update_checker.check_for_updates(current_version=__version__)
+
+        # Check for updates in background on startup if enabled
+        if getattr(self.settings_mgr.app_settings, 'check_for_updates_on_startup', True):
+            self.start_background_update_check()
 
         # Show the window immediately so it appears before model loading
         self.show()
@@ -1362,6 +1381,7 @@ class MainWindow(QMainWindow):
             ("Help", self.show_help),
             ("Shortcut Keys", self.show_hotkeys_help),
             (None, None),  # Separator
+            ("Check for Updates...", self.manual_check_for_update),
             ("Open Sammie-Roto Folder", self.open_folder),
             (None, None),  # Separator
             ("Changelog", self.show_changelog),
@@ -1432,7 +1452,19 @@ class MainWindow(QMainWindow):
         self.main_splitter.setStretchFactor(0, 1)  # main area
         self.main_splitter.setStretchFactor(1, 0)  # sidebar
         
-        self.setCentralWidget(self.main_splitter)
+        # Banner for update notifications
+        self.update_banner = UpdateBannerWidget(self)
+        self.update_banner.update_clicked.connect(self.show_update_dialog)
+
+        # Container widget with banner at the top and splitter below
+        central_container = QWidget()
+        central_layout = QVBoxLayout(central_container)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.setSpacing(0)
+        central_layout.addWidget(self.update_banner)
+        central_layout.addWidget(self.main_splitter)
+
+        self.setCentralWidget(central_container)
     
     def _create_center_panel(self):
         """Create the center panel with image viewer and controls"""
@@ -3076,96 +3108,88 @@ class MainWindow(QMainWindow):
 
     # ==================== UPDATE CHECKER ====================
     
-    def on_update_available(self, current_version, latest_version):
-        """Handle update available signal from background thread"""
-        # Print to console
-        print(f"🔔 A new version of Sammie-roto is available! ({latest_version}) It can be installed from the File menu.")
-        
-        # Add menu item to file menu if it doesn't already exist
-        if self.update_menu_action is None:
-            # Add separator before update item
-            self.file_menu.addSeparator()
-            
-            # Create update menu action
-            self.update_menu_action = QAction(f"Exit and Update ({latest_version})", self)
-            self.update_menu_action.triggered.connect(
-                lambda: self.run_install_script()
-            )
-            
-            # Find the Exit action and insert before it
-            actions = self.file_menu.actions()
-            exit_action = None
-            
-            # Look for the Exit action
-            for action in actions:
-                if action.text() == "Exit":
-                    exit_action = action
-                    break
-            
-            if exit_action:
-                # Insert separator before Exit if there isn't one already
-                separator_before_exit = False
-                exit_index = actions.index(exit_action)
-                if exit_index > 0 and actions[exit_index - 1].isSeparator():
-                    separator_before_exit = True
-                
-                if not separator_before_exit:
-                    self.file_menu.insertSeparator(exit_action)
-                
-                # Insert update action before Exit
-                self.file_menu.insertAction(exit_action, self.update_menu_action)
+    def start_background_update_check(self):
+        """Start silent background update check on application startup"""
+        self.bg_update_worker = UpdateCheckWorker(current_version=__version__, silent=True)
+        self.bg_update_worker.result.connect(self._process_update_result)
+        self.bg_update_worker.start()
+
+    def manual_check_for_update(self):
+        """Triggered by user from Help menu"""
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        self.update_status_bar("Checking for updates...")
+        self.manual_update_worker = UpdateCheckWorker(current_version=__version__, silent=False)
+        self.manual_update_worker.result.connect(self._process_update_result)
+        self.manual_update_worker.start()
+
+    def _process_update_result(self, payload: dict):
+        """Process result from background or manual update worker"""
+        silent = payload.get("silent", True)
+        if not silent:
+            QApplication.restoreOverrideCursor()
+            self.update_status_bar("Ready")
+
+        update_info = payload.get("data", {})
+        if update_info and update_info.get("update_available"):
+            self.update_info = update_info
+            latest_version = update_info.get("latest_version", "")
+            print(f"🔔 A new version of Sammie-Roto is available! (v{latest_version})")
+
+            # Show the top banner
+            if hasattr(self, 'update_banner'):
+                self.update_banner.show_update(update_info)
+
+            # Add to File menu
+            self._add_update_file_menu_action(latest_version)
+
+            if not silent:
+                self.show_update_dialog(update_info)
+
+        elif not silent:
+            if "error" in update_info and update_info["error"]:
+                QMessageBox.warning(
+                    self, "Update Check Failed",
+                    f"Could not check for updates:\n{update_info['error']}"
+                )
             else:
-                # Fallback: add at the end if Exit not found
-                self.file_menu.addSeparator()
+                QMessageBox.information(
+                    self, "No Updates Found",
+                    f"You are up to date!\n\nCurrent Version: v{__version__}"
+                )
+
+    def _add_update_file_menu_action(self, latest_version: str):
+        """Add or update File menu action"""
+        if self.update_menu_action is None:
+            self.file_menu.addSeparator()
+            self.update_menu_action = QAction(f"Exit and Update (v{latest_version})...", self)
+            self.update_menu_action.triggered.connect(self.show_update_dialog)
+
+            actions = self.file_menu.actions()
+            exit_action = next((a for a in actions if a.text() == "Exit"), None)
+            if exit_action:
+                self.file_menu.insertAction(exit_action, self.update_menu_action)
+                self.file_menu.insertSeparator(exit_action)
+            else:
                 self.file_menu.addAction(self.update_menu_action)
+        else:
+            self.update_menu_action.setText(f"Exit and Update (v{latest_version})...")
+
+    def show_update_dialog(self, update_info=None):
+        """Open the update dialog showing release notes and update trigger"""
+        info = update_info if isinstance(update_info, dict) else self.update_info
+        if not info:
+            self.manual_check_for_update()
+            return
+        dlg = UpdateDialog(self, info)
+        dlg.exec()
+
+    def on_update_available(self, current_version, latest_version):
+        """Backward-compatible handler"""
+        self._add_update_file_menu_action(latest_version)
 
     def run_install_script(self):
         """Launch the platform-appropriate install script and close the application"""
-        script_dir = Path(__file__).resolve().parent
-
-        try:
-            if sys.platform == "win32":
-                install_script = script_dir / "install.bat"
-                if not install_script.exists():
-                    QMessageBox.critical(self, "Update Error", f"Install script not found:\n{install_script}")
-                    return
-                subprocess.Popen(
-                    ["cmd", "/c", "start", "", str(install_script)],
-                    cwd=str(script_dir),
-                    creationflags=subprocess.CREATE_NO_WINDOW,
-                )
-
-            elif sys.platform == "darwin":
-                install_script = script_dir / "install.sh"
-                if not install_script.exists():
-                    QMessageBox.critical(self, "Update Error", f"Install script not found:\n{install_script}")
-                    return
-                install_script.chmod(install_script.stat().st_mode | 0o111)
-                # Launch Terminal.app to run the script directly 
-                subprocess.Popen(["open", "-a", "Terminal", str(install_script)])
-
-            else:
-                install_script = script_dir / "install.sh"
-                if not install_script.exists():
-                    QMessageBox.critical(self, "Update Error", f"Install script not found:\n{install_script}")
-                    return
-                install_script.chmod(install_script.stat().st_mode | 0o111)
-                # No reliable single way to auto-launch a terminal across Linux desktops 
-                # Copy the command to the clipboard and let the user run it themselves.
-                QApplication.clipboard().setText(str(install_script))
-                QMessageBox.information(
-                    self,
-                    "Manual Update Required",
-                    "The install script's path has been copied to your clipboard.\n"
-                    f"Please open a terminal, paste, and press Enter:\n\n{install_script}",
-                )
-
-        except Exception as e:
-            QMessageBox.critical(self, "Update Error", f"Failed to launch install script:\n{e}")
-            return
-
-        # Close the application so the installer can replace files
-        QApplication.quit()
+        launch_updater_and_exit(parent_window=self)
 
     def open_update_url(self, version):
         """Open the GitHub releases page"""
