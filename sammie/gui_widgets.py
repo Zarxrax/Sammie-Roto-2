@@ -4,7 +4,6 @@ GUI utility widgets for Sammie-Roto application.
 This module contains reusable UI components including:
 - ConsoleRedirect: Redirects stdout/stderr to GUI console
 - ColorDisplayWidget: Displays object colors
-- UpdateChecker: Checks for application updates
 - ClickableLabel: QLabel with double-click support
 - HotkeysHelpDialog: Displays keyboard shortcuts
 - PointTable: Table widget for displaying segmentation points
@@ -145,41 +144,6 @@ class ColorPickerWidget(ColorDisplayWidget):
             new_color = (color.red(), color.green(), color.blue())
             self.set_color(new_color)
             self.color_changed.emit(new_color)
-
-# ==================== UPDATE CHECKER ====================
-
-class UpdateChecker(QObject):
-    """Checks for application updates on GitHub in background thread"""
-    update_available = Signal(str, str)  # current_version, latest_version
-    
-    def __init__(self):
-        super().__init__()
-    
-    def check_for_updates(self, repo="Zarxrax/Sammie-Roto-2", timeout=5, current_version=None):
-        """Check for updates in a background thread"""
-        if current_version is None:
-            try:
-                from sammie_main import __version__ as current_version
-            except Exception as e:
-                print(f"Update check skipped: could not determine current version ({e})")
-                return
-        
-        def background_check():
-            try:
-                url = f"https://api.github.com/repos/{repo}/releases/latest"
-                response = requests.get(url, timeout=timeout)
-                response.raise_for_status()
-                latest = response.json().get("tag_name", "").lstrip("v")
-                if not latest:
-                    return  # no usable release tag
-                if version.parse(latest) > version.parse(current_version):
-                    # Emit signal to main thread
-                    self.update_available.emit(current_version, latest)
-            except Exception as e:
-                # Never let a failed update check bother the user
-                print(f"Update check failed: {e}")
-        
-        threading.Thread(target=background_check, daemon=True).start()
 
 
 # ==================== CLICKABLE LABEL ====================

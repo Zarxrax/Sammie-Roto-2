@@ -1,4 +1,4 @@
-import os, sys, subprocess, platform, tomllib, shutil, shlex
+import os, sys, subprocess, platform, tomllib, shutil, shlex, time
 import urllib.request
 
 # ===== CONFIG =====
@@ -79,25 +79,34 @@ def get_remote_version(branch):
         return None
 
 def parse_version(v):
-    """Splits a dotted version string into a tuple of ints,
-    e.g. '1.10.2' -> (1, 10, 2)."""
-    parts = []
-    for segment in v.strip().split("."):
-        digits = ""
-        for ch in segment:
-            if not ch.isdigit():
-                break
-            digits += ch
-        parts.append(int(digits) if digits else 0)
-    return tuple(parts)
+    """Parses a version string using packaging.version if available, else tuple fallback."""
+    v_clean = str(v).strip().lstrip("v")
+    try:
+        from packaging.version import parse
+        return parse(v_clean)
+    except Exception:
+        parts = []
+        for segment in v_clean.split("."):
+            digits = ""
+            for ch in segment:
+                if not ch.isdigit():
+                    break
+                digits += ch
+            parts.append(int(digits) if digits else 0)
+        return tuple(parts)
 
 def is_newer_version(remote_v, local_v):
     """Returns True if remote_v is a newer release than local_v."""
     r, l = parse_version(remote_v), parse_version(local_v)
-    length = max(len(r), len(l))
-    r += (0,) * (length - len(r))
-    l += (0,) * (length - len(l))
-    return r > l
+    try:
+        return r > l
+    except Exception:
+        r_t = tuple(r) if isinstance(r, tuple) else (0,)
+        l_t = tuple(l) if isinstance(l, tuple) else (0,)
+        length = max(len(r_t), len(l_t))
+        r_t += (0,) * (length - len(r_t))
+        l_t += (0,) * (length - len(l_t))
+        return r_t > l_t
 
 def get_installed_backend():
     """Detects which torch extra is currently installed (used for updates)."""
@@ -224,7 +233,7 @@ def perform_update(branch):
     print("\nUpdate complete!")
 
 # ===== CORE ACTIONS =====
-def handle_update(branch):
+def handle_update(branch, auto_yes=False):
     # Read the local version, with recovery if pyproject.toml is missing
     # or unreadable — a likely sign of a failed or partial install.
     try:
@@ -257,9 +266,10 @@ def handle_update(branch):
 
     if is_newer_version(remote_v, local_v):
         print(f"\nUpdate available: {remote_v} (current: {local_v})")
-        if input("Install update now? (Y/n): ").strip().lower() == "n":
-            print("Update skipped.")
-            return
+        if not auto_yes:
+            if input("Install update now? (Y/n): ").strip().lower() == "n":
+                print("Update skipped.")
+                return
         perform_update(branch)
     else:
         print(f"[Already up to date (Version {local_v}).]")
@@ -522,6 +532,8 @@ def is_app_running():
 
 def main():
     dev_mode = "--dev" in sys.argv[1:]
+    update_mode = "--update" in sys.argv[1:] or "-u" in sys.argv[1:]
+    auto_yes = "--yes" in sys.argv[1:] or "-y" in sys.argv[1:] or update_mode
 
     # If app is not installed, bypass main menu and proceed to setup
     if not os.path.exists(".venv"):
@@ -538,6 +550,17 @@ def main():
             branch = "dev" if input("> ").strip() == "2" else DEFAULT_BRANCH
 
         setup(branch)
+        return
+
+    if update_mode:
+        # Give parent GUI process up to 3 seconds to exit and release lock
+        for _ in range(6):
+            if not is_app_running():
+                break
+            time.sleep(0.5)
+
+        branch = "dev" if dev_mode else DEFAULT_BRANCH
+        handle_update(branch, auto_yes=auto_yes)
         return
 
     if is_app_running():

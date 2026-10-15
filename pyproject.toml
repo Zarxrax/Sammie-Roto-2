@@ -14,6 +14,7 @@ dependencies = [
     "diffusers~=0.39",
     "einops~=0.8",
     "accelerate~=1.14",
+    "packaging",
 ]
 
 [project.optional-dependencies]
