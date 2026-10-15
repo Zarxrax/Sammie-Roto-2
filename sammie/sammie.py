@@ -1212,7 +1212,7 @@ def load_image_sequence(image_path, parent_window):
         if source_ext in ['.png', '.jpg', '.jpeg']:
             output_ext = source_ext.lstrip('.')
             frame_filename = os.path.join(core.frames_dir, f"{frame_count:05d}.{output_ext}")
-            shutil.copy2(source_path, frame_filename)
+            shutil.copy(source_path, frame_filename)
         else:
             frame_filename = os.path.join(core.frames_dir, f"{frame_count:05d}.{app_frame_format}")
             cv2.imwrite(frame_filename, image)
