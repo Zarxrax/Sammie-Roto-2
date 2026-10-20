@@ -1,4 +1,4 @@
-import os, sys, subprocess, platform, tomllib, shutil, shlex
+import os, sys, subprocess, platform, tomllib, shutil, shlex, re
 import urllib.request
 
 # ===== CONFIG =====
@@ -110,7 +110,7 @@ def get_installed_backend():
     try:
         result = subprocess.check_output(
             [get_uv_exe(), "pip", "show", "torch", "--python", ".venv"], 
-            text=True, stderr=subprocess.DEVNULL, env=get_uv_env()
+            encoding="utf-8", errors="replace", stderr=subprocess.DEVNULL, env=get_uv_env()
         )
         version_line = next((l for l in result.splitlines() if l.startswith("Version:")), "").lower()
         for backend in ["cu130", "cu126", "rocm", "xpu", "cpu"]:
@@ -164,10 +164,150 @@ BACKEND_OPTIONS = [
     ("cpu",   "CPU (Slow)"),
 ]
 
+# ----- Hardware recommendation (printed above the backend menu) -----
+# Prints nothing when it can't be confident.
+
+# AMD GPUs supported by the ROCm builds on WINDOWS. Matched against the lowercase GPU name.
+# Note: "rx 7700" also matches "RX 7700 XT".
+AMD_SUPPORTED_WINDOWS = [
+    r"\brx\s*9070\b",        # RX 9070, RX 9070 XT
+    r"\brx\s*9060\s*xt\b",   # RX 9060 XT
+    r"\br9700\b",            # Radeon AI PRO R9700
+    r"7900\s*xtx",           # RX 7900 XTX
+    r"\bw7900\b",            # Radeon PRO W7900 (and Dual Slot)
+    r"\brx\s*7700\b",        # RX 7700
+]
+
+# AMD GPUs on AMD's official Linux ROCm 7.2.1 support list for Radeon.
+AMD_SUPPORTED_LINUX = [
+    r"\brx\s*90(70|60)\b",   # RX 9070 / XT / GRE, RX 9060 / XT
+    r"\brx\s*7900\b",        # RX 7900 XTX / XT / GRE
+    r"\brx\s*7[78]00\b",     # RX 7800 XT, RX 7700 / 7700 XT
+    r"\bw7[789]00\b",        # Radeon PRO W7900 / W7800 / W7700
+    r"\br9[67]00",            # Radeon AI PRO R9600 / R9600D / R9700 / R9700S
+]
+
+# nvidia-smi is not always on PATH, so also look in its usual install locations.
+NVIDIA_SMI_FALLBACKS = [
+    r"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe",   # older Windows drivers
+    "/usr/lib/wsl/lib/nvidia-smi",                                  # WSL2
+]
+
+
+def _run(cmd):
+    """Runs a command and returns its stdout, or '' on any failure."""
+    try:
+        return subprocess.check_output(cmd, text=True, errors="replace",
+                                       stderr=subprocess.DEVNULL, timeout=15)
+    except Exception:
+        return ""
+
+
+def nvidia_smi_recommendation():
+    """Step 1: ask the NVIDIA driver (nvidia-smi) for each GPU's compute capability.
+    The newest GPU decides. Returns None if nvidia-smi is missing or can't answer."""
+    smi = shutil.which("nvidia-smi") or next((p for p in NVIDIA_SMI_FALLBACKS if os.path.exists(p)), None)
+    if not smi:
+        return None
+    gpus = []
+    for line in _run([smi, "--query-gpu=name,compute_cap", "--format=csv,noheader"]).splitlines():
+        name, _, cc = line.rpartition(",")
+        try:
+            if name.strip():
+                gpus.append((name.strip(), float(cc)))
+        except ValueError:   # e.g. an error message, or a field an old driver doesn't support
+            pass
+    if not gpus:
+        return None
+    name, cc = max(gpus, key=lambda g: g[1])
+    if cc < 5.0:
+        return f"{name} is too old for the CUDA builds of PyTorch. CPU is recommended."
+    if cc < 7.5:   # Maxwell / Pascal / Volta were dropped in CUDA 13
+        return f"{name} detected. Recommended: NVIDIA CUDA 12.6 (older GPUs)."
+    return f"{name} detected. Recommended: NVIDIA CUDA 13.0."
+
+
+def detect_gpus():
+    """Step 2: list [(name, pci_vendor_id)] from Win32_VideoController (Windows) or lspci (Linux).
+    The vendor ID (10de NVIDIA, 1002 AMD, 8086 Intel) is still known when a card has no driver."""
+    gpus = []
+    if platform.system() == "Windows":
+        out = _run(["powershell", "-NoProfile", "-Command",
+                    "Get-CimInstance Win32_VideoController | "
+                    "ForEach-Object { $_.Name + '|' + $_.PNPDeviceID }"])
+        for line in out.splitlines():
+            name, _, pnp = line.strip().rpartition("|")
+            m = re.search(r"VEN_([0-9A-F]{4})", pnp, re.I)
+            if name:
+                gpus.append((name.strip(), m.group(1).lower() if m else None))
+    elif platform.system() == "Linux":
+        for line in _run(["lspci", "-nn"]).splitlines():
+            if ": " not in line or not re.search(r"VGA|3D controller|Display controller", line):
+                continue
+            desc = line.split(": ", 1)[1]
+            m = re.search(r"\[([0-9a-f]{4}):[0-9a-f]{4}\]", desc)
+            name = re.sub(r"\s*(\[[0-9a-f]{4}:[0-9a-f]{4}\]|\(rev [0-9a-f]+\))", "", desc).strip()
+            gpus.append((name, m.group(1) if m else None))
+    return gpus
+
+
+def nvidia_name_recommendation(names):
+    """Fallback when nvidia-smi can't be used. Goes by the newest recognised GPU name.
+    Returns None unless the choice is certain."""
+    new = [n for n in names if re.search(r"\brtx\b|\bgtx\s*16\d\d(?!\d)", n.lower())]   # Turing or newer
+    if new:
+        return f"{new[0]} detected. Recommended: NVIDIA CUDA 13.0 (based on the GPU name)."
+    # CUDA 12.6 only if every NVIDIA GPU is a recognised Maxwell/Pascal card; an unrecognised
+    # name could be a newer GPU, so stay silent in that case.
+    if all(re.search(r"\bgtx\s*(9\d\d|10\d\d|750)(?!\d)", n.lower()) for n in names):
+        return f"{names[0]} detected. Recommended: NVIDIA CUDA 12.6 (based on the GPU name)."
+    return None
+
+
+def hardware_recommendation():
+    """Returns a recommendation string, or None if it can't be made with confidence."""
+    rec = nvidia_smi_recommendation()
+    if rec:
+        return rec
+    gpus = detect_gpus()
+    if not gpus:
+        return None
+    nvidia = [n for n, v in gpus if v == "10de" or "nvidia" in n.lower()]
+    if nvidia:
+        return nvidia_name_recommendation(nvidia)
+    is_windows = platform.system() == "Windows"
+    amd_list = AMD_SUPPORTED_WINDOWS if is_windows else AMD_SUPPORTED_LINUX
+    for n, _ in gpus:
+        if any(re.search(p, n.lower()) for p in amd_list):
+            return f"{n} detected. Recommended: AMD ROCm."
+    for n, _ in gpus:
+        if re.search(r"\barc\b", n, re.I) and "intel" in n.lower():
+            return f"{n} detected. Recommended: Intel Arc (XPU)."
+    # Stay silent when we can't tell: a card with no driver ("Basic Display Adapter"), or an AMD
+    # GPU on Linux that isn't on the list (lspci names can be missing or outdated for new cards).
+    if any(re.search(r"basic display|standard vga", n, re.I) for n, _ in gpus):
+        return None
+    if not is_windows and any(v == "1002" or re.search(r"amd|radeon", n, re.I) for n, v in gpus):
+        return None
+    return (f"No supported GPU detected ({', '.join(n for n, _ in gpus)}). "
+            "CPU is recommended; processing will be slow.")
+
+
+def print_backend_recommendation():
+    if platform.system() == "Darwin":
+        return
+    rec = hardware_recommendation()
+    if rec:
+        print("\n--- Hardware Detection ---")
+        print(rec)
+        print("--------------------------")
+
 def choose_backend():
     """Manually prompt the user for their hardware backend."""
     if platform.system() == "Darwin":
         return "macos"
+
+    print_backend_recommendation()
 
     print("\nSelect PyTorch backend:")
     for i, (_, label) in enumerate(BACKEND_OPTIONS, 1):
@@ -204,6 +344,38 @@ def create_shortcuts():
     elif system == "Linux":
         create_linux_desktop_entry()
 
+def verify_torch():
+    """Checks that torch and torchvision import and are the same build, and prints the result."""
+    win = platform.system() == "Windows"
+    py = os.path.join(".venv", "Scripts" if win else "bin", "python.exe" if win else "python")
+    probe = (
+        "import torch, torchvision\n"
+        "print(f'torch {torch.__version__}, torchvision {torchvision.__version__}')\n"
+        "tag = lambda v: v.partition('+')[2]\n"   # the +cu130 / +cpu / +rocm... part
+        "raise SystemExit(0 if tag(torch.__version__) == tag(torchvision.__version__) else 3)\n"
+    )
+    print("\n[Verifying PyTorch...]")
+    try:
+        r = subprocess.run([py, "-c", probe], capture_output=True, text=True, errors="replace",
+                           timeout=180, env=get_uv_env())
+    except subprocess.TimeoutExpired:
+        print("[WARNING: The PyTorch check timed out, so PyTorch could not be verified.]")
+        return
+    except Exception as e:
+        print(f"[WARNING: Could not run the PyTorch check ({e}).]")
+        return
+    versions = (r.stdout.strip().splitlines() or [""])[-1]
+    if r.returncode == 0:
+        print(f"[PyTorch OK: {versions}]")
+        return
+    if r.returncode == 3:
+        print(f"[WARNING: torch and torchvision are different builds ({versions}).]")
+    else:
+        print("[WARNING: torch and torchvision failed to load together:]")
+        print("\n".join(r.stderr.strip().splitlines()[-5:]))
+    print("The app will probably not work correctly. Run the installer again and choose")
+    print("Reinstall/Repair. If the problem continues, please report the message above.")
+
 def resolve_backend(context="continue"):
     """Returns the currently installed backend, or prompts the user to pick
     one if it can't be detected (e.g. after a failed/partial install)."""
@@ -221,6 +393,7 @@ def perform_update(branch):
     sync_env(resolve_backend())
     create_shortcuts()
     cleanup_cache()
+    verify_torch()
     print("\nUpdate complete!")
 
 # ===== CORE ACTIONS =====
@@ -237,6 +410,7 @@ def handle_update(branch):
             pull_latest_code(branch)
             sync_env(resolve_backend("continue recovery"))
             cleanup_cache()
+            verify_torch()
             print("[Recovery complete!]")
         else:
             print("[No changes made. Consider using Reinstall/Repair from the main menu.]")
@@ -334,8 +508,9 @@ def setup(branch, reinstall=False):
     # Run the model downloader last so all dependencies are in place.
     if download_models_now:
         print("\nDownloading all models...")
-        run_command([get_uv_exe(), "run", os.path.join("sammie", "model_downloader.py")])
+        run_command([get_uv_exe(), "run", "--no-sync", os.path.join("sammie", "model_downloader.py")])
 
+    verify_torch()
     print("\nSetup Complete!")
 
 
@@ -490,35 +665,61 @@ def create_windows_shortcut():
         print(f"[Warning: Could not create Windows shortcut: {e}]")
 
 # ===== ENTRY =====
+def _lock_path():
+    """Where launcher.py's QLockFile lives: QDir.tempPath() + '/sammie-roto.lock'.
+    Qt uses TMP/TEMP on Windows and $TMPDIR (else /tmp) on Linux/macOS."""
+    if platform.system() == "Windows":
+        base = os.environ.get("TMP") or os.environ.get("TEMP") or os.environ.get("USERPROFILE") or ""
+    else:
+        base = os.environ.get("TMPDIR") or "/tmp"
+    return os.path.join(base, "sammie-roto.lock")
+
+
+def _pid_alive(pid):
+    """True if a process with this PID exists. No subprocess, so no language/encoding problems."""
+    if pid <= 0:
+        return False   # os.kill(0, 0) would signal our whole process group
+    if platform.system() == "Windows":
+        import ctypes
+        from ctypes import wintypes
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        handle = kernel32.OpenProcess(0x1000, False, pid)   # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return ctypes.get_last_error() == 5             # ERROR_ACCESS_DENIED: exists, not ours
+        try:
+            code = wintypes.DWORD()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return True
+            return code.value == 259                        # STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)   # signal 0 only checks existence (never use this on Windows: it kills)
+        return True
+    except ProcessLookupError:
+        return False      # Process doesn't exist -- stale lock
+    except PermissionError:
+        return True       # Process exists but we can't signal it -- assume running
+
+
 def is_app_running():
-    """Checks whether Sammie-Roto is currently running by reading the PID
-    from Qt's lock file and verifying the process is actually alive."""
-    lock_path = os.path.join(
-        os.environ.get("TEMP", os.environ.get("TMP", "")) if platform.system() == "Windows" else "/tmp",
-        "sammie-roto.lock"
-    )
+    """Checks whether Sammie-Roto is currently running by reading the PID from Qt's
+    lock file (written by launcher.py) and verifying that process is actually alive."""
+    lock_path = _lock_path()
     if not os.path.exists(lock_path):
         return False
     try:
-        with open(lock_path, "r") as f:
+        # Qt also writes the process name, host name, etc. on later lines; only line 1 (the PID) matters
+        with open(lock_path, "r", encoding="utf-8", errors="replace") as f:
             pid = int(f.readline().strip())
     except (ValueError, OSError):
-        return False  # Unreadable or malformed — treat as stale
+        return False  # Unreadable or malformed -- treat as stale
+    return _pid_alive(pid)
 
-    if platform.system() == "Windows":
-        result = subprocess.run(
-            ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
-            capture_output=True, text=True
-        )
-        return str(pid) in result.stdout
-    else:
-        try:
-            os.kill(pid, 0)
-            return True
-        except ProcessLookupError:
-            return False  # Process doesn't exist — stale lock
-        except PermissionError:
-            return True   # Process exists but we can't signal it — assume running
 
 def main():
     dev_mode = "--dev" in sys.argv[1:]
@@ -540,7 +741,11 @@ def main():
         setup(branch)
         return
 
-    if is_app_running():
+    try:
+        running = is_app_running()
+    except Exception:
+        running = False   # advisory check only; never block install/repair because of it
+    if running:
         print("\n[Warning: Sammie-Roto-2 appears to be running.]")
         print("[Please close it before continuing to avoid corrupting your installation.]")
         confirm = input("Continue anyway? (y/N): ").strip().lower()
