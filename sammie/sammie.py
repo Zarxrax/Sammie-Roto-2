@@ -1148,6 +1148,76 @@ def get_sequence_start_frame(files):
     return 0
 
 
+# Primaries as (rx, ry, gx, gy, bx, by, wx, wy), used to recognise ACES files
+_ACES_PRIMARIES = {
+    "ACES2065-1": [0.7347, 0.2653, 0.0, 1.0, 0.0001, -0.0770, 0.32168, 0.33767],  # AP0
+    "ACEScg":     [0.713, 0.293, 0.165, 0.830, 0.128, 0.044, 0.32168, 0.33767],   # AP1
+}
+
+# Linear ACES -> linear Rec.709/sRGB (includes D60 -> D65 adaptation)
+_ACES_TO_709 = {
+    "ACES2065-1": np.array([[ 2.52169, -1.13413, -0.38756],
+                            [-0.27648,  1.37272, -0.09624],
+                            [-0.01538, -0.15298,  1.16835]], dtype=np.float32),
+    "ACEScg":     np.array([[ 1.70505, -0.62179, -0.08326],
+                            [-0.13026,  1.14080, -0.01055],
+                            [-0.02400, -0.12897,  1.15297]], dtype=np.float32),
+}
+
+
+def detect_exr_aces(header):
+    """Return 'ACES2065-1', 'ACEScg', or None (treat as plain linear Rec.709)."""
+    try:
+        if header.get("acesImageContainerFlag"):
+            return "ACES2065-1"
+        c = np.array(header.get("chromaticities"), dtype=float).flatten()
+        if c.size == 8:
+            for name, ref in _ACES_PRIMARIES.items():
+                if np.abs(c - ref).max() < 0.01:
+                    return name
+    except Exception:
+        pass  # missing or unexpected header format: assume not ACES
+    return None
+
+
+def read_image(path):
+    """
+    Read an image as 8-bit BGR, like cv2.imread. EXR files are treated as linear
+    and converted to sRGB; ACES files (detected from the header) also get a
+    tone curve. Returns None on failure.
+    """
+    if not path.lower().endswith(".exr"):
+        return cv2.imread(path)
+
+    try:
+        import OpenEXR
+        with OpenEXR.File(path) as f:
+            aces = detect_exr_aces(f.header())
+            ch = f.channels()
+            if "RGB" in ch or "RGBA" in ch:
+                img = np.asarray(ch["RGB" if "RGB" in ch else "RGBA"].pixels, dtype=np.float32)[..., :3]
+            else:
+                # Grayscale or unusual file: use the Y channel, or the first channel
+                key = "Y" if "Y" in ch else next(iter(ch))
+                gray = np.asarray(ch[key].pixels, dtype=np.float32)
+                img = np.stack([gray, gray, gray], axis=-1)
+    except Exception as e:
+        print(f"Could not read EXR {path}: {e}")
+        return None
+
+    img = np.nan_to_num(img)
+    if aces:
+        img = np.clip(img @ _ACES_TO_709[aces].T, 0.0, None)
+        # Narkowicz fit of the ACES filmic curve (approximation of the real view transform)
+        img = (img * (2.51 * img + 0.03)) / (img * (2.43 * img + 0.59) + 0.14)
+
+    # Linear -> sRGB, clipping anything outside 0-1
+    img = np.clip(img, 0.0, 1.0)
+    img = np.where(img <= 0.0031308, img * 12.92, 1.055 * np.power(img, 1 / 2.4) - 0.055)
+    img = (img * 255.0 + 0.5).astype(np.uint8)
+    return img[..., ::-1].copy()  # RGB -> BGR
+
+
 def load_image_sequence(image_path, parent_window):
     """
     Load an image or image sequence. Detects sequences automatically and prompts user.
@@ -1191,7 +1261,7 @@ def load_image_sequence(image_path, parent_window):
     settings_mgr = get_settings_manager()
     app_frame_format = settings_mgr.get_app_setting("frame_format", "png")
 
-    first_image = cv2.imread(files_to_load[0])
+    first_image = read_image(files_to_load[0])
     if first_image is None:
         progress_dialog.close()
         show_message_dialog(parent_window, title="Error",
@@ -1203,7 +1273,7 @@ def load_image_sequence(image_path, parent_window):
     core.VideoInfo.total_frames = len(files_to_load)
 
     for frame_count, source_path in enumerate(files_to_load):
-        image = cv2.imread(source_path)
+        image = read_image(source_path)
         if image is None:
             print(f"Warning: Could not load {source_path}, skipping...")
             continue

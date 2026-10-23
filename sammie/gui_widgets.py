@@ -754,7 +754,7 @@ class ImageViewer(QGraphicsView):
                 # Check if it's a supported file type
                 supported_extensions = [
                     '.mp4', '.m4v', '.mkv', '.mov', '.avi', '.webm',
-                    '.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif', '.webp'
+                    '.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif', '.webp', '.exr'
                 ]
                 if any(file_path.lower().endswith(ext) for ext in supported_extensions):
                     event.acceptProposedAction()

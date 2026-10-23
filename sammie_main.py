@@ -2775,7 +2775,7 @@ class MainWindow(QMainWindow):
             self, 
             "Open File", 
             "", 
-            "*.mp4 *.m4v *.mkv *.mov *.avi *webm *.png *.jpg *.jpeg *.bmp *.tiff *.gif *.webp"
+            "*.mp4 *.m4v *.mkv *.mov *.avi *webm *.png *.jpg *.jpeg *.bmp *.tiff *.gif *.webp *.exr"
         )
         
         if file_name:  # Only proceed if a file was selected
@@ -2798,7 +2798,7 @@ class MainWindow(QMainWindow):
         # Check if file type is supported
         supported_extensions = [
             '.mp4', '.m4v', '.mkv', '.mov', '.avi', '.webm',
-            '.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif', '.webp'
+            '.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif', '.webp', '.exr'
         ]
         
         file_ext = os.path.splitext(file_path)[1].lower()
@@ -2835,7 +2835,7 @@ class MainWindow(QMainWindow):
         file_ext = os.path.splitext(file_path)[1].lower()
         
         try:
-            if file_ext in ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif', '.webp']:
+            if file_ext in ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif', '.webp', '.exr']:
                 framecount = sammie.load_image_sequence(file_path, parent_window=self)
             else:
                 framecount = sammie.load_video(file_path, parent_window=self)
