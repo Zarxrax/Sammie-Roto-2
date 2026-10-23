@@ -287,6 +287,12 @@ class SequenceExportWorker(BaseExportWorker):
             return max(0, int(settings_mgr.get_session_setting("sequence_start_frame", 0) or 0))
         except (TypeError, ValueError):
             return 0
+
+    def _frame_filename(self, frame_num: int, ext: str) -> str:
+        """Numbered filename for sequences; no frame number for a single-frame project"""
+        if self.total_frames < 2:
+            return f"{self.base_filename}.{ext}"
+        return f"{self.base_filename}.{frame_num + self.sequence_offset:04d}.{ext}"
     
     def run(self):
         try:
@@ -328,7 +334,7 @@ class SequenceExportWorker(BaseExportWorker):
             
             self.status_updated.emit(f"Exporting frame {frame_num + 1}/{self.end_frame + 1}...")
             
-            frame_filename = f"{self.base_filename}.{frame_num + self.sequence_offset:04d}.exr"
+            frame_filename = self._frame_filename(frame_num, "exr")
             frame_path = os.path.join(output_dir, frame_filename)
             
             try:
@@ -377,6 +383,10 @@ class SequenceExportWorker(BaseExportWorker):
                         elif original_array.dtype != np.float32:
                             original_array = original_array.astype(np.float32)
                         
+                        # Convert sRGB-encoded values to linear for exr
+                        original_array = np.clip(original_array, 0.0, 1.0)
+                        original_array = np.where(original_array <= 0.04045, original_array / 12.92, ((original_array + 0.055) / 1.055) ** 2.4).astype(np.float32)
+                        
                         # Split RGB channels
                         if len(original_array.shape) == 3 and original_array.shape[2] >= 3:
                             exr_data['R'] = original_array[:, :, 0]
@@ -421,7 +431,7 @@ class SequenceExportWorker(BaseExportWorker):
             
             self.status_updated.emit(f"Exporting frame {frame_num + 1}/{self.end_frame + 1}...")
             
-            frame_filename = f"{self.base_filename}.{frame_num + self.sequence_offset:04d}.png"
+            frame_filename = self._frame_filename(frame_num, "png")
             frame_path = os.path.join(output_dir, frame_filename)
             
             try:
