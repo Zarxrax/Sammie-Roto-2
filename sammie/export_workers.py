@@ -11,7 +11,7 @@ import Imath
 from fractions import Fraction
 from PySide6.QtCore import QThread, Signal
 from sammie import sammie
-from sammie.core import VideoInfo
+from sammie.core import VideoInfo, has_combined_matte
 from sammie.export_formats import ExportSettings, FormatRegistry
 import re
 
@@ -316,6 +316,16 @@ class SequenceExportWorker(BaseExportWorker):
         
         # Get all unique object IDs
         all_object_ids = sorted(set(point['object_id'] for point in self.points))
+
+        # Combined matting saves its matte as object 0, which may not be a point object.
+        # Add it as its own layer so Matting-Matte EXR exports aren't empty.
+        combined_is_extra_layer = False
+        if (self.settings.output_type.startswith('Matting') and all_object_ids
+                and 0 not in all_object_ids
+                and any(has_combined_matte(f) for f in range(self.start_frame, self.end_frame + 1))):
+            all_object_ids = [0] + all_object_ids
+            combined_is_extra_layer = True
+
         if not all_object_ids:
             self.finished.emit(False, "No objects found to export")
             return
@@ -361,7 +371,9 @@ class SequenceExportWorker(BaseExportWorker):
                         
                         # Generate layer name
                         object_name = object_names.get(str(obj_id), "")
-                        if object_name:
+                        if obj_id == 0 and combined_is_extra_layer:
+                            layer_name = 'Combined.Y'
+                        elif object_name:
                             sanitized_name = self._sanitize_name(object_name)
                             layer_name = f'{obj_id}_{sanitized_name}.Y'
                         else:

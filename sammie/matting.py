@@ -165,6 +165,24 @@ class MattingManager(core.CallbackMixin):
         self.propagated = False
         print("Matting data cleared")
 
+    def _remove_stale_combined_matte(self, object_ids, start_frame, end_frame):
+        """
+        Combined runs save their matte as object 0. A non-combined run must not
+        leave one behind, or it shows up as a phantom "Object 0" in the export list
+        and gets unioned over the fresh per-object mattes. Only frames in the range
+        being processed are touched. If object 0 is a real object in this run, its
+        file is simply overwritten, so there is nothing to remove.
+        """
+        if 0 in object_ids:
+            return
+        for frame_number in range(start_frame, end_frame + 1):
+            stale = os.path.join(core.matting_dir, f"{frame_number:05d}", "0.png")
+            if os.path.exists(stale):
+                try:
+                    os.remove(stale)
+                except OSError as e:
+                    print(f"Could not remove stale combined matte {stale}: {e}")
+
     def load_matting_model(self, load_to_cpu=False, parent_window=None):
         raise NotImplementedError("Subclasses must implement load_matting_model()")
 
@@ -255,7 +273,8 @@ class MatAnyManager(MattingManager):
 
         # When combined mode is requested, run a single pass using the union of all
         # object masks loaded in memory — no files are written to disk.
-        if combined and len(object_ids) > 1:
+        use_combined = combined and len(object_ids) > 1
+        if use_combined:
             combine_ids = object_ids
             earliest_keyframe = min(kf[0] for kf in object_keyframes.values())
             object_ids = [0]
@@ -283,8 +302,12 @@ class MatAnyManager(MattingManager):
         # Create matting directory if it doesn't exist
         os.makedirs(core.matting_dir, exist_ok=True)
 
+        # A non-combined run must not leave a stale combined matte (object 0) behind.
+        if not use_combined:
+            self._remove_stale_combined_matte(object_ids, start_frame, end_frame)
+
         # If combined mode is selected, delete any existing matting files except object 0.
-        if combined and os.path.exists(core.matting_dir):
+        if use_combined and os.path.exists(core.matting_dir):
             for frame_dirname in os.listdir(core.matting_dir):
                 frame_dir = os.path.join(core.matting_dir, frame_dirname)
                 if os.path.isdir(frame_dir):
@@ -729,7 +752,8 @@ class VideoMaMaManager(MattingManager):
 
         # When combined mode is requested, run a single pass using the union of all
         # object masks loaded in memory — no files are written to disk.
-        if combined and len(object_ids) > 1:
+        use_combined = combined and len(object_ids) > 1
+        if use_combined:
             combine_ids = object_ids
             object_ids = [0]
         else:
@@ -738,8 +762,12 @@ class VideoMaMaManager(MattingManager):
         # Create matting directory if it doesn't exist
         os.makedirs(core.matting_dir, exist_ok=True)
 
+        # A non-combined run must not leave a stale combined matte (object 0) behind.
+        if not use_combined:
+            self._remove_stale_combined_matte(object_ids, start_frame, end_frame)
+
         # If combined mode is selected, delete any existing matting files except object 0.
-        if combined and os.path.exists(core.matting_dir):
+        if use_combined and os.path.exists(core.matting_dir):
             for frame_dirname in os.listdir(core.matting_dir):
                 frame_dir = os.path.join(core.matting_dir, frame_dirname)
                 if os.path.isdir(frame_dir):
