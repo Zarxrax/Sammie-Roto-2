@@ -93,7 +93,7 @@ class ExportFormat(ABC):
         pass
     
     @abstractmethod
-    def get_codec_options(self, quality: int) -> Dict[str, str]:
+    def get_codec_options(self, quality: int, has_alpha: bool = False) -> Dict[str, str]:
         """Get codec-specific options"""
         pass
     
@@ -157,8 +157,8 @@ class ProResFormat(ExportFormat):
     def get_pixel_format(self, has_alpha: bool) -> str:
         return 'yuva444p10le' if has_alpha else 'yuv422p10le'
     
-    def get_codec_options(self, quality: int) -> Dict[str, str]:
-        return {'profile': '4' if self.supports_alpha else '3'}
+    def get_codec_options(self, quality: int, has_alpha: bool = False) -> Dict[str, str]:
+        return {'profile': '4' if has_alpha else '3'}
 
 
 class FFV1Format(ExportFormat):
@@ -206,7 +206,7 @@ class FFV1Format(ExportFormat):
     def get_pixel_format(self, has_alpha: bool) -> str:
         return 'bgra' if has_alpha else 'bgr0'
     
-    def get_codec_options(self, quality: int) -> Dict[str, str]:
+    def get_codec_options(self, quality: int, has_alpha: bool = False) -> Dict[str, str]:
         return {'level': '3'}
 
 
@@ -255,7 +255,7 @@ class H264Format(ExportFormat):
     def get_pixel_format(self, has_alpha: bool) -> str:
         return 'yuv420p'
     
-    def get_codec_options(self, quality: int) -> Dict[str, str]:
+    def get_codec_options(self, quality: int, has_alpha: bool = False) -> Dict[str, str]:
         return {'crf': str(quality), 'preset': 'medium'}
 
 
@@ -304,7 +304,7 @@ class H265Format(ExportFormat):
     def get_pixel_format(self, has_alpha: bool) -> str:
         return 'yuv420p'
     
-    def get_codec_options(self, quality: int) -> Dict[str, str]:
+    def get_codec_options(self, quality: int, has_alpha: bool = False) -> Dict[str, str]:
         return {'crf': str(quality), 'preset': 'medium'}
 
 
@@ -353,7 +353,7 @@ class VP9Format(ExportFormat):
     def get_pixel_format(self, has_alpha: bool) -> str:
         return 'yuva420p' if has_alpha else 'yuv420p'
     
-    def get_codec_options(self, quality: int) -> Dict[str, str]:
+    def get_codec_options(self, quality: int, has_alpha: bool = False) -> Dict[str, str]:
         return {
             'crf': str(quality),
             'b': '0',
@@ -411,7 +411,7 @@ class EXRSequenceFormat(ExportFormat):
     def get_pixel_format(self, has_alpha: bool) -> str:
         return ''  # Not used for EXR
     
-    def get_codec_options(self, quality: int) -> Dict[str, str]:
+    def get_codec_options(self, quality: int, has_alpha: bool = False) -> Dict[str, str]:
         return {}
 
 
@@ -460,7 +460,7 @@ class PNGSequenceFormat(ExportFormat):
     def get_pixel_format(self, has_alpha: bool) -> str:
         return ''  # Not used for PNG
     
-    def get_codec_options(self, quality: int) -> Dict[str, str]:
+    def get_codec_options(self, quality: int, has_alpha: bool = False) -> Dict[str, str]:
         return {}
 
 

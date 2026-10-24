@@ -16,6 +16,27 @@ from sammie.export_formats import ExportSettings, FormatRegistry
 import re
 
 
+def get_sequence_offset(settings_mgr) -> int:
+    """Start frame of an imported image sequence (0 if none).
+    Added to the internal 0-based frame index when naming exported frames."""
+    if settings_mgr is None:
+        return 0
+    try:
+        return max(0, int(settings_mgr.get_session_setting("sequence_start_frame", 0) or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def sequence_frame_filename(base_filename: str, frame_num: int, ext: str,
+                            total_frames: int, offset: int = 0) -> str:
+    """Filename for one frame of a sequence export.
+    Single-frame projects get no frame number. Used by SequenceExportWorker to write
+    frames and by the export dialog to predict them for the overwrite check"""
+    if total_frames < 2:
+        return f"{base_filename}.{ext}"
+    return f"{base_filename}.{frame_num + offset:04d}.{ext}"
+
+
 class BaseExportWorker(QThread):
     """Base worker thread for exports"""
     
@@ -92,9 +113,11 @@ class VideoExportWorker(BaseExportWorker):
                 self._export_multiple()
             else:
                 self._export_single(self.output_paths[0], self.object_ids[0])
-                if not self.should_cancel:
-                    frame_range_msg = f" (frames {self.start_frame}-{self.end_frame})" if self.settings.use_inout else ""
-                    self.finished.emit(True, f"Video exported successfully{frame_range_msg} to {self.output_paths[0]}")
+                if self.should_cancel:
+                    self._cleanup_files([self.output_paths[0]])
+                    raise InterruptedError("Export was cancelled by user")
+                frame_range_msg = f" (frames {self.start_frame}-{self.end_frame})" if self.settings.use_inout else ""
+                self.finished.emit(True, f"Video exported successfully{frame_range_msg} to {self.output_paths[0]}")
         except InterruptedError as e:
             # User cancelled - emit with cancel message
             self.finished.emit(False, str(e))
@@ -128,11 +151,14 @@ class VideoExportWorker(BaseExportWorker):
                 self._cleanup_files(exported_files)
                 raise e
         
-        if not self.should_cancel:
-            self.status_updated.emit("All exports completed successfully")
-            files_text = "\n".join([os.path.basename(f) for f in exported_files])
-            frame_range_msg = f" (frames {self.start_frame}-{self.end_frame})" if self.settings.use_inout else ""
-            self.finished.emit(True, f"Successfully exported {len(exported_files)} videos{frame_range_msg}:\n{files_text}")
+        if self.should_cancel:
+            self._cleanup_files(exported_files)
+            raise InterruptedError("Export was cancelled by user")
+        
+        self.status_updated.emit("All exports completed successfully")
+        files_text = "\n".join([os.path.basename(f) for f in exported_files])
+        frame_range_msg = f" (frames {self.start_frame}-{self.end_frame})" if self.settings.use_inout else ""
+        self.finished.emit(True, f"Successfully exported {len(exported_files)} videos{frame_range_msg}:\n{files_text}")
     
     def _export_single(self, output_path: str, object_id: int, 
                       progress_offset: int = 0, total_progress_steps: int = None):
@@ -170,10 +196,7 @@ class VideoExportWorker(BaseExportWorker):
         stream.codec_context.color_range     = output_range
 
         # Set codec options
-        codec_options = self.format.get_codec_options(self.settings.quality)
-        if has_alpha and self.format.supports_alpha:
-            if self.format.format_id == 'prores':
-                codec_options['profile'] = '4'
+        codec_options = self.format.get_codec_options(self.settings.quality, has_alpha)
         
         for key, value in codec_options.items():
             stream.options[key] = value
@@ -276,23 +299,13 @@ class SequenceExportWorker(BaseExportWorker):
         self.format = FormatRegistry.get_format(settings.format_id)
         # Added to the internal 0-based frame index when naming files, so exports
         # keep the numbering of an imported sequence that didn't start at 0
-        self.sequence_offset = self._get_sequence_offset()
-    
-    def _get_sequence_offset(self) -> int:
-        """Read the imported sequence's start frame from the session settings (0 if none)"""
-        settings_mgr = getattr(self.parent_window, 'settings_mgr', None)
-        if settings_mgr is None:
-            return 0
-        try:
-            return max(0, int(settings_mgr.get_session_setting("sequence_start_frame", 0) or 0))
-        except (TypeError, ValueError):
-            return 0
+        self.sequence_offset = get_sequence_offset(getattr(self.parent_window, 'settings_mgr', None))
 
     def _frame_filename(self, frame_num: int, ext: str) -> str:
         """Numbered filename for sequences; no frame number for a single-frame project"""
-        if self.total_frames < 2:
-            return f"{self.base_filename}.{ext}"
-        return f"{self.base_filename}.{frame_num + self.sequence_offset:04d}.{ext}"
+        return sequence_frame_filename(
+            self.base_filename, frame_num, ext, self.total_frames, self.sequence_offset
+        )
     
     def run(self):
         try:
@@ -423,10 +436,13 @@ class SequenceExportWorker(BaseExportWorker):
                 self._cleanup_files(exported_files)
                 raise e
         
-        if not self.should_cancel:
-            self.status_updated.emit("EXR sequence export completed")
-            frame_range_msg = f" (frames {self.start_frame}-{self.end_frame})" if self.settings.use_inout else ""
-            self.finished.emit(True, f"Successfully exported {len(exported_files)} EXR frames{frame_range_msg} to {output_dir}")
+        if self.should_cancel:
+            self._cleanup_files(exported_files)
+            raise InterruptedError("Export was cancelled by user")
+        
+        self.status_updated.emit("EXR sequence export completed")
+        frame_range_msg = f" (frames {self.start_frame}-{self.end_frame})" if self.settings.use_inout else ""
+        self.finished.emit(True, f"Successfully exported {len(exported_files)} EXR frames{frame_range_msg} to {output_dir}")
     
     def _export_png_sequence(self):
         """Export PNG frame sequence"""
@@ -462,12 +478,16 @@ class SequenceExportWorker(BaseExportWorker):
                     elif not has_alpha and frame_array.shape[2] == 4:
                         frame_array = frame_array[:, :, :3]
 
-                    # Save PNG with OpenCV
+                    # Save PNG
                     if has_alpha:
                         bgra = cv2.cvtColor(frame_array, cv2.COLOR_RGBA2BGRA)
                     else:
                         bgra = cv2.cvtColor(frame_array, cv2.COLOR_RGB2BGR)
-                    cv2.imwrite(frame_path, bgra, [cv2.IMWRITE_PNG_COMPRESSION, 4])
+                    ok, encoded = cv2.imencode('.png', bgra, [cv2.IMWRITE_PNG_COMPRESSION, 4])
+                    if not ok:
+                        raise RuntimeError(f"Failed to encode PNG for frame {frame_num + 1}")
+                    encoded.tofile(frame_path)
+                    exported_files.append(frame_path)
                 
                 progress = int((i + 1) / self.export_frame_count * 100)
                 self.progress_updated.emit(progress)
@@ -480,10 +500,13 @@ class SequenceExportWorker(BaseExportWorker):
                 self._cleanup_files(exported_files)
                 raise e
         
-        if not self.should_cancel:
-            self.status_updated.emit("PNG sequence export completed")
-            frame_range_msg = f" (frames {self.start_frame}-{self.end_frame})" if self.settings.use_inout else ""
-            self.finished.emit(True, f"Successfully exported {len(exported_files)} PNG frames{frame_range_msg} to {output_dir}")
+        if self.should_cancel:
+            self._cleanup_files(exported_files)
+            raise InterruptedError("Export was cancelled by user")
+        
+        self.status_updated.emit("PNG sequence export completed")
+        frame_range_msg = f" (frames {self.start_frame}-{self.end_frame})" if self.settings.use_inout else ""
+        self.finished.emit(True, f"Successfully exported {len(exported_files)} PNG frames{frame_range_msg} to {output_dir}")
     
     @staticmethod
     def _write_exr_file(filepath: str, data_dict: dict, color_space: int = 1):
