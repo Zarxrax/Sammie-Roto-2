@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QProgressDialog, QApplication, QMessageBox
 from sam2.build_sam import build_sam2_video_predictor
 from sammie import core
 from sammie.smooth import run_smoothing_model, prepare_smoothing_model
-from sammie.duplicate_frame_handler import replace_similar_matte_frames
+from sammie.duplicate_frame_handler import replace_similar_matte_frames, restore_backup_mattes
 from sammie.settings_manager import get_settings_manager
 from sammie.gui_widgets import show_message_dialog
 from sammie.model_downloader import ensure_models
@@ -932,10 +932,13 @@ def apply_postprocessing_to_display(image, frame_number, points, view_options, o
 # .........................................................................................
 
 def deduplicate_masks(parent_window):
-    """Deduplicate similar masks using settings threshold"""
-    settings_mgr = get_settings_manager()
-    threshold = settings_mgr.app_settings.dedupe_threshold
-    return replace_similar_matte_frames(parent_window, threshold)
+    """Deduplicate similar masks. Backs up the originals first."""
+    return replace_similar_matte_frames(parent_window)
+
+
+def undo_deduplicate_masks():
+    """Restore the original masks from the backup."""
+    return restore_backup_mattes(core.mask_dir, core.backup_dir)
 
 
 def remove_backup_mattes():

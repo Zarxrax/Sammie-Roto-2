@@ -254,9 +254,6 @@ class SegmentationTab(QWidget):
             tracking_layout.addWidget(btn)
             setattr(self, attr_name, btn)
         
-        # Put icon on the right side of text
-        self.deduplicate_masks_btn.setLayoutDirection(Qt.RightToLeft)
-
         layout.addWidget(tracking_group)
     
     def _create_parameter_sliders(self, layout):
@@ -373,10 +370,14 @@ class SegmentationTab(QWidget):
             self.deduplicate_masks_btn.setIcon(QIcon())
 
     def update_deduplicate_status_helper(self, deduplicated):
-        """Update the Deduplicate button text based on deduplication status"""
+        """Update the Deduplicate button text/tooltip based on deduplication status"""
         if deduplicated:
-            self.deduplicate_masks_btn.setIcon(QIcon(":/icons/check-small.png"))
+            self.deduplicate_masks_btn.setText(" Undo Deduplication ")
+            self.deduplicate_masks_btn.setToolTip("Restore the original masks from before deduplication")
+            self.deduplicate_masks_btn.setIcon(QIcon())
         else:
+            self.deduplicate_masks_btn.setText(" Deduplicate Similar Masks ")
+            self.deduplicate_masks_btn.setToolTip(self.deduplicate_masks_btn.toolTip())
             self.deduplicate_masks_btn.setIcon(QIcon())
 
     def load_values_from_settings(self):
@@ -1858,7 +1859,7 @@ class MainWindow(QMainWindow):
             self.point_table.add_point(point['frame'], point['object_id'], point['positive'], point['x'], point['y'])
             # Mark tracking as stale (remove checkmarks) but don't clear data
             self.sam_manager.propagated = False
-            self.sam_manager.deduplicated = False
+            self._invalidate_deduplication()
             self.matany_manager.propagated = False
             self.removal_manager.propagated = False
             # No image update here - wait for segmentation to complete
@@ -1872,7 +1873,7 @@ class MainWindow(QMainWindow):
                 self.sam_manager.replay_points(points)
                 # Mark tracking as stale (remove checkmarks) but don't clear data
                 self.sam_manager.propagated = False
-                self.sam_manager.deduplicated = False
+                self._invalidate_deduplication()
                 self.matany_manager.propagated = False
                 self.removal_manager.propagated = False
                 # No image update here - wait for segmentation to complete
@@ -1883,7 +1884,7 @@ class MainWindow(QMainWindow):
             self.sam_manager.replay_points(points)
             # Mark tracking as stale (remove checkmarks) but don't clear data
             self.sam_manager.propagated = False
-            self.sam_manager.deduplicated = False
+            self._invalidate_deduplication()
             self.matany_manager.propagated = False
             self.removal_manager.propagated = False
             # No image update here - wait for segmentation to complete
@@ -1891,7 +1892,7 @@ class MainWindow(QMainWindow):
             
         elif action == 'clear_all':
             self.sam_manager.clear_tracking()
-            self.sam_manager.deduplicated = False
+            self._invalidate_deduplication()
             self.matany_manager.propagated = False
             self.removal_manager.propagated = False
             # Rebuild the entire table and update display
@@ -1903,6 +1904,7 @@ class MainWindow(QMainWindow):
             if object_id is not None:
                 # Call predictor remove_object
                 self.sam_manager.predictor.remove_object(self.sam_manager.inference_state, object_id)
+                self._invalidate_deduplication()
             if len(self.point_manager.points) == 0:
                 # Reset predictor when no points remain
                 self.sam_manager.predictor.reset_state(self.sam_manager.inference_state)
@@ -2067,6 +2069,7 @@ class MainWindow(QMainWindow):
             return
         
         print(f"Replaying {len(self.point_manager.points)} points...")
+        self._invalidate_deduplication()
         self.sam_manager.replay_points(self.point_manager.get_all_points())
         
         # Update display after replay
@@ -2189,14 +2192,12 @@ class MainWindow(QMainWindow):
         self.settings_mgr.save_session_settings()
         count = len(self.point_manager.points)
         if count > 0:
-            self.sam_manager.deduplicated = False
-            self.update_deduplicate_status()
+            self._invalidate_deduplication()  # tracking rewrites the masks
             self.sam_manager.replay_points(self.point_manager.get_all_points())
             if self.sam_manager.track_objects(parent_window=self) == 0: # if cancelled
                 self.sam_manager.replay_points(self.point_manager.get_all_points())
             else: # completed
                 pass
-            sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
             self.update_tracking_status()
             self._update_current_frame_display()
             self.settings_mgr.save_session_settings()
@@ -2210,13 +2211,11 @@ class MainWindow(QMainWindow):
         self.settings_mgr.save_session_settings()
         count = len(self.point_manager.points)
         if count > 0:
-            self.sam_manager.deduplicated = False
-            self.update_deduplicate_status()
+            self._invalidate_deduplication()  # tracking rewrites the masks
             self.sam_manager.replay_points(self.point_manager.get_all_points())
             current_frame = self.frame_slider.value()
             if self.sam_manager.track_forward(parent_window=self, current_frame=current_frame) == 0: # if cancelled
                 self.sam_manager.replay_points(self.point_manager.get_all_points())
-            sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
             self.update_tracking_status()
             self._update_current_frame_display()
             self.settings_mgr.save_session_settings()
@@ -2229,13 +2228,11 @@ class MainWindow(QMainWindow):
         self.settings_mgr.save_session_settings()
         count = len(self.point_manager.points)
         if count > 0:
-            self.sam_manager.deduplicated = False
-            self.update_deduplicate_status()
+            self._invalidate_deduplication()  # tracking rewrites the masks
             self.sam_manager.replay_points(self.point_manager.get_all_points())
             current_frame = self.frame_slider.value()
             if self.sam_manager.track_backward(parent_window=self, current_frame=current_frame) == 0: # if cancelled
                 self.sam_manager.replay_points(self.point_manager.get_all_points())
-            sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
             self.update_tracking_status()
             self._update_current_frame_display()
             self.settings_mgr.save_session_settings()
@@ -2247,11 +2244,9 @@ class MainWindow(QMainWindow):
         """Track objects one frame forward from the current frame"""
         count = len(self.point_manager.points)
         if count > 0:
-            self.sam_manager.deduplicated = False
-            self.update_deduplicate_status()
+            self._invalidate_deduplication()  # tracking rewrites the masks
             current_frame = self.frame_slider.value()
             new_frame = self.sam_manager.track_one_frame_forward(parent_window=self, current_frame=current_frame)
-            sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
             self.update_tracking_status()
             if new_frame != current_frame:
                 self.frame_slider.setValue(new_frame)  # also refreshes the display
@@ -2265,11 +2260,9 @@ class MainWindow(QMainWindow):
         """Track objects one frame backward from the current frame"""
         count = len(self.point_manager.points)
         if count > 0:
-            self.sam_manager.deduplicated = False
-            self.update_deduplicate_status()
+            self._invalidate_deduplication()  # tracking rewrites the masks
             current_frame = self.frame_slider.value()
             new_frame = self.sam_manager.track_one_frame_backward(parent_window=self, current_frame=current_frame)
-            sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
             self.update_tracking_status()
             if new_frame != current_frame:
                 self.frame_slider.setValue(new_frame)  # also refreshes the display
@@ -2283,8 +2276,7 @@ class MainWindow(QMainWindow):
         """Clear tracking data"""
         self.sam_manager.clear_tracking()  # This already handles the clearing both propagated and deduplicated
         self.matany_manager.propagated = False # Clear matting flag
-        self.sam_manager.deduplicated = False # Clear deduplication flag
-        sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
+        self._invalidate_deduplication() # Clear deduplication flag and its backup
         self.update_tracking_status()
         self.update_matting_status()
         self.update_removal_status()
@@ -2310,18 +2302,17 @@ class MainWindow(QMainWindow):
         self._update_current_frame_display()
 
     def deduplicate_similar_masks(self):
-        """Deduplicate similar masks"""
-        #print("Running deduplication...")
-        if not self.sam_manager.deduplicated:
-            sammie.remove_backup_mattes() # If the deduplicated flag is not present, remove any existing mattes backup folder so it doesnt get restored
-        self.sam_manager.deduplicated = sammie.deduplicate_masks(parent_window=self)
-        
-        # Update display after deduping finished
+        """Toggle: deduplicate similar masks, or undo it if already deduplicated"""
+        if self.sam_manager.deduplicated:
+            sammie.undo_deduplicate_masks()  # restore the originals from the backup
+            self._invalidate_deduplication()  # flag off, backup deleted, button reset
+        else:
+            self._invalidate_deduplication()  # make sure no stale backup exists
+            if sammie.deduplicate_masks(parent_window=self):
+                self.sam_manager.deduplicated = True
+                self.update_deduplicate_status()
+
         self._update_current_frame_display()
-        
-        # Update the button status
-        if hasattr(self, 'segmentation_tab'):
-            self.update_deduplicate_status()
         self.settings_mgr.save_session_settings()
 
     def run_matting(self):
@@ -2454,9 +2445,17 @@ class MainWindow(QMainWindow):
             self.segmentation_tab.update_tracking_status_helper(self.sam_manager.propagated)
             # Clear deduplication, matting, and dedupe status when tracking is cleared
             if not self.sam_manager.propagated:
-                self.sam_manager.deduplicated = False
+                self._invalidate_deduplication()
                 self.matany_manager.propagated = False
                 self.removal_manager.propagated = False
+            self.update_deduplicate_status()
+
+    def _invalidate_deduplication(self):
+        """The original masks are changing (or gone): the deduplicated flag and its
+        backup are no longer valid. Clear both so a stale backup can never be restored."""
+        self.sam_manager.deduplicated = False
+        sammie.remove_backup_mattes()
+        if hasattr(self, 'segmentation_tab'):
             self.update_deduplicate_status()
 
     def update_deduplicate_status(self):
@@ -2815,6 +2814,7 @@ class MainWindow(QMainWindow):
         # Clear all points and propagation data
         self.point_manager.clear_all()
         self.sam_manager.propagated = False
+        self._invalidate_deduplication()
         self.matany_manager.propagated = False
 
         # Create new session

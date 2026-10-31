@@ -63,9 +63,6 @@ class ApplicationSettings:
     frame_format: str = "png"
     display_update_frequency: int = 5
     
-    # Deduplication
-    dedupe_threshold: float = 0.8
-    
     # Export dialog defaults
     export_codec: str = "prores"
     export_output_type: str = "Matte" 
