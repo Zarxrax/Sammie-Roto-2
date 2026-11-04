@@ -14,7 +14,7 @@ from PySide6.QtCore import Qt
 from sammie.core import VideoInfo
 from sammie.gui_widgets import show_message_dialog
 from sammie.export_formats import FormatRegistry, ExportSettings
-from sammie.export_workers import VideoExportWorker, SequenceExportWorker
+from sammie.export_workers import VideoExportWorker, SequenceExportWorker, get_sequence_offset, sequence_frame_filename
 
 
 class ExportPathManager:
@@ -643,31 +643,26 @@ class ExportDialog(QDialog):
             start_frame = 0
             end_frame = total_frames - 1
         
-        # Check first few frames
-        for frame_num in range(start_frame, min(start_frame + 5, end_frame + 1)):
-            if self.current_format.format_id == 'exr':
-                frame_file = f"{base_path}.{frame_num:04d}.exr"
-            else:  # PNG
-                frame_file = f"{base_path}.{frame_num:04d}.png"
-            
-            if os.path.exists(frame_file):
-                existing_files.append(os.path.basename(frame_file))
+        # Check every frame in the range, named exactly as the worker will name them
+        # (including the imported sequence's start-frame offset and single-frame naming)
+        settings_mgr = getattr(self.parent_window, 'settings_mgr', None)
+        offset = get_sequence_offset(settings_mgr)
+        ext = self.current_format.file_extension.rsplit('.', 1)[-1]
+        base_filename = os.path.basename(base_path)
+        for frame_num in range(start_frame, end_frame + 1):
+            frame_name = sequence_frame_filename(base_filename, frame_num, ext, total_frames, offset)
+            if os.path.exists(os.path.join(settings.output_dir, frame_name)):
+                existing_files.append(frame_name)
         
         return existing_files
     
     def _confirm_overwrite_sequence(self, existing_files: list, settings: ExportSettings) -> bool:
         """Confirm overwriting sequence files"""
-        files_text = "\n".join(existing_files)
-        
-        # Calculate total frames
-        total_frames = VideoInfo.total_frames
-        if settings.use_inout and settings.in_point is not None and settings.out_point is not None:
-            frame_count = settings.out_point - settings.in_point + 1
-        else:
-            frame_count = total_frames
-        
-        if len(existing_files) == 5 and frame_count > 5:
-            files_text += f"\n... (and possibly {frame_count - 5} more)"
+        # The check now scans the whole range, so the list is exact; just show the first few
+        shown = existing_files[:5]
+        files_text = "\n".join(shown)
+        if len(existing_files) > len(shown):
+            files_text += f"\n... and {len(existing_files) - len(shown)} more files"
         
         reply = QMessageBox.question(
             self, "Files Exist",
@@ -734,8 +729,11 @@ class ExportDialog(QDialog):
         self.export_btn.setEnabled(True)
         
         # Show completion message
+        cancelled = bool(self.export_worker and self.export_worker.should_cancel)
         if success:
             show_message_dialog(self, title="Export Complete", message=message, type="info")
+        elif cancelled:
+            show_message_dialog(self, title="Export Cancelled", message=message, type="info")
         else:
             show_message_dialog(self, title="Export Failed", message=message, type="critical")
         
