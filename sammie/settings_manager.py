@@ -60,6 +60,7 @@ class ApplicationSettings:
     
     # Updates
     check_for_updates_on_startup: bool = True
+    ignored_update_version: str = ""  # the banner stays hidden for this version
 
     # Performance
     force_cpu: bool = False    
