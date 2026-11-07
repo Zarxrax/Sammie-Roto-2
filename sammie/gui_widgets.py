@@ -4,7 +4,9 @@ GUI utility widgets for Sammie-Roto application.
 This module contains reusable UI components including:
 - ConsoleRedirect: Redirects stdout/stderr to GUI console
 - ColorDisplayWidget: Displays object colors
-- UpdateChecker: Checks for application updates
+- UpdateChecker: Checks GitHub for newer releases
+- UpdateBanner: Colored bar shown above the main window when an update exists
+- UpdateDialog: Shows the release notes for all missed versions
 - ClickableLabel: QLabel with double-click support
 - HotkeysHelpDialog: Displays keyboard shortcuts
 - PointTable: Table widget for displaying segmentation points
@@ -13,8 +15,10 @@ This module contains reusable UI components including:
 """
 
 import os
+import re
 import shutil
 import threading
+import webbrowser
 import requests
 from packaging import version
 from datetime import datetime
@@ -23,7 +27,7 @@ from PySide6.QtWidgets import (
     QHeaderView, QPushButton, QWidget, QHBoxLayout, QVBoxLayout,
     QDialog, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
     QColorDialog, QSlider, QStyleOptionSlider, QStyle, QMessageBox,
-    QApplication, QLineEdit
+    QApplication, QLineEdit, QFrame, QTextBrowser
 )
 from PySide6.QtGui import (
     QPixmap, QMouseEvent, QWheelEvent, QPainter, QColor, QIcon,
@@ -148,38 +152,172 @@ class ColorPickerWidget(ColorDisplayWidget):
 
 # ==================== UPDATE CHECKER ====================
 
+def _clean_release_notes(text):
+    """Remove HTML comments and images (the notes viewer can't load them) and tidy blank lines."""
+    text = (text or "").replace("\r\n", "\n")
+    text = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
+    text = re.sub(r"<img[^>]*>", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", text)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
 class UpdateChecker(QObject):
-    """Checks for application updates on GitHub in background thread"""
-    update_available = Signal(str, str)  # current_version, latest_version
-    
-    def __init__(self):
-        super().__init__()
-    
-    def check_for_updates(self, repo="Zarxrax/Sammie-Roto-2", timeout=5, current_version=None):
-        """Check for updates in a background thread"""
-        if current_version is None:
-            try:
-                from sammie_main import __version__ as current_version
-            except Exception as e:
-                print(f"Update check skipped: could not determine current version ({e})")
-                return
-        
-        def background_check():
-            try:
-                url = f"https://api.github.com/repos/{repo}/releases/latest"
-                response = requests.get(url, timeout=timeout)
-                response.raise_for_status()
-                latest = response.json().get("tag_name", "").lstrip("v")
-                if not latest:
-                    return  # no usable release tag
-                if version.parse(latest) > version.parse(current_version):
-                    # Emit signal to main thread
-                    self.update_available.emit(current_version, latest)
-            except Exception as e:
-                # Never let a failed update check bother the user
-                print(f"Update check failed: {e}")
-        
-        threading.Thread(target=background_check, daemon=True).start()
+    """Checks GitHub for newer releases in a background thread.
+
+    Emits `checked(info, silent)` when finished. `info` always has an
+    "update_available" key. When it is True, `info` also has "current_version",
+    "latest_version", "notes" (release notes of every newer release, newest
+    first) and "url". If the check failed, `info` has an "error" message instead.
+    """
+    checked = Signal(object, bool)  # info dict, silent
+
+    def check_for_updates(self, current_version, silent=True, repo="Zarxrax/Sammie-Roto-2", timeout=5):
+        def worker():
+            self.checked.emit(self._fetch(current_version, repo, timeout), silent)
+        threading.Thread(target=worker, daemon=True).start()
+
+    @staticmethod
+    def _fetch(current_version, repo, timeout):
+        try:
+            response = requests.get(
+                f"https://api.github.com/repos/{repo}/releases",
+                headers={"Accept": "application/vnd.github+json"},
+                timeout=timeout,
+            )
+            response.raise_for_status()
+            current = version.parse(str(current_version).lstrip("v"))
+
+            # Every published (not draft, not pre-release) release newer than the one installed
+            newer = []
+            for release in response.json():
+                if release.get("draft") or release.get("prerelease"):
+                    continue
+                try:
+                    release_version = version.parse(release.get("tag_name", "").lstrip("v"))
+                except version.InvalidVersion:
+                    continue
+                if release_version > current:
+                    newer.append((release_version, release))
+
+            if not newer:
+                return {"update_available": False}
+
+            newer.sort(key=lambda item: item[0], reverse=True)
+            sections = []
+            for _, release in newer:
+                tag = release["tag_name"].lstrip("v")
+                notes = _clean_release_notes(release.get("body")) or "No release notes."
+                sections.append(f"## Version {tag}\n\n{notes}")
+
+            return {
+                "update_available": True,
+                "current_version": str(current_version),
+                "latest_version": newer[0][1]["tag_name"].lstrip("v"),
+                "notes": "\n\n---\n\n".join(sections),
+                "url": f"https://github.com/{repo}/releases",
+            }
+        except Exception as e:
+            return {"update_available": False, "error": str(e)}
+
+
+class UpdateBanner(QFrame):
+    """Colored bar shown at the top of the main window when an update is available."""
+    details_requested = Signal()
+    ignore_requested = Signal()
+
+    # Fixed colors so the banner stands out in both light and dark themes
+    STYLE = """
+        QFrame#updateBanner { background-color: #0b5cad; }
+        QFrame#updateBanner QLabel { color: white; font-weight: bold; }
+        QFrame#updateBanner QPushButton {
+            color: white; border: 1px solid white; border-radius: 3px; padding: 3px 12px;
+        }
+        QFrame#updateBanner QPushButton:hover { background-color: #1a74d1; }
+        QFrame#updateBanner QPushButton#dismissButton { border: none; font-size: 16px; padding: 0px 8px; }
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("updateBanner")
+        self.setStyleSheet(self.STYLE)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 5, 6, 5)
+
+        self.label = QLabel()
+        layout.addWidget(self.label, 1)
+
+        details_button = QPushButton("View changes and update")
+        details_button.setCursor(QCursor(Qt.PointingHandCursor))
+        details_button.clicked.connect(self.details_requested)
+        layout.addWidget(details_button)
+
+        ignore_button = QPushButton("Ignore this update")
+        ignore_button.setToolTip("Hide this banner until an even newer version is released")
+        ignore_button.setCursor(QCursor(Qt.PointingHandCursor))
+        ignore_button.clicked.connect(self.ignore_requested)
+        ignore_button.clicked.connect(self.hide)
+        layout.addWidget(ignore_button)
+
+        dismiss_button = QPushButton("\u00d7")
+        dismiss_button.setObjectName("dismissButton")
+        dismiss_button.setToolTip("Dismiss until the next time Sammie-Roto starts")
+        dismiss_button.setCursor(QCursor(Qt.PointingHandCursor))
+        dismiss_button.clicked.connect(self.hide)
+        layout.addWidget(dismiss_button)
+
+        self.hide()
+
+    def show_update(self, latest_version):
+        self.label.setText(f"Sammie-Roto {latest_version} is available.")
+        self.show()
+
+
+class UpdateDialog(QDialog):
+    """Shows the release notes of every version the user has missed.
+
+    exec() returns QDialog.Accepted only if the user clicked "Exit and Update".
+    """
+
+    def __init__(self, parent, info):
+        super().__init__(parent)
+        self.url = info["url"]
+        self.setWindowTitle("Update Available")
+        self.resize(640, 560)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(
+            f"<b>Sammie-Roto {info['latest_version']}</b> is available. "
+            f"You are using {info['current_version']}."
+        ))
+
+        notes = QTextBrowser()
+        notes.setOpenExternalLinks(True)
+        notes.setMarkdown(info["notes"])
+        layout.addWidget(notes, 1)
+
+        explanation = QLabel(
+            "Sammie-Roto will save your session and close, then the updater "
+            "will open in a separate window."
+        )
+        explanation.setWordWrap(True)
+        layout.addWidget(explanation)
+
+        buttons = QHBoxLayout()
+        update_button = QPushButton("Exit and Update")
+        update_button.setDefault(True)
+        update_button.clicked.connect(self.accept)
+        buttons.addWidget(update_button)
+
+        github_button = QPushButton("View on GitHub")
+        github_button.clicked.connect(lambda: webbrowser.open(self.url))
+        buttons.addWidget(github_button)
+
+        buttons.addStretch()
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(self.reject)
+        buttons.addWidget(close_button)
+        layout.addLayout(buttons)
 
 
 # ==================== CLICKABLE LABEL ====================

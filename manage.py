@@ -1,4 +1,4 @@
-import os, sys, subprocess, platform, tomllib, shutil, shlex, re
+import os, sys, subprocess, platform, tomllib, shutil, shlex, re, time
 import urllib.request
 
 # ===== CONFIG =====
@@ -397,7 +397,7 @@ def perform_update(branch):
     print("\nUpdate complete!")
 
 # ===== CORE ACTIONS =====
-def handle_update(branch):
+def handle_update(branch, confirm=True):
     # Read the local version, with recovery if pyproject.toml is missing
     # or unreadable — a likely sign of a failed or partial install.
     try:
@@ -431,7 +431,7 @@ def handle_update(branch):
 
     if is_newer_version(remote_v, local_v):
         print(f"\nUpdate available: {remote_v} (current: {local_v})")
-        if input("Install update now? (Y/n): ").strip().lower() == "n":
+        if confirm and input("Install update now? (Y/n): ").strip().lower() == "n":
             print("Update skipped.")
             return
         perform_update(branch)
@@ -723,6 +723,9 @@ def is_app_running():
 
 def main():
     dev_mode = "--dev" in sys.argv[1:]
+    # --update is passed by the GUI's "Exit and Update" button. The user already
+    # confirmed there, so skip the menu and the prompt and go straight to the update.
+    update_mode = "--update" in sys.argv[1:]
 
     # If app is not installed, bypass main menu and proceed to setup
     if not os.path.exists(".venv"):
@@ -741,6 +744,21 @@ def main():
         setup(branch)
         return
 
+    if update_mode:
+        # The GUI starts this script just before it exits; give it a few seconds
+        # to finish saving and release its lock file.
+        for _ in range(20):
+            try:
+                if not is_app_running():
+                    break
+            except Exception:
+                break
+            time.sleep(0.5)
+        # The lock is released slightly before the process finishes exiting,
+        # so give it another moment to let go of its files.
+        time.sleep(1)
+
+
     try:
         running = is_app_running()
     except Exception:
@@ -751,6 +769,10 @@ def main():
         confirm = input("Continue anyway? (y/N): ").strip().lower()
         if confirm != "y":
             sys.exit(0)
+
+    if update_mode:
+        handle_update(DEFAULT_BRANCH, confirm=False)
+        return
 
     print("\nSammie-Roto-2 Manager")
 

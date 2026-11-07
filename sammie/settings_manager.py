@@ -58,6 +58,10 @@ class ApplicationSettings:
     # Playback
     playback_fps: int = 24  # frames per second for playback
     
+    # Updates
+    check_for_updates_on_startup: bool = True
+    ignored_update_version: str = ""  # the banner stays hidden for this version
+
     # Performance
     force_cpu: bool = False    
     frame_format: str = "png"
