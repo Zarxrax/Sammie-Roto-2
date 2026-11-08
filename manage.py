@@ -51,6 +51,21 @@ def cleanup_cache():
     run_command([get_uv_exe(), "cache", "prune"])
 
 # ===== UTILS =====
+def ask(prompt, default="", valid=None):
+    """input() that re-prompts until the answer is one of `valid` (if given).
+    Pressing Enter returns `default`. Answers are stripped and lowercased."""
+    while True:
+        answer = input(prompt).strip().lower() or default
+        if valid is None or answer in valid:
+            return answer
+        print(f"Please enter one of: {', '.join(valid)}")
+
+def ask_yes_no(prompt, default):
+    """Yes/no question. Accepts y/yes/n/no; Enter returns `default` (True/False)."""
+    hint = "Y/n" if default else "y/N"
+    answer = ask(f"{prompt} ({hint}): ", "y" if default else "n", ["y", "yes", "n", "no"])
+    return answer in ("y", "yes")
+
 def run_command(cmd):
     """Wrapper to handle uv commands."""
     print(">", " ".join(cmd))
@@ -160,9 +175,10 @@ BACKEND_OPTIONS = [
     ("cu130", "NVIDIA CUDA 13.0 (RTX, newer GPUs)"),
     ("cu126", "NVIDIA CUDA 12.6 (GTX, older GPUs)"),
     ("xpu",   "Intel Arc/Xe (XPU)"),
-    ("rocm",  "AMD ROCm"),
+    ("rocm",  "AMD ROCm (9070, 9060, 7900, 7700)"),
     ("cpu",   "CPU (Slow)"),
 ]
+BACKEND_LABELS = dict(BACKEND_OPTIONS)   # key -> label, used by the menu and the setup summary
 
 # ----- Hardware recommendation (printed above the backend menu) -----
 # Prints nothing when it can't be confident.
@@ -205,7 +221,8 @@ def _run(cmd):
 
 def nvidia_smi_recommendation():
     """Step 1: ask the NVIDIA driver (nvidia-smi) for each GPU's compute capability.
-    The newest GPU decides. Returns None if nvidia-smi is missing or can't answer."""
+    The newest GPU decides. Returns (backend_key, message), or None if nvidia-smi
+    is missing or can't answer."""
     smi = shutil.which("nvidia-smi") or next((p for p in NVIDIA_SMI_FALLBACKS if os.path.exists(p)), None)
     if not smi:
         return None
@@ -221,10 +238,10 @@ def nvidia_smi_recommendation():
         return None
     name, cc = max(gpus, key=lambda g: g[1])
     if cc < 5.0:
-        return f"{name} is too old for the CUDA builds of PyTorch. CPU is recommended."
+        return "cpu", f"{name} is too old for the CUDA builds of PyTorch. CPU is recommended."
     if cc < 7.5:   # Maxwell / Pascal / Volta were dropped in CUDA 13
-        return f"{name} detected. Recommended: NVIDIA CUDA 12.6 (older GPUs)."
-    return f"{name} detected. Recommended: NVIDIA CUDA 13.0."
+        return "cu126", f"{name} detected. Recommended: NVIDIA CUDA 12.6 (older GPUs)."
+    return "cu130", f"{name} detected. Recommended: NVIDIA CUDA 13.0."
 
 
 def detect_gpus():
@@ -253,71 +270,71 @@ def detect_gpus():
 
 def nvidia_name_recommendation(names):
     """Fallback when nvidia-smi can't be used. Goes by the newest recognised GPU name.
-    Returns None unless the choice is certain."""
+    Returns (backend_key, message), or None unless the choice is certain."""
     new = [n for n in names if re.search(r"\brtx\b|\bgtx\s*16\d\d(?!\d)", n.lower())]   # Turing or newer
     if new:
-        return f"{new[0]} detected. Recommended: NVIDIA CUDA 13.0 (based on the GPU name)."
+        return "cu130", f"{new[0]} detected. Recommended: NVIDIA CUDA 13.0 (based on the GPU name)."
     # CUDA 12.6 only if every NVIDIA GPU is a recognised Maxwell/Pascal card; an unrecognised
     # name could be a newer GPU, so stay silent in that case.
     if all(re.search(r"\bgtx\s*(9\d\d|10\d\d|750)(?!\d)", n.lower()) for n in names):
-        return f"{names[0]} detected. Recommended: NVIDIA CUDA 12.6 (based on the GPU name)."
+        return "cu126", f"{names[0]} detected. Recommended: NVIDIA CUDA 12.6 (based on the GPU name)."
     return None
 
 
 def hardware_recommendation():
-    """Returns a recommendation string, or None if it can't be made with confidence."""
+    """Returns (backend_key, message), or (None, None) if it can't be made with confidence."""
     rec = nvidia_smi_recommendation()
     if rec:
         return rec
     gpus = detect_gpus()
     if not gpus:
-        return None
+        return None, None
     nvidia = [n for n, v in gpus if v == "10de" or "nvidia" in n.lower()]
     if nvidia:
-        return nvidia_name_recommendation(nvidia)
+        return nvidia_name_recommendation(nvidia) or (None, None)
     is_windows = platform.system() == "Windows"
     amd_list = AMD_SUPPORTED_WINDOWS if is_windows else AMD_SUPPORTED_LINUX
     for n, _ in gpus:
         if any(re.search(p, n.lower()) for p in amd_list):
-            return f"{n} detected. Recommended: AMD ROCm."
+            return "rocm", f"{n} detected. Recommended: AMD ROCm."
     for n, _ in gpus:
         if re.search(r"\barc\b", n, re.I) and "intel" in n.lower():
-            return f"{n} detected. Recommended: Intel Arc (XPU)."
+            return "xpu", f"{n} detected. Recommended: Intel Arc (XPU)."
     # Stay silent when we can't tell: a card with no driver ("Basic Display Adapter"), or an AMD
     # GPU on Linux that isn't on the list (lspci names can be missing or outdated for new cards).
     if any(re.search(r"basic display|standard vga", n, re.I) for n, _ in gpus):
-        return None
+        return None, None
     if not is_windows and any(v == "1002" or re.search(r"amd|radeon", n, re.I) for n, v in gpus):
-        return None
-    return (f"No supported GPU detected ({', '.join(n for n, _ in gpus)}). "
-            "CPU is recommended; processing will be slow.")
+        return None, None
+    return "cpu", (f"No supported GPU detected ({', '.join(n for n, _ in gpus)}). "
+                   "CPU is recommended; processing will be slow.")
 
 
-def print_backend_recommendation():
-    if platform.system() == "Darwin":
-        return
-    rec = hardware_recommendation()
-    if rec:
-        print("\n--- Hardware Detection ---")
-        print(rec)
-        print("--------------------------")
-
-def choose_backend():
-    """Manually prompt the user for their hardware backend."""
+def choose_backend(installed=None):
+    """Prompts for the hardware backend. Pressing Enter accepts the detected recommendation.
+    `installed` is the currently installed backend (if known); it is shown so a reinstall
+    can be used to correct an earlier wrong choice."""
     if platform.system() == "Darwin":
         return "macos"
 
-    print_backend_recommendation()
+    rec_key, rec_text = hardware_recommendation()
+    if rec_text:
+        print("\n--- Hardware Detection ---")
+        print(rec_text)
+        print("--------------------------")
+    if installed:
+        print(f"Currently installed: {BACKEND_LABELS.get(installed, installed)}")
 
+    keys = [key for key, _ in BACKEND_OPTIONS]
     print("\nSelect PyTorch backend:")
-    for i, (_, label) in enumerate(BACKEND_OPTIONS, 1):
-        print(f"{i}) {label}")
+    for i, (key, label) in enumerate(BACKEND_OPTIONS, 1):
+        print(f"{i}) {label}" + ("  <- recommended" if key == rec_key else ""))
 
-    choice = input("> ").strip()
-    try:
-        return BACKEND_OPTIONS[int(choice) - 1][0]
-    except (ValueError, IndexError):
-        return "cpu"
+    # With no confident recommendation there is no default, so Enter just re-prompts.
+    default = str(keys.index(rec_key) + 1) if rec_key in keys else ""
+    prompt = f"> [{default}] " if default else "> "
+    choice = ask(prompt, default, [str(i) for i in range(1, len(keys) + 1)])
+    return keys[int(choice) - 1]
 
 def sync_env(backend, reinstall=False):
     """Uses uv sync to update or reinstall the environment."""
@@ -344,13 +361,18 @@ def create_shortcuts():
     elif system == "Linux":
         create_linux_desktop_entry()
 
-def verify_torch():
-    """Checks that torch and torchvision import and are the same build, and prints the result."""
+def verify_torch(backend=None):
+    """Checks that torch and torchvision import and are the same build, and prints the result.
+    If a GPU backend was installed, also reports whether GPU acceleration is available."""
     win = platform.system() == "Windows"
     py = os.path.join(".venv", "Scripts" if win else "bin", "python.exe" if win else "python")
     probe = (
         "import torch, torchvision\n"
         "print(f'torch {torch.__version__}, torchvision {torchvision.__version__}')\n"
+        # ROCm reports through the CUDA API; Intel uses XPU; Apple uses MPS.
+        "gpu = torch.cuda.is_available() or torch.backends.mps.is_available()\n"
+        "gpu = gpu or (hasattr(torch, 'xpu') and torch.xpu.is_available())\n"
+        "print('gpu=1' if gpu else 'gpu=0')\n"
         "tag = lambda v: v.partition('+')[2]\n"   # the +cu130 / +cpu / +rocm... part
         "raise SystemExit(0 if tag(torch.__version__) == tag(torchvision.__version__) else 3)\n"
     )
@@ -364,9 +386,17 @@ def verify_torch():
     except Exception as e:
         print(f"[WARNING: Could not run the PyTorch check ({e}).]")
         return
-    versions = (r.stdout.strip().splitlines() or [""])[-1]
+    out = r.stdout.splitlines()
+    versions = next((l for l in out if l.startswith("torch ")), "")
     if r.returncode == 0:
         print(f"[PyTorch OK: {versions}]")
+        if backend and backend != "cpu":
+            if "gpu=1" in out:
+                print("[GPU acceleration: available]")
+            else:
+                print("[WARNING: GPU acceleration is NOT available, so the app will run on the CPU (slow).]")
+                print("Make sure your graphics drivers are up to date. If the problem continues, run the")
+                print("installer again, choose Reinstall/Repair, and try a different backend.")
         return
     if r.returncode == 3:
         print(f"[WARNING: torch and torchvision are different builds ({versions}).]")
@@ -376,24 +406,25 @@ def verify_torch():
     print("The app will probably not work correctly. Run the installer again and choose")
     print("Reinstall/Repair. If the problem continues, please report the message above.")
 
-def resolve_backend(context="continue"):
+def resolve_backend():
     """Returns the currently installed backend, or prompts the user to pick
     one if it can't be detected (e.g. after a failed/partial install)."""
     backend = get_installed_backend()
     if not backend:
         if platform.system() != "Darwin":
-            print(f"[Could not determine your previously installed backend — please reselect it to {context}.]")
+            print("[Could not determine your previously installed backend — please reselect it to continue.]")
         backend = choose_backend()
     return backend
 
 def perform_update(branch):
     """Pulls the given branch, resyncs the environment, and refreshes
-    shortcuts. Shared by both update paths in handle_update()."""
+    shortcuts. Shared by every update/recovery path in handle_update()."""
     pull_latest_code(branch)
-    sync_env(resolve_backend())
+    backend = resolve_backend()
+    sync_env(backend)
     create_shortcuts()
     cleanup_cache()
-    verify_torch()
+    verify_torch(backend)
     print("\nUpdate complete!")
 
 # ===== CORE ACTIONS =====
@@ -405,13 +436,8 @@ def handle_update(branch, confirm=True):
     except Exception as e:
         print(f"[Could not read local version: {e}]")
         print("[pyproject.toml may be missing or corrupt — this can happen after a failed install.]")
-        recover = input("Pull latest code from GitHub to recover? (Y/n): ").strip().lower()
-        if recover != "n":
-            pull_latest_code(branch)
-            sync_env(resolve_backend("continue recovery"))
-            cleanup_cache()
-            verify_torch()
-            print("[Recovery complete!]")
+        if ask_yes_no("Download the latest program files to recover?", default=True):
+            perform_update(branch)
         else:
             print("[No changes made. Consider using Reinstall/Repair from the main menu.]")
         return
@@ -431,7 +457,7 @@ def handle_update(branch, confirm=True):
 
     if is_newer_version(remote_v, local_v):
         print(f"\nUpdate available: {remote_v} (current: {local_v})")
-        if confirm and input("Install update now? (Y/n): ").strip().lower() == "n":
+        if confirm and not ask_yes_no("Install update now?", default=True):
             print("Update skipped.")
             return
         perform_update(branch)
@@ -446,22 +472,17 @@ def setup(branch, reinstall=False):
 
     # -- Gather all choices upfront ----------------------------------------
 
-    # 1. Backend selection (with re-prompt on invalid input)
-    backend = choose_backend()
+    # 1. Backend selection. On reinstall, the current backend is shown so
+    #    a wrong earlier choice can be corrected.
+    backend = choose_backend(get_installed_backend() if reinstall else None)
 
-    # 2. Pull latest code?
+    # 2. Restore program files from GitHub -- reinstall/repair only
+    pull_code = False
     if reinstall:
-        prompt = (
-            "\nAlso pull the latest code from GitHub? This will overwrite "
-            "any local changes to program files. (y/N): "
+        pull_code = ask_yes_no(
+            "\nDownload the latest program files to restore any damaged or out of date files?",
+            default=False,
         )
-        pull_code = input(prompt).strip().lower() == "y"
-    else:
-        prompt = (
-            "\nAlso pull the latest code from GitHub? Only needed if you think "
-            "the downloaded files are out of date. (y/N): "
-        )
-        pull_code = input(prompt).strip().lower() == "y"
 
     # 3. Model download -- fresh install only
     download_models_now = False
@@ -469,23 +490,21 @@ def setup(branch, reinstall=False):
         print("\nModel download:")
         print("1) Download models as needed (default -- models download the first time they are used)")
         print("2) Download all models now (~10GB)")
-        model_choice = input("> ").strip()
-        download_models_now = model_choice == "2"
+        download_models_now = ask("> [1] ", "1", ["1", "2"]) == "2"
 
     # -- Summarise and confirm ----------------------------------------------
-    backend_labels = dict(BACKEND_OPTIONS)
-
     print("\n--- Setup summary ---")
-    print(f"  Branch           : {branch}")
-    print(f"  Pull latest code : {'Yes' if pull_code else 'No'}")
+    if branch != DEFAULT_BRANCH:
+        print(f"  Branch           : {branch}")
     if platform.system() != "Darwin":
-        print(f"  PyTorch backend  : {backend_labels.get(backend, backend)}")
+        print(f"  PyTorch backend  : {BACKEND_LABELS.get(backend, backend)}")
+    if reinstall:
+        print(f"  Restore files    : {'Yes' if pull_code else 'No'}")
     if not reinstall:
         print(f"  Download models  : {'Download all now (~10GB)' if download_models_now else 'Download as needed'}")
     print("---------------------")
 
-    confirm = input("\nProceed with setup? (Y/n): ").strip().lower()
-    if confirm == "n":
+    if not ask_yes_no("\nProceed with setup?", default=True):
         print("Setup cancelled.")
         sys.exit(0)
 
@@ -510,7 +529,7 @@ def setup(branch, reinstall=False):
         print("\nDownloading all models...")
         run_command([get_uv_exe(), "run", "--no-sync", os.path.join("sammie", "model_downloader.py")])
 
-    verify_torch()
+    verify_torch(backend)
     print("\nSetup Complete!")
 
 
@@ -739,7 +758,7 @@ def main():
             print("\nInstall from:")
             print("1) Main (stable)")
             print("2) Dev (latest, may be unstable)")
-            branch = "dev" if input("> ").strip() == "2" else DEFAULT_BRANCH
+            branch = "dev" if ask("> [1] ", "1", ["1", "2"]) == "2" else DEFAULT_BRANCH
 
         setup(branch)
         return
@@ -766,8 +785,7 @@ def main():
     if running:
         print("\n[Warning: Sammie-Roto-2 appears to be running.]")
         print("[Please close it before continuing to avoid corrupting your installation.]")
-        confirm = input("Continue anyway? (y/N): ").strip().lower()
-        if confirm != "y":
+        if not ask_yes_no("Continue anyway?", default=False):
             sys.exit(0)
 
     if update_mode:
@@ -779,21 +797,15 @@ def main():
     actions = [("Check for Updates", lambda: handle_update(DEFAULT_BRANCH))]
     if dev_mode:
         actions.append(("Pull Latest Dev Commits", lambda: handle_update("dev")))
-    actions.append(("Reinstall/Repair", lambda: setup(DEFAULT_BRANCH, reinstall=True)))
+    actions.append(("Reinstall/Repair (fix problems, or change the backend)",
+                    lambda: setup(DEFAULT_BRANCH, reinstall=True)))
     actions.append(("Exit", lambda: sys.exit(0)))
 
     for i, (label, _) in enumerate(actions, 1):
         print(f"{i}) {label}")
 
-    choice = input("> ").strip()
-    try:
-        index = int(choice) - 1
-        if 0 <= index < len(actions):
-            actions[index][1]()
-        else:
-            sys.exit(0)
-    except ValueError:
-        sys.exit(0)
+    choice = ask("> ", valid=[str(i) for i in range(1, len(actions) + 1)])
+    actions[int(choice) - 1][1]()
 
 if __name__ == "__main__":
     main()
