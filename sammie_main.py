@@ -69,6 +69,19 @@ def log_exception(exc_type, exc_value, exc_traceback):
         except:
             pass
 
+# ==================== ICON HELPER ====================
+def get_icon():
+    base_dir = Path(__file__).resolve().parent
+    """Set the application and window icon based on the platform."""
+    if sys.platform == "win32":
+        icon_path = base_dir / "resources" / "icon.ico"
+    elif sys.platform == "darwin":
+        icon_path = base_dir / "resources" / "icon.icns"
+    else:
+        icon_path = base_dir / "resources" / "icon.png"
+
+    icon = QIcon(str(icon_path))
+    return icon
 
 # ==================== TAB WIDGETS ====================
 
@@ -1120,7 +1133,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.settings_mgr = initialize_settings()
         self.setWindowTitle(f"Sammie-Roto {__version__}")
-        self.setWindowIcon(QIcon(":/icon.ico"))
+        self.setWindowIcon(get_icon())
         self.is_playing = False
         self.play_timer = QTimer(self)
         self.play_timer.timeout.connect(self.play_next_frame)
@@ -1601,6 +1614,7 @@ class MainWindow(QMainWindow):
         icon_next_keyframe = QIcon(":/icons/key-arrow-right.png")
         icon_marker_in = QIcon(":/icons/marker-in.png")
         icon_marker_out = QIcon(":/icons/marker-out.png")
+        icon_marker_clear = QIcon(":/icons/marker-clear.png")
 
         # Playback buttons
         button_configs = [
@@ -1628,7 +1642,8 @@ class MainWindow(QMainWindow):
         # In/Out marker buttons
         marker_button_configs = [
             (icon_marker_in, self.set_in_marker, "Set In Point"),
-            (icon_marker_out, self.set_out_marker, "Set Out Point")
+            (icon_marker_out, self.set_out_marker, "Set Out Point"),
+            (icon_marker_clear, self.clear_markers, "Clear In/Out Points")
         ]
         
         for icon, handler, tooltip in marker_button_configs:
@@ -3242,7 +3257,6 @@ class MainWindow(QMainWindow):
         msg.setStandardButtons(QMessageBox.Ok)
         msg.exec()
 
-
 # ==================== APPLICATION ENTRY POINT ====================
 
 def main():
@@ -3279,7 +3293,7 @@ Examples:
             return
 
     app = QApplication(sys.argv)
-    app.setWindowIcon(QIcon(":/icon.ico"))
+    app.setWindowIcon(get_icon())
 
     window = MainWindow(initial_file=file_to_load)
     #window.show() is now called inside __init__
