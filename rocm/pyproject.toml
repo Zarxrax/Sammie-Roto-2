@@ -1,0 +1,363 @@
+# GENERATED FILE - DO NOT EDIT BY HAND.
+# Regenerate with:  uv run --no-project rocm/generate_rocm_project.py   (from the repository root, using the uv in .uv)
+# Base dependencies are copied from ../pyproject.toml; the GPU list is ROCM_GPUS in ../manage.py.
+# AMD index: https://stable.repo.amd.com/rocm/whl-next/
+# torch 2.13.0, torchvision 0.28.0
+#
+# Skipped targets are not installable on both Windows and Linux at these versions.
+# Skipped: none
+
+[project]
+name = "Sammie-Roto-2"
+version = "0.0.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "opencv-python~=4.14",
+    "PySide6-essentials==6.9.3",
+    "av~=18.1",
+    "requests~=2.34",
+    "tqdm~=4.70",
+    "OpenEXR~=3.4",
+    "diffusers~=0.39",
+    "einops~=0.8",
+    "accelerate~=1.14",
+]
+
+[project.optional-dependencies]
+rocm-gfx1010 = [
+    "amd-torch-device-gfx1010==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1010==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1010==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+rocm-gfx1011 = [
+    "amd-torch-device-gfx1011==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1011==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1011==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+rocm-gfx1012 = [
+    "amd-torch-device-gfx1012==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1012==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1012==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+rocm-gfx1030 = [
+    "amd-torch-device-gfx1030==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1030==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1030==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+rocm-gfx1031 = [
+    "amd-torch-device-gfx1031==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1031==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1031==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+rocm-gfx1032 = [
+    "amd-torch-device-gfx1032==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1032==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1032==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+rocm-gfx1033 = [
+    "amd-torch-device-gfx1033==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1033==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1033==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+rocm-gfx1034 = [
+    "amd-torch-device-gfx1034==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1034==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1034==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+rocm-gfx1035 = [
+    "amd-torch-device-gfx1035==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1035==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1035==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+rocm-gfx1036 = [
+    "amd-torch-device-gfx1036==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1036==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1036==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+rocm-gfx1100 = [
+    "amd-torch-device-gfx1100==2.13.0+rocm10.1.0",
+    "amd-torch-device-gfx110x==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1100==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1100==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+rocm-gfx1101 = [
+    "amd-torch-device-gfx1101==2.13.0+rocm10.1.0",
+    "amd-torch-device-gfx110x==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1101==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1101==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+rocm-gfx1102 = [
+    "amd-torch-device-gfx1102==2.13.0+rocm10.1.0",
+    "amd-torch-device-gfx110x==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1102==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1102==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+rocm-gfx1103 = [
+    "amd-torch-device-gfx1103==2.13.0+rocm10.1.0",
+    "amd-torch-device-gfx110x==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1103==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1103==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+rocm-gfx1150 = [
+    "amd-torch-device-gfx1150==2.13.0+rocm10.1.0",
+    "amd-torch-device-gfx115x==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1150==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1150==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+rocm-gfx1151 = [
+    "amd-torch-device-gfx1151==2.13.0+rocm10.1.0",
+    "amd-torch-device-gfx115x==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1151==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1151==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+rocm-gfx1152 = [
+    "amd-torch-device-gfx1152==2.13.0+rocm10.1.0",
+    "amd-torch-device-gfx115x==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1152==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1152==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+rocm-gfx1153 = [
+    "amd-torch-device-gfx1153==2.13.0+rocm10.1.0",
+    "amd-torch-device-gfx115x==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1153==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1153==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+rocm-gfx1200 = [
+    "amd-torch-device-gfx12-0==2.13.0+rocm10.1.0",
+    "amd-torch-device-gfx1200==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1200==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1200==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+rocm-gfx1201 = [
+    "amd-torch-device-gfx12-0==2.13.0+rocm10.1.0",
+    "amd-torch-device-gfx1201==2.13.0+rocm10.1.0",
+    "amd-torchvision-device-gfx1201==0.28.0+rocm10.1.0",
+    "rocm==10.1.0",
+    "rocm-bootstrap==0.3.0",
+    "rocm-sdk-core==10.1.0",
+    "rocm-sdk-device-gfx1201==10.1.0",
+    "rocm-sdk-libraries==10.1.0",
+    "torch==2.13.0+rocm10.1.0",
+    "torchvision==0.28.0+rocm10.1.0",
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+
+[tool.uv]
+package = false
+override-dependencies = [
+    "triton==3.8.0+git669b31ac.rocm10.1.0 ; sys_platform == 'linux'",
+]
+required-environments = [
+    "sys_platform == 'win32' and platform_machine == 'AMD64'",
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+
+[tool.uv.sources]
+amd-torch-device-gfx1010 = { index = "amd-rocm" }
+amd-torch-device-gfx1011 = { index = "amd-rocm" }
+amd-torch-device-gfx1012 = { index = "amd-rocm" }
+amd-torch-device-gfx1030 = { index = "amd-rocm" }
+amd-torch-device-gfx1031 = { index = "amd-rocm" }
+amd-torch-device-gfx1032 = { index = "amd-rocm" }
+amd-torch-device-gfx1033 = { index = "amd-rocm" }
+amd-torch-device-gfx1034 = { index = "amd-rocm" }
+amd-torch-device-gfx1035 = { index = "amd-rocm" }
+amd-torch-device-gfx1036 = { index = "amd-rocm" }
+amd-torch-device-gfx1100 = { index = "amd-rocm" }
+amd-torch-device-gfx1101 = { index = "amd-rocm" }
+amd-torch-device-gfx1102 = { index = "amd-rocm" }
+amd-torch-device-gfx1103 = { index = "amd-rocm" }
+amd-torch-device-gfx110x = { index = "amd-rocm" }
+amd-torch-device-gfx1150 = { index = "amd-rocm" }
+amd-torch-device-gfx1151 = { index = "amd-rocm" }
+amd-torch-device-gfx1152 = { index = "amd-rocm" }
+amd-torch-device-gfx1153 = { index = "amd-rocm" }
+amd-torch-device-gfx115x = { index = "amd-rocm" }
+amd-torch-device-gfx12-0 = { index = "amd-rocm" }
+amd-torch-device-gfx1200 = { index = "amd-rocm" }
+amd-torch-device-gfx1201 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1010 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1011 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1012 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1030 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1031 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1032 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1033 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1034 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1035 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1036 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1100 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1101 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1102 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1103 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1150 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1151 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1152 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1153 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1200 = { index = "amd-rocm" }
+amd-torchvision-device-gfx1201 = { index = "amd-rocm" }
+rocm = { index = "amd-rocm" }
+rocm-bootstrap = { index = "amd-rocm" }
+rocm-sdk-core = { index = "amd-rocm" }
+rocm-sdk-device-gfx1010 = { index = "amd-rocm" }
+rocm-sdk-device-gfx1011 = { index = "amd-rocm" }
+rocm-sdk-device-gfx1012 = { index = "amd-rocm" }
+rocm-sdk-device-gfx1030 = { index = "amd-rocm" }
+rocm-sdk-device-gfx1031 = { index = "amd-rocm" }
+rocm-sdk-device-gfx1032 = { index = "amd-rocm" }
+rocm-sdk-device-gfx1033 = { index = "amd-rocm" }
+rocm-sdk-device-gfx1034 = { index = "amd-rocm" }
+rocm-sdk-device-gfx1035 = { index = "amd-rocm" }
+rocm-sdk-device-gfx1036 = { index = "amd-rocm" }
+rocm-sdk-device-gfx1100 = { index = "amd-rocm" }
+rocm-sdk-device-gfx1101 = { index = "amd-rocm" }
+rocm-sdk-device-gfx1102 = { index = "amd-rocm" }
+rocm-sdk-device-gfx1103 = { index = "amd-rocm" }
+rocm-sdk-device-gfx1150 = { index = "amd-rocm" }
+rocm-sdk-device-gfx1151 = { index = "amd-rocm" }
+rocm-sdk-device-gfx1152 = { index = "amd-rocm" }
+rocm-sdk-device-gfx1153 = { index = "amd-rocm" }
+rocm-sdk-device-gfx1200 = { index = "amd-rocm" }
+rocm-sdk-device-gfx1201 = { index = "amd-rocm" }
+rocm-sdk-libraries = { index = "amd-rocm" }
+torch = { index = "amd-rocm" }
+torchvision = { index = "amd-rocm" }
+triton = { index = "amd-rocm" }
+
+[[tool.uv.index]]
+name = "amd-rocm"
+url = "https://stable.repo.amd.com/rocm/whl-next/"
+explicit = true

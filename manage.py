@@ -66,11 +66,13 @@ def ask_yes_no(prompt, default):
     answer = ask(f"{prompt} ({hint}): ", "y" if default else "n", ["y", "yes", "n", "no"])
     return answer in ("y", "yes")
 
-def run_command(cmd):
-    """Wrapper to handle uv commands."""
+def run_command(cmd, extra_env=None):
+    """Wrapper to handle uv commands. `extra_env` adds/overrides environment variables."""
     print(">", " ".join(cmd))
+    env = get_uv_env()
+    env.update(extra_env or {})
     try:
-        subprocess.check_call(cmd, env=get_uv_env())
+        subprocess.check_call(cmd, env=env)
     except subprocess.CalledProcessError as e:
         print(f"\nError executing command: {e}")
         sys.exit(1)
@@ -130,11 +132,26 @@ def get_installed_backend():
         version_line = next((l for l in result.splitlines() if l.startswith("Version:")), "").lower()
         for backend in ["cu130", "cu126", "rocm", "xpu", "cpu"]:
             if backend in version_line:
-                return backend
+                return installed_rocm_backend() if backend == "rocm" else backend
     except (subprocess.CalledProcessError, StopIteration):
         print("[Warning: Could not detect installed backend]")
         pass
     
+    return None
+
+def installed_rocm_backend():
+    """'rocm-gfxNNNN' for the GPU installed in .venv, read from its amd-torch-device-* package."""
+    try:
+        out = subprocess.check_output(
+            [get_uv_exe(), "pip", "freeze", "--python", ".venv"],
+            encoding="utf-8", errors="replace", stderr=subprocess.DEVNULL, env=get_uv_env())
+    except (subprocess.CalledProcessError, OSError):
+        out = ""
+    for line in out.lower().replace("_", "-").splitlines():
+        match = re.match(r"amd-torch-device-(gfx[0-9a-f]+)==", line)
+        if match:
+            return f"rocm-{match.group(1)}"
+    print("[Warning: Could not determine which AMD GPU type is installed]")
     return None
 
 # ===== GIT LOGIC =====
@@ -175,33 +192,127 @@ BACKEND_OPTIONS = [
     ("cu130", "NVIDIA CUDA 13.0 (RTX, newer GPUs)"),
     ("cu126", "NVIDIA CUDA 12.6 (GTX, older GPUs)"),
     ("xpu",   "Intel Arc/Xe (XPU)"),
-    ("rocm",  "AMD ROCm (9070, 9060, 7900, 7700)"),
+    ("rocm",  "AMD ROCm (Radeon)"),
     ("cpu",   "CPU (Slow)"),
 ]
-BACKEND_LABELS = dict(BACKEND_OPTIONS)   # key -> label, used by the menu and the setup summary
+BACKEND_LABELS = dict(BACKEND_OPTIONS)
+
+# ----- AMD ROCm -----
+# ROCm has its own uv project in rocm/ (see generate_rocm_project.py) so that AMD's package index
+# never affects the other backends. It installs into the same .venv, and its backend keys include
+# the GPU, e.g. "rocm-gfx1100".
+ROCM_DIR = "rocm"
+ROCM_BOOTSTRAP = "rocm-bootstrap==0.3.0"   # AMD's GPU detector
+
+# (gfx target, GPUs) from the table in https://github.com/ROCm/TheRock/blob/main/RELEASES.md.
+# generate_rocm_project.py reads this list too, so after editing it, regenerate rocm/.
+ROCM_GPUS = [
+    ("gfx1201", "Radeon RX 9070 / 9070 XT, AI PRO R9700 / R9600D"),
+    ("gfx1200", "Radeon RX 9060 / 9060 XT"),
+    ("gfx1100", "Radeon RX 7900 XTX / 7900 XT, PRO W7900 / W7800"),
+    ("gfx1101", "Radeon RX 7800 XT / 7700 XT, PRO V710 / W7700"),
+    ("gfx1102", "Radeon RX 7600"),
+    ("gfx1151", "Ryzen AI Max+ PRO 395"),
+    ("gfx1150", "Ryzen AI 9 HX 375"),
+    ("gfx1152", "Ryzen AI 7 350"),
+    ("gfx1153", "Radeon 820M integrated graphics"),
+    ("gfx1103", "Ryzen 7 7840U / Ryzen 9 270"),
+    ("gfx1030", "Radeon RX 6900 XT / 6800 XT, PRO W6800 / V620"),
+    ("gfx1031", "Radeon RX 6750 XT / 6700 XT"),
+    ("gfx1032", "Radeon RX 6600 XT / 6600, PRO W6600"),
+    ("gfx1034", "Radeon RX 6500 XT"),
+    ("gfx1035", "Radeon 680M integrated graphics"),
+    ("gfx1036", "Ryzen 7000 desktop integrated graphics (Raphael)"),
+    ("gfx1033", "Van Gogh integrated graphics (Steam Deck)"),
+    ("gfx1010", "Radeon RX 5700 / 5700 XT"),
+    ("gfx1011", "Radeon Pro V520"),
+    ("gfx1012", "Radeon Pro W5500"),
+]
+ROCM_GPU_NAMES = dict(ROCM_GPUS)
+# Suggested last when several AMD GPUs are found (built-in graphics plus a Radeon card).
+ROCM_IGPU_TARGETS = {"gfx1033", "gfx1035", "gfx1036", "gfx1103", "gfx1150", "gfx1152", "gfx1153"}
+
+
+def backend_label(backend):
+    """Name shown for a backend key; ROCm keys also show their GPU."""
+    if backend.startswith("rocm-"):
+        target = backend.removeprefix("rocm-")
+        return f"AMD ROCm ({target}: {ROCM_GPU_NAMES.get(target, target)})"
+    return BACKEND_LABELS.get(backend, backend)
+
+
+def rocm_targets_available():
+    """GPU targets that rocm/pyproject.toml can install."""
+    try:
+        with open(os.path.join(ROCM_DIR, "pyproject.toml"), "rb") as f:
+            extras = tomllib.load(f)["project"]["optional-dependencies"]
+    except (OSError, KeyError, tomllib.TOMLDecodeError):
+        return set()
+    return {e.removeprefix("rocm-") for e in extras if e.startswith("rocm-")}
+
+
+def detect_amd_targets():
+    """gfx targets found by AMD's detector. Empty if there is no AMD GPU or the detector can't run."""
+    cmd = [get_uv_exe(), "tool", "run", "--python", PYTHON_VERSION, "--python-preference", "only-managed",
+           "--from", ROCM_BOOTSTRAP, "rocm-bootstrap-detect", "--unique"]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=180, env=get_uv_env())
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    if r.returncode != 0:
+        return []
+    lines = [line.strip() for line in r.stdout.splitlines()]
+    return [line for line in lines if re.fullmatch(r"gfx[0-9a-f]+", line)]
+
+
+def choose_rocm_target(targets, default=None):
+    """Asks which of `targets` is the user's GPU. Returns a gfx target, or None for 'my GPU isn't listed'."""
+    rows = [(t, name) for t, name in ROCM_GPUS if t in targets]
+    print("\nSelect your AMD GPU:")
+    for i, (target, name) in enumerate(rows, 1):
+        print(f"{i}) {name} [{target}]" + ("  <- detected" if target == default else ""))
+    not_listed = len(rows) + 1
+    print(f"{not_listed}) My GPU isn't listed (use CPU instead)")
+
+    default_number = next((str(i) for i, (target, _) in enumerate(rows, 1) if target == default), "")
+    answer = ask(f"> [{default_number}] " if default_number else "> ", default_number,
+                 [str(i) for i in range(1, not_listed + 1)])
+    number = int(answer)
+    return rows[number - 1][0] if number < not_listed else None
+
+
+def choose_rocm_backend():
+    """Turns the 'AMD ROCm' menu choice into a backend key such as 'rocm-gfx1100'."""
+    available = rocm_targets_available()
+    if not available:
+        print(f"\n[The AMD ROCm install files (the '{ROCM_DIR}' folder) are missing from this download.]")
+        print("Please download the application again, or choose a different backend.")
+        sys.exit(1)
+
+    print("\nIdentifying your AMD GPU...")
+    found = detect_amd_targets()
+    usable = [t for t in found if t in available]
+    if len(usable) == 1:
+        print(f"Detected: {ROCM_GPU_NAMES.get(usable[0], usable[0])} [{usable[0]}]")
+        return f"rocm-{usable[0]}"
+
+    if usable:
+        print("Several AMD GPUs were detected.")
+    elif found:
+        print(f"[Your AMD GPU ({', '.join(found)}) is not supported by the ROCm builds.]")
+    else:
+        print("[Could not identify your AMD GPU automatically.]")
+    discrete = [t for t in usable if t not in ROCM_IGPU_TARGETS]
+    default = (discrete or usable or [None])[0]
+    target = choose_rocm_target(usable or available, default)
+    if target is None:
+        print("[Using CPU instead.]")
+        return "cpu"
+    return f"rocm-{target}"
+
 
 # ----- Hardware recommendation (printed above the backend menu) -----
 # Prints nothing when it can't be confident.
-
-# AMD GPUs supported by the ROCm builds on WINDOWS. Matched against the lowercase GPU name.
-# Note: "rx 7700" also matches "RX 7700 XT".
-AMD_SUPPORTED_WINDOWS = [
-    r"\brx\s*9070\b",        # RX 9070, RX 9070 XT
-    r"\brx\s*9060\s*xt\b",   # RX 9060 XT
-    r"\br9700\b",            # Radeon AI PRO R9700
-    r"7900\s*xtx",           # RX 7900 XTX
-    r"\bw7900\b",            # Radeon PRO W7900 (and Dual Slot)
-    r"\brx\s*7700\b",        # RX 7700
-]
-
-# AMD GPUs on AMD's official Linux ROCm 7.2.1 support list for Radeon.
-AMD_SUPPORTED_LINUX = [
-    r"\brx\s*90(70|60)\b",   # RX 9070 / XT / GRE, RX 9060 / XT
-    r"\brx\s*7900\b",        # RX 7900 XTX / XT / GRE
-    r"\brx\s*7[78]00\b",     # RX 7800 XT, RX 7700 / 7700 XT
-    r"\bw7[789]00\b",        # Radeon PRO W7900 / W7800 / W7700
-    r"\br9[67]00",            # Radeon AI PRO R9600 / R9600D / R9700 / R9700S
-]
 
 # nvidia-smi is not always on PATH, so also look in its usual install locations.
 NVIDIA_SMI_FALLBACKS = [
@@ -292,19 +403,15 @@ def hardware_recommendation():
     nvidia = [n for n, v in gpus if v == "10de" or "nvidia" in n.lower()]
     if nvidia:
         return nvidia_name_recommendation(nvidia) or (None, None)
-    is_windows = platform.system() == "Windows"
-    amd_list = AMD_SUPPORTED_WINDOWS if is_windows else AMD_SUPPORTED_LINUX
-    for n, _ in gpus:
-        if any(re.search(p, n.lower()) for p in amd_list):
-            return "rocm", f"{n} detected. Recommended: AMD ROCm."
-    for n, _ in gpus:
+    # A card with no driver shows up as "Basic Display Adapter": stay silent about those.
+    real = [(n, v) for n, v in gpus if not re.search(r"basic display|standard vga", n, re.I)]
+    amd = [n for n, v in real if v == "1002" or re.search(r"\bamd\b|radeon", n, re.I)]
+    if amd:
+        return "rocm", f"{amd[0]} detected. Recommended: AMD ROCm (your exact GPU is identified in the next step)."
+    for n, _ in real:
         if re.search(r"\barc\b", n, re.I) and "intel" in n.lower():
             return "xpu", f"{n} detected. Recommended: Intel Arc (XPU)."
-    # Stay silent when we can't tell: a card with no driver ("Basic Display Adapter"), or an AMD
-    # GPU on Linux that isn't on the list (lspci names can be missing or outdated for new cards).
-    if any(re.search(r"basic display|standard vga", n, re.I) for n, _ in gpus):
-        return None, None
-    if not is_windows and any(v == "1002" or re.search(r"amd|radeon", n, re.I) for n, v in gpus):
+    if len(real) < len(gpus):
         return None, None
     return "cpu", (f"No supported GPU detected ({', '.join(n for n, _ in gpus)}). "
                    "CPU is recommended; processing will be slow.")
@@ -323,7 +430,7 @@ def choose_backend(installed=None):
         print(rec_text)
         print("--------------------------")
     if installed:
-        print(f"Currently installed: {BACKEND_LABELS.get(installed, installed)}")
+        print(f"Currently installed: {backend_label(installed)}")
 
     keys = [key for key, _ in BACKEND_OPTIONS]
     print("\nSelect PyTorch backend:")
@@ -334,22 +441,30 @@ def choose_backend(installed=None):
     default = str(keys.index(rec_key) + 1) if rec_key in keys else ""
     prompt = f"> [{default}] " if default else "> "
     choice = ask(prompt, default, [str(i) for i in range(1, len(keys) + 1)])
-    return keys[int(choice) - 1]
+    key = keys[int(choice) - 1]
+    return choose_rocm_backend() if key == "rocm" else key
 
 def sync_env(backend, reinstall=False):
     """Uses uv sync to update or reinstall the environment."""
-    cmd = [get_uv_exe(), "sync", "--frozen", "--python", PYTHON_VERSION, "--python-preference", "only-managed"]
+    cmd = [get_uv_exe(), "sync"]
+    extra_env = {}
+    if backend and backend.startswith("rocm-"):
+        # The environment path must be absolute, or uv would put it inside rocm/.
+        cmd += ["--project", ROCM_DIR]
+        extra_env["UV_PROJECT_ENVIRONMENT"] = os.path.abspath(".venv")
+    cmd += ["--frozen", "--python", PYTHON_VERSION, "--python-preference", "only-managed"]
     if backend:
         cmd.extend(["--extra", backend])
-    
+
+    label = backend_label(backend) if backend else "Default/MPS"
     if reinstall:
-        print(f"\n[Reinstalling dependencies for {backend or 'Default/MPS'}...]")
+        print(f"\n[Reinstalling dependencies for {label}...]")
         # --reinstall refreshes all;
         cmd.extend(["--reinstall"])
     else:
-        print(f"\n[Syncing dependencies for {backend or 'Default/MPS'}...]")
+        print(f"\n[Syncing dependencies for {label}...]")
 
-    run_command(cmd)
+    run_command(cmd, extra_env)
 
 def create_shortcuts():
     """Creates/refreshes the appropriate desktop entry point for the current OS."""
@@ -361,24 +476,55 @@ def create_shortcuts():
     elif system == "Linux":
         create_linux_desktop_entry()
 
+TORCH_PROBE = """
+import torch, torchvision
+print(f"torch {torch.__version__}, torchvision {torchvision.__version__}")
+device = None
+if torch.cuda.is_available():
+    device = "cuda"         # ROCm reports through the CUDA API
+elif hasattr(torch, "xpu") and torch.xpu.is_available():
+    device = "xpu"
+elif torch.backends.mps.is_available():
+    device = "mps"
+if device is None:
+    print("gpu=none")
+else:
+    try:
+        x = torch.randn(512, 512, device=device)
+        (x @ x).sum().item()    # a real GPU calculation, not just device detection
+        print("gpu=ok " + (torch.cuda.get_device_name(0) if device == "cuda" else device))
+    except Exception as e:
+        reason = str(e).strip().splitlines()
+        print("gpu=error " + (reason[0][:200] if reason else type(e).__name__))
+tag = lambda v: v.partition("+")[2]    # the +cu130 / +cpu / +rocm... part
+raise SystemExit(0 if tag(torch.__version__) == tag(torchvision.__version__) else 3)
+"""
+
+def report_gpu_result(backend, gpu):
+    """Prints what the GPU test in TORCH_PROBE found. `gpu` is its 'gpu=...' output line."""
+    if gpu.startswith("gpu=ok"):
+        print(f"[GPU acceleration: working ({gpu.partition(' ')[2]})]")
+        return
+    if gpu.startswith("gpu=error"):
+        print("[WARNING: A GPU was found, but a test calculation on it failed:]")
+        print("  " + gpu.partition(" ")[2])
+    else:
+        print("[WARNING: GPU acceleration is NOT available, so the app will run on the CPU (slow).]")
+    print("Make sure your graphics drivers are up to date. If the problem continues, run the")
+    print("installer again, choose Reinstall/Repair, and try a different backend.")
+    if backend.startswith("rocm-"):
+        print(f"For AMD, also check that {backend.removeprefix('rocm-')} is the right type for your GPU.")
+        if platform.system() == "Linux":
+            print("On Linux, your user must also be in the 'render' and 'video' groups.")
+
 def verify_torch(backend=None):
     """Checks that torch and torchvision import and are the same build, and prints the result.
-    If a GPU backend was installed, also reports whether GPU acceleration is available."""
+    For a GPU backend it also runs a small calculation on the GPU and reports whether it worked."""
     win = platform.system() == "Windows"
     py = os.path.join(".venv", "Scripts" if win else "bin", "python.exe" if win else "python")
-    probe = (
-        "import torch, torchvision\n"
-        "print(f'torch {torch.__version__}, torchvision {torchvision.__version__}')\n"
-        # ROCm reports through the CUDA API; Intel uses XPU; Apple uses MPS.
-        "gpu = torch.cuda.is_available() or torch.backends.mps.is_available()\n"
-        "gpu = gpu or (hasattr(torch, 'xpu') and torch.xpu.is_available())\n"
-        "print('gpu=1' if gpu else 'gpu=0')\n"
-        "tag = lambda v: v.partition('+')[2]\n"   # the +cu130 / +cpu / +rocm... part
-        "raise SystemExit(0 if tag(torch.__version__) == tag(torchvision.__version__) else 3)\n"
-    )
     print("\n[Verifying PyTorch...]")
     try:
-        r = subprocess.run([py, "-c", probe], capture_output=True, text=True, errors="replace",
+        r = subprocess.run([py, "-c", TORCH_PROBE], capture_output=True, text=True, errors="replace",
                            timeout=180, env=get_uv_env())
     except subprocess.TimeoutExpired:
         print("[WARNING: The PyTorch check timed out, so PyTorch could not be verified.]")
@@ -387,16 +533,11 @@ def verify_torch(backend=None):
         print(f"[WARNING: Could not run the PyTorch check ({e}).]")
         return
     out = r.stdout.splitlines()
-    versions = next((l for l in out if l.startswith("torch ")), "")
+    versions = next((line for line in out if line.startswith("torch ")), "")
     if r.returncode == 0:
         print(f"[PyTorch OK: {versions}]")
         if backend and backend != "cpu":
-            if "gpu=1" in out:
-                print("[GPU acceleration: available]")
-            else:
-                print("[WARNING: GPU acceleration is NOT available, so the app will run on the CPU (slow).]")
-                print("Make sure your graphics drivers are up to date. If the problem continues, run the")
-                print("installer again, choose Reinstall/Repair, and try a different backend.")
+            report_gpu_result(backend, next((line for line in out if line.startswith("gpu=")), "gpu=none"))
         return
     if r.returncode == 3:
         print(f"[WARNING: torch and torchvision are different builds ({versions}).]")
@@ -416,10 +557,20 @@ def resolve_backend():
         backend = choose_backend()
     return backend
 
+def continue_in_new_manage_py(flag):
+    """Runs the newly pulled manage.py with `flag` and exits with its exit code.
+    This process still has the old code in memory, so the new code has to do the rest."""
+    sys.exit(subprocess.call([sys.executable, os.path.abspath(__file__), flag]))
+
 def perform_update(branch):
-    """Pulls the given branch, resyncs the environment, and refreshes
-    shortcuts. Shared by every update/recovery path in handle_update()."""
+    """Pulls the given branch, then lets the new manage.py finish the update.
+    Shared by every update/recovery path in handle_update()."""
     pull_latest_code(branch)
+    continue_in_new_manage_py("--finish-update")
+
+def finish_update():
+    """Second half of an update: resyncs the environment and refreshes shortcuts.
+    Runs in the newly pulled manage.py, started by perform_update()."""
     backend = resolve_backend()
     sync_env(backend)
     create_shortcuts()
@@ -464,6 +615,14 @@ def handle_update(branch, confirm=True):
     else:
         print(f"[Already up to date (Version {local_v}).]")
 
+def repair():
+    """Reinstall/Repair. If the user wants the latest program files, pulls them
+    and lets the new manage.py do the repair."""
+    if ask_yes_no("\nDownload the latest program files to restore any damaged or out of date files?", default=False):
+        pull_latest_code(DEFAULT_BRANCH)
+        continue_in_new_manage_py("--finish-repair")
+    setup(DEFAULT_BRANCH, reinstall=True)
+
 def setup(branch, reinstall=False):
     # Git tracking is initialized as soon as setup() runs (fresh install or
     # reinstall), so future "Check for Updates" runs can fetch/reset
@@ -476,15 +635,7 @@ def setup(branch, reinstall=False):
     #    a wrong earlier choice can be corrected.
     backend = choose_backend(get_installed_backend() if reinstall else None)
 
-    # 2. Restore program files from GitHub -- reinstall/repair only
-    pull_code = False
-    if reinstall:
-        pull_code = ask_yes_no(
-            "\nDownload the latest program files to restore any damaged or out of date files?",
-            default=False,
-        )
-
-    # 3. Model download -- fresh install only
+    # 2. Model download -- fresh install only
     download_models_now = False
     if not reinstall:
         print("\nModel download:")
@@ -492,26 +643,20 @@ def setup(branch, reinstall=False):
         print("2) Download all models now (~10GB)")
         download_models_now = ask("> [1] ", "1", ["1", "2"]) == "2"
 
-    # -- Summarise and confirm ----------------------------------------------
-    print("\n--- Setup summary ---")
-    if branch != DEFAULT_BRANCH:
-        print(f"  Branch           : {branch}")
+    # -- Summarize and confirm if not on MacOS-----------------------------
     if platform.system() != "Darwin":
-        print(f"  PyTorch backend  : {BACKEND_LABELS.get(backend, backend)}")
-    if reinstall:
-        print(f"  Restore files    : {'Yes' if pull_code else 'No'}")
-    if not reinstall:
-        print(f"  Download models  : {'Download all now (~10GB)' if download_models_now else 'Download as needed'}")
-    print("---------------------")
+        print("\n--- Setup summary ---")
+        if branch != DEFAULT_BRANCH:
+            print(f"  Branch           : {branch}")
+        if not reinstall:
+            print(f"  Download models  : {'Download all now (~10GB)' if download_models_now else 'Download as needed'}")
+        print("---------------------")
 
-    if not ask_yes_no("\nProceed with setup?", default=True):
-        print("Setup cancelled.")
-        sys.exit(0)
+        if not ask_yes_no("\nProceed with setup?", default=True):
+            print("Setup cancelled.")
+            sys.exit(0)
 
     # -- Execute ------------------------------------------------------------
-    if pull_code:
-        pull_latest_code(branch)
-
     # Always make scripts executable / clear quarantine, even if the
     # dependency install below fails partway.
     fix_permissions()
@@ -741,6 +886,13 @@ def is_app_running():
 
 
 def main():
+    if "--finish-update" in sys.argv[1:]:
+        finish_update()
+        return
+    if "--finish-repair" in sys.argv[1:]:
+        setup(DEFAULT_BRANCH, reinstall=True)
+        return
+
     dev_mode = "--dev" in sys.argv[1:]
     # --update is passed by the GUI's "Exit and Update" button. The user already
     # confirmed there, so skip the menu and the prompt and go straight to the update.
@@ -797,8 +949,7 @@ def main():
     actions = [("Check for Updates", lambda: handle_update(DEFAULT_BRANCH))]
     if dev_mode:
         actions.append(("Pull Latest Dev Commits", lambda: handle_update("dev")))
-    actions.append(("Reinstall/Repair (fix problems, or change the backend)",
-                    lambda: setup(DEFAULT_BRANCH, reinstall=True)))
+    actions.append(("Reinstall/Repair (fixes problems, or lets you change your graphics backend)", repair))
     actions.append(("Exit", lambda: sys.exit(0)))
 
     for i, (label, _) in enumerate(actions, 1):
