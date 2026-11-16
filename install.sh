@@ -36,9 +36,11 @@ else
     export UV_LINK_MODE=copy
 fi
 
-# Install uv locally if missing
-if [ ! -f "$UV_EXE" ]; then
-    echo "Downloading uv (package manager used for setup)..."
+# Install (or update) uv if it's missing or isn't the pinned version
+UV_CURRENT="$("$UV_EXE" --version 2>/dev/null | awk '{print $2}')"
+
+if [ "$UV_CURRENT" != "$UV_VERSION" ]; then
+    echo "Downloading uv $UV_VERSION (package manager used for setup)..."
     UV_LOG="$UV_DIR/uv_install.log"
 
     curl -LsSf --retry 3 --retry-delay 2 "https://astral.sh/uv/${UV_VERSION}/install.sh" \
@@ -47,19 +49,18 @@ if [ ! -f "$UV_EXE" ]; then
     if [ $? -ne 0 ]; then
         echo "Failed to install uv. Details:"
         cat "$UV_LOG"
-        exit 1
+        # Keep going only if a previously installed uv still runs
+        if "$UV_EXE" --version >/dev/null 2>&1; then
+            echo "WARNING: Could not update uv. Continuing with the existing version."
+        else
+            exit 1
+        fi
+    else
+        rm -f "$UV_LOG"
+        echo "uv downloaded."
+        echo
+        echo "Preparing Python and the installer. Please wait..."
     fi
-
-    if [ ! -f "$UV_EXE" ]; then
-        echo "uv was not installed. Details:"
-        cat "$UV_LOG"
-        exit 1
-    fi
-
-    rm -f "$UV_LOG"
-    echo "uv downloaded."
-    echo
-    echo "Preparing Python and the installer. Please wait..."
 fi
 
 # One-time bootstrap venv for running manage.py itself (needs dulwich for git operations).

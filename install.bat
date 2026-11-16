@@ -63,30 +63,31 @@ if "%FS_SUPPORTS_LINKS%"=="1" (
     set "UV_LINK_MODE=copy"
 )
 
-:: Install uv locally if missing
-if not exist "%UV_EXE%" (
-    echo Downloading uv ^(package manager used for setup^)...
+:: Install (or update) uv if it's missing or isn't the pinned version
+set "UV_CURRENT="
+for /f "tokens=2" %%v in ('"%UV_EXE%" --version 2^>nul') do set "UV_CURRENT=%%v"
 
-    powershell -ExecutionPolicy Bypass -Command "$env:UV_INSTALL_DIR='%UV_DIR%'; irm https://astral.sh/uv/%UV_VERSION%/install.ps1 | iex" > "%UV_DIR%\uv_install.log" 2>&1
+if not "!UV_CURRENT!"=="%UV_VERSION%" (
+    echo Downloading uv %UV_VERSION% ^(package manager used for setup^)...
+
+    powershell -ExecutionPolicy Bypass -Command "$env:UV_INSTALL_DIR='%UV_DIR%'; $env:UV_NO_MODIFY_PATH='1'; irm https://astral.sh/uv/%UV_VERSION%/install.ps1 | iex" > "%UV_DIR%\uv_install.log" 2>&1
 
     if errorlevel 1 (
         echo Failed to install uv. Details:
         type "%UV_DIR%\uv_install.log"
-        pause
-        exit /b 1
+        rem Keep going only if a previously installed uv still runs
+        "%UV_EXE%" --version >nul 2>&1
+        if errorlevel 1 (
+            pause
+            exit /b 1
+        )
+        echo WARNING: Could not update uv. Continuing with the existing version.
+    ) else (
+        del "%UV_DIR%\uv_install.log" >nul 2>&1
+        echo uv downloaded.
+        echo.
+        echo Preparing Python and the installer. Please wait...
     )
-
-    if not exist "%UV_EXE%" (
-        echo uv.exe was not installed. Details:
-        type "%UV_DIR%\uv_install.log"
-        pause
-        exit /b 1
-    )
-
-    del "%UV_DIR%\uv_install.log" >nul 2>&1
-    echo uv downloaded.
-    echo.
-    echo Preparing Python and the installer. Please wait...
 )
 
 :: One-time bootstrap venv for running manage.py itself (needs dulwich for git operations).
