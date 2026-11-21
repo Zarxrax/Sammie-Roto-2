@@ -772,35 +772,44 @@ def create_mac_app():
 
     print("Double-click the Desktop icon to launch, or find it via Spotlight!")
 
-
 def create_linux_desktop_entry():
-    """Creates a .desktop file for GNOME and KDE integration."""
-    home = os.path.expanduser("~")
-    apps_dir = os.path.join(home, ".local", "share", "applications")
+    """Installs a menu entry and icon following the XDG conventions."""
+    data_home = os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share")
+    apps_dir = os.path.join(data_home, "applications")
+    icon_dir = os.path.join(data_home, "icons", "hicolor", "256x256", "apps")
     os.makedirs(apps_dir, exist_ok=True)
-    
-    desktop_path = os.path.join(apps_dir, "sammie-roto-2.desktop")
-    app_dir = os.path.abspath(os.path.dirname(__file__))
-    icon_path = os.path.join(app_dir, "sammie", "resources", "icon.png")
-    run_sh_path = os.path.join(app_dir, "run_sammie.sh")
+    os.makedirs(icon_dir, exist_ok=True)
 
-    content = [
+    app_dir = os.path.abspath(os.path.dirname(__file__))
+    src_icon = os.path.join(app_dir, "sammie", "resources", "icon.png")
+    run_sh = os.path.join(app_dir, "run_sammie.sh").replace("%", "%%")
+
+    icon_name = "sammie-roto-2"
+    if os.path.exists(src_icon):
+        shutil.copy(src_icon, os.path.join(icon_dir, icon_name + ".png"))
+    else:
+        icon_name = src_icon  # fall back to the path (may not exist)
+
+    content = "\n".join([
         "[Desktop Entry]",
         "Type=Application",
         "Name=Sammie-Roto-2",
         "Comment=Video Rotoscoping and Masking Tool",
-        f"Exec=\"{run_sh_path}\"",
-        f"Icon={icon_path}",
+        f'Exec="{run_sh}" %f',
+        f"Path={app_dir}",
+        f"Icon={icon_name}",
         "Terminal=false",
-        "Categories=Graphics;Video;VideoEditing;",
+        "StartupNotify=true",
+        "Categories=AudioVideo;Video;AudioVideoEditing;Graphics;",
+        "MimeType=video/mp4;video/x-matroska;video/quicktime;video/webm;image/png;image/jpeg;",
         "StartupWMClass=Sammie-Roto-2",
-    ]
-
-    with open(desktop_path, "w") as f:
-        f.write("\n".join(content))
-    
-    os.chmod(desktop_path, 0o755)
-    print(f"Created Linux desktop shortcut at: {desktop_path}")
+        "",
+    ])
+    desktop_path = os.path.join(apps_dir, "sammie-roto-2.desktop")
+    with open(desktop_path, "w", encoding="utf-8") as f:
+        f.write(content)
+    os.chmod(desktop_path, 0o644)
+    print(f"Created application menu entry: {desktop_path}")
 
 def create_windows_shortcut():
     """Creates a desktop shortcut on Windows."""
