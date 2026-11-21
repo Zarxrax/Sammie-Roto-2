@@ -615,15 +615,24 @@ def handle_update(branch, confirm=True):
     else:
         print(f"[Already up to date (Version {local_v}).]")
 
-def repair():
-    """Reinstall/Repair. If the user wants the latest program files, pulls them
-    and lets the new manage.py do the repair."""
-    if ask_yes_no("\nDownload the latest program files to restore any damaged or out of date files?", default=False):
-        pull_latest_code(DEFAULT_BRANCH)
-        continue_in_new_manage_py("--finish-repair")
-    setup(DEFAULT_BRANCH, reinstall=True)
+def choose_branch():
+    """Asks which branch to download program files from (--dev mode only)."""
+    print("\nDownload from:")
+    print("1) Main (stable)")
+    print("2) Dev (latest, may be unstable)")
+    return "dev" if ask("> [1] ", "1", ["1", "2"]) == "2" else DEFAULT_BRANCH
 
-def setup(branch, reinstall=False):
+def repair(dev_mode=False):
+    """Reinstall/Repair. If the user wants the latest program files, pulls them
+    and lets the new manage.py do the repair. The dev branch is only offered
+    in dev mode (--dev)."""
+    if ask_yes_no("\nDownload the latest program files to restore any damaged or out of date files?", default=False):
+        branch = choose_branch() if dev_mode else DEFAULT_BRANCH
+        pull_latest_code(branch)
+        continue_in_new_manage_py("--finish-repair")
+    setup(reinstall=True)
+
+def setup(reinstall=False):
     # Git tracking is initialized as soon as setup() runs (fresh install or
     # reinstall), so future "Check for Updates" runs can fetch/reset
     # cleanly. This only adds the 'origin' remote -- it never touches files.
@@ -642,19 +651,6 @@ def setup(branch, reinstall=False):
         print("1) Download models as needed (default -- models download the first time they are used)")
         print("2) Download all models now (~10GB)")
         download_models_now = ask("> [1] ", "1", ["1", "2"]) == "2"
-
-    # -- Summarize and confirm if not on MacOS-----------------------------
-    if platform.system() != "Darwin":
-        print("\n--- Setup summary ---")
-        if branch != DEFAULT_BRANCH:
-            print(f"  Branch           : {branch}")
-        if not reinstall:
-            print(f"  Download models  : {'Download all now (~10GB)' if download_models_now else 'Download as needed'}")
-        print("---------------------")
-
-        if not ask_yes_no("\nProceed with setup?", default=True):
-            print("Setup cancelled.")
-            sys.exit(0)
 
     # -- Execute ------------------------------------------------------------
     # Always make scripts executable / clear quarantine, even if the
@@ -899,7 +895,10 @@ def main():
         finish_update()
         return
     if "--finish-repair" in sys.argv[1:]:
-        setup(DEFAULT_BRANCH, reinstall=True)
+        setup(reinstall=True)
+        return
+    if "--finish-install" in sys.argv[1:]:
+        setup()
         return
 
     dev_mode = "--dev" in sys.argv[1:]
@@ -914,14 +913,13 @@ def main():
             print("Please delete the existing folder then extract the files to a new folder and try again.")
             sys.exit(1)
 
-        branch = DEFAULT_BRANCH
-        if dev_mode:
-            print("\nInstall from:")
-            print("1) Main (stable)")
-            print("2) Dev (latest, may be unstable)")
-            branch = "dev" if ask("> [1] ", "1", ["1", "2"]) == "2" else DEFAULT_BRANCH
+        if dev_mode and choose_branch() == "dev":
+            # Get the dev code first, then let the newly pulled manage.py run the
+            # install (this process still has the old code in memory).
+            pull_latest_code("dev")
+            continue_in_new_manage_py("--finish-install")
 
-        setup(branch)
+        setup()
         return
 
     if update_mode:
@@ -955,10 +953,11 @@ def main():
 
     print("\nSammie-Roto-2 Manager")
 
-    actions = [("Check for Updates", lambda: handle_update(DEFAULT_BRANCH))]
+    update_label = "Check for Updates (main branch)" if dev_mode else "Check for Updates"
+    actions = [(update_label, lambda: handle_update(DEFAULT_BRANCH))]
     if dev_mode:
         actions.append(("Pull Latest Dev Commits", lambda: handle_update("dev")))
-    actions.append(("Reinstall/Repair (fixes problems, or lets you change your graphics backend)", repair))
+    actions.append(("Reinstall/Repair (fixes problems, or lets you change your graphics backend)", lambda: repair(dev_mode)))
     actions.append(("Exit", lambda: sys.exit(0)))
 
     for i, (label, _) in enumerate(actions, 1):
