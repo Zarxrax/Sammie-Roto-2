@@ -40,7 +40,7 @@ from sammie.gui_widgets import (
 
 # ==================== VERSION ====================
 
-__version__ = "2.5.0"
+__version__ = "2.5.1"
 
 # ==================== LOGGING HELPER ====================
 

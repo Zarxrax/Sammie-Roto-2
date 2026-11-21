@@ -1,13 +1,13 @@
 [project]
 name = "Sammie-Roto-2"
-version = "2.5.0"
+version = "2.5.1"
 description = "Sammie Roto 2 application"
 requires-python = ">=3.12,<3.13"
 
 dependencies = [
     "opencv-python~=4.14",
     "PySide6-essentials==6.9.3",
-    "av~=18.1",
+    "av==18.1.1",
     "requests~=2.34",
     "tqdm~=4.70",
     "OpenEXR~=3.4",
