@@ -74,11 +74,11 @@ def get_icon():
     base_dir = Path(__file__).resolve().parent
     """Set the application and window icon based on the platform."""
     if sys.platform == "win32":
-        icon_path = base_dir / "resources" / "icon.ico"
+        icon_path = base_dir / "sammie" / "resources" / "icon.ico"
     elif sys.platform == "darwin":
-        icon_path = base_dir / "resources" / "icon.icns"
+        icon_path = base_dir / "sammie" / "resources" / "icon.icns"
     else:
-        icon_path = base_dir / "resources" / "icon.png"
+        icon_path = base_dir / "sammie" / "resources" / "icon.png"
 
     icon = QIcon(str(icon_path))
     return icon
