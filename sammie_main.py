@@ -1,6 +1,8 @@
 import sys
 import os
 import subprocess
+import shlex
+import shutil
 import argparse
 import json
 import traceback
@@ -31,14 +33,14 @@ from sammie.settings_manager import get_settings_manager, initialize_settings, A
 
 # Import GUI widgets
 from sammie.gui_widgets import (
-    ConsoleRedirect, ColorDisplayWidget, UpdateChecker, ClickableLabel,
+    ConsoleRedirect, ColorDisplayWidget, UpdateChecker, UpdateBanner, UpdateDialog, ClickableLabel,
     HotkeysHelpDialog, PointTable, ImageViewer, ColorPickerWidget,
     FrameSlider, show_message_dialog
 )
 
 # ==================== VERSION ====================
 
-__version__ = "2.5.0"
+__version__ = "2.5.1"
 
 # ==================== LOGGING HELPER ====================
 
@@ -67,6 +69,19 @@ def log_exception(exc_type, exc_value, exc_traceback):
         except:
             pass
 
+# ==================== ICON HELPER ====================
+def get_icon():
+    base_dir = Path(__file__).resolve().parent
+    """Set the application and window icon based on the platform."""
+    if sys.platform == "win32":
+        icon_path = base_dir / "sammie" / "resources" / "icon.ico"
+    elif sys.platform == "darwin":
+        icon_path = base_dir / "sammie" / "resources" / "icon.icns"
+    else:
+        icon_path = base_dir / "sammie" / "resources" / "icon.png"
+
+    icon = QIcon(str(icon_path))
+    return icon
 
 # ==================== TAB WIDGETS ====================
 
@@ -254,9 +269,6 @@ class SegmentationTab(QWidget):
             tracking_layout.addWidget(btn)
             setattr(self, attr_name, btn)
         
-        # Put icon on the right side of text
-        self.deduplicate_masks_btn.setLayoutDirection(Qt.RightToLeft)
-
         layout.addWidget(tracking_group)
     
     def _create_parameter_sliders(self, layout):
@@ -373,10 +385,14 @@ class SegmentationTab(QWidget):
             self.deduplicate_masks_btn.setIcon(QIcon())
 
     def update_deduplicate_status_helper(self, deduplicated):
-        """Update the Deduplicate button text based on deduplication status"""
+        """Update the Deduplicate button text/tooltip based on deduplication status"""
         if deduplicated:
-            self.deduplicate_masks_btn.setIcon(QIcon(":/icons/check-small.png"))
+            self.deduplicate_masks_btn.setText(" Undo Deduplication ")
+            self.deduplicate_masks_btn.setToolTip("Restore the original masks from before deduplication")
+            self.deduplicate_masks_btn.setIcon(QIcon())
         else:
+            self.deduplicate_masks_btn.setText(" Deduplicate Similar Masks ")
+            self.deduplicate_masks_btn.setToolTip(self.deduplicate_masks_btn.toolTip())
             self.deduplicate_masks_btn.setIcon(QIcon())
 
     def load_values_from_settings(self):
@@ -1117,7 +1133,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.settings_mgr = initialize_settings()
         self.setWindowTitle(f"Sammie-Roto {__version__}")
-        self.setWindowIcon(QIcon(":/icon.ico"))
+        self.setWindowIcon(get_icon())
         self.is_playing = False
         self.play_timer = QTimer(self)
         self.play_timer.timeout.connect(self.play_next_frame)
@@ -1136,7 +1152,8 @@ class MainWindow(QMainWindow):
         
         # Initialize update checker
         self.update_checker = UpdateChecker()
-        self.update_checker.update_available.connect(self.on_update_available)
+        self.update_checker.checked.connect(self._on_update_checked)
+        self.update_info = None  # Result of the last check that found a newer version
         self.update_menu_action = None  # Will store the update menu action when created
         
         # Load session settings
@@ -1148,7 +1165,8 @@ class MainWindow(QMainWindow):
         self._setup_hotkeys()
         self._update_point_editing_state()
         print(f"Sammie-Roto version {__version__}")
-        self.update_checker.check_for_updates(current_version=__version__)
+        if self.settings_mgr.app_settings.check_for_updates_on_startup:
+            self.update_checker.check_for_updates(__version__)
 
         # Show the window immediately so it appears before model loading
         self.show()
@@ -1363,6 +1381,7 @@ class MainWindow(QMainWindow):
             ("Shortcut Keys", self.show_hotkeys_help),
             (None, None),  # Separator
             ("Open Sammie-Roto Folder", self.open_folder),
+            ("Check for Updates", self.check_for_updates_manually),
             (None, None),  # Separator
             ("Changelog", self.show_changelog),
             ("About", self.show_about)
@@ -1432,7 +1451,18 @@ class MainWindow(QMainWindow):
         self.main_splitter.setStretchFactor(0, 1)  # main area
         self.main_splitter.setStretchFactor(1, 0)  # sidebar
         
-        self.setCentralWidget(self.main_splitter)
+        # The update banner sits above everything else and stays hidden until an update is found
+        self.update_banner = UpdateBanner()
+        self.update_banner.details_requested.connect(self.show_update_dialog)
+        self.update_banner.ignore_requested.connect(self.ignore_update)
+
+        central_widget = QWidget()
+        central_layout = QVBoxLayout(central_widget)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.setSpacing(0)
+        central_layout.addWidget(self.update_banner)
+        central_layout.addWidget(self.main_splitter)
+        self.setCentralWidget(central_widget)
     
     def _create_center_panel(self):
         """Create the center panel with image viewer and controls"""
@@ -1584,6 +1614,7 @@ class MainWindow(QMainWindow):
         icon_next_keyframe = QIcon(":/icons/key-arrow-right.png")
         icon_marker_in = QIcon(":/icons/marker-in.png")
         icon_marker_out = QIcon(":/icons/marker-out.png")
+        icon_marker_clear = QIcon(":/icons/marker-clear.png")
 
         # Playback buttons
         button_configs = [
@@ -1611,7 +1642,8 @@ class MainWindow(QMainWindow):
         # In/Out marker buttons
         marker_button_configs = [
             (icon_marker_in, self.set_in_marker, "Set In Point"),
-            (icon_marker_out, self.set_out_marker, "Set Out Point")
+            (icon_marker_out, self.set_out_marker, "Set Out Point"),
+            (icon_marker_clear, self.clear_markers, "Clear In/Out Points")
         ]
         
         for icon, handler, tooltip in marker_button_configs:
@@ -1858,7 +1890,7 @@ class MainWindow(QMainWindow):
             self.point_table.add_point(point['frame'], point['object_id'], point['positive'], point['x'], point['y'])
             # Mark tracking as stale (remove checkmarks) but don't clear data
             self.sam_manager.propagated = False
-            self.sam_manager.deduplicated = False
+            self._invalidate_deduplication()
             self.matany_manager.propagated = False
             self.removal_manager.propagated = False
             # No image update here - wait for segmentation to complete
@@ -1872,7 +1904,7 @@ class MainWindow(QMainWindow):
                 self.sam_manager.replay_points(points)
                 # Mark tracking as stale (remove checkmarks) but don't clear data
                 self.sam_manager.propagated = False
-                self.sam_manager.deduplicated = False
+                self._invalidate_deduplication()
                 self.matany_manager.propagated = False
                 self.removal_manager.propagated = False
                 # No image update here - wait for segmentation to complete
@@ -1883,7 +1915,7 @@ class MainWindow(QMainWindow):
             self.sam_manager.replay_points(points)
             # Mark tracking as stale (remove checkmarks) but don't clear data
             self.sam_manager.propagated = False
-            self.sam_manager.deduplicated = False
+            self._invalidate_deduplication()
             self.matany_manager.propagated = False
             self.removal_manager.propagated = False
             # No image update here - wait for segmentation to complete
@@ -1891,7 +1923,7 @@ class MainWindow(QMainWindow):
             
         elif action == 'clear_all':
             self.sam_manager.clear_tracking()
-            self.sam_manager.deduplicated = False
+            self._invalidate_deduplication()
             self.matany_manager.propagated = False
             self.removal_manager.propagated = False
             # Rebuild the entire table and update display
@@ -1903,6 +1935,7 @@ class MainWindow(QMainWindow):
             if object_id is not None:
                 # Call predictor remove_object
                 self.sam_manager.predictor.remove_object(self.sam_manager.inference_state, object_id)
+                self._invalidate_deduplication()
             if len(self.point_manager.points) == 0:
                 # Reset predictor when no points remain
                 self.sam_manager.predictor.reset_state(self.sam_manager.inference_state)
@@ -2067,6 +2100,7 @@ class MainWindow(QMainWindow):
             return
         
         print(f"Replaying {len(self.point_manager.points)} points...")
+        self._invalidate_deduplication()
         self.sam_manager.replay_points(self.point_manager.get_all_points())
         
         # Update display after replay
@@ -2189,14 +2223,12 @@ class MainWindow(QMainWindow):
         self.settings_mgr.save_session_settings()
         count = len(self.point_manager.points)
         if count > 0:
-            self.sam_manager.deduplicated = False
-            self.update_deduplicate_status()
+            self._invalidate_deduplication()  # tracking rewrites the masks
             self.sam_manager.replay_points(self.point_manager.get_all_points())
             if self.sam_manager.track_objects(parent_window=self) == 0: # if cancelled
                 self.sam_manager.replay_points(self.point_manager.get_all_points())
             else: # completed
                 pass
-            sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
             self.update_tracking_status()
             self._update_current_frame_display()
             self.settings_mgr.save_session_settings()
@@ -2210,13 +2242,11 @@ class MainWindow(QMainWindow):
         self.settings_mgr.save_session_settings()
         count = len(self.point_manager.points)
         if count > 0:
-            self.sam_manager.deduplicated = False
-            self.update_deduplicate_status()
+            self._invalidate_deduplication()  # tracking rewrites the masks
             self.sam_manager.replay_points(self.point_manager.get_all_points())
             current_frame = self.frame_slider.value()
             if self.sam_manager.track_forward(parent_window=self, current_frame=current_frame) == 0: # if cancelled
                 self.sam_manager.replay_points(self.point_manager.get_all_points())
-            sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
             self.update_tracking_status()
             self._update_current_frame_display()
             self.settings_mgr.save_session_settings()
@@ -2229,13 +2259,11 @@ class MainWindow(QMainWindow):
         self.settings_mgr.save_session_settings()
         count = len(self.point_manager.points)
         if count > 0:
-            self.sam_manager.deduplicated = False
-            self.update_deduplicate_status()
+            self._invalidate_deduplication()  # tracking rewrites the masks
             self.sam_manager.replay_points(self.point_manager.get_all_points())
             current_frame = self.frame_slider.value()
             if self.sam_manager.track_backward(parent_window=self, current_frame=current_frame) == 0: # if cancelled
                 self.sam_manager.replay_points(self.point_manager.get_all_points())
-            sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
             self.update_tracking_status()
             self._update_current_frame_display()
             self.settings_mgr.save_session_settings()
@@ -2247,11 +2275,9 @@ class MainWindow(QMainWindow):
         """Track objects one frame forward from the current frame"""
         count = len(self.point_manager.points)
         if count > 0:
-            self.sam_manager.deduplicated = False
-            self.update_deduplicate_status()
+            self._invalidate_deduplication()  # tracking rewrites the masks
             current_frame = self.frame_slider.value()
             new_frame = self.sam_manager.track_one_frame_forward(parent_window=self, current_frame=current_frame)
-            sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
             self.update_tracking_status()
             if new_frame != current_frame:
                 self.frame_slider.setValue(new_frame)  # also refreshes the display
@@ -2265,11 +2291,9 @@ class MainWindow(QMainWindow):
         """Track objects one frame backward from the current frame"""
         count = len(self.point_manager.points)
         if count > 0:
-            self.sam_manager.deduplicated = False
-            self.update_deduplicate_status()
+            self._invalidate_deduplication()  # tracking rewrites the masks
             current_frame = self.frame_slider.value()
             new_frame = self.sam_manager.track_one_frame_backward(parent_window=self, current_frame=current_frame)
-            sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
             self.update_tracking_status()
             if new_frame != current_frame:
                 self.frame_slider.setValue(new_frame)  # also refreshes the display
@@ -2283,8 +2307,7 @@ class MainWindow(QMainWindow):
         """Clear tracking data"""
         self.sam_manager.clear_tracking()  # This already handles the clearing both propagated and deduplicated
         self.matany_manager.propagated = False # Clear matting flag
-        self.sam_manager.deduplicated = False # Clear deduplication flag
-        sammie.remove_backup_mattes() # Make sure to remove an existing mattes backup folder
+        self._invalidate_deduplication() # Clear deduplication flag and its backup
         self.update_tracking_status()
         self.update_matting_status()
         self.update_removal_status()
@@ -2310,18 +2333,17 @@ class MainWindow(QMainWindow):
         self._update_current_frame_display()
 
     def deduplicate_similar_masks(self):
-        """Deduplicate similar masks"""
-        #print("Running deduplication...")
-        if not self.sam_manager.deduplicated:
-            sammie.remove_backup_mattes() # If the deduplicated flag is not present, remove any existing mattes backup folder so it doesnt get restored
-        self.sam_manager.deduplicated = sammie.deduplicate_masks(parent_window=self)
-        
-        # Update display after deduping finished
+        """Toggle: deduplicate similar masks, or undo it if already deduplicated"""
+        if self.sam_manager.deduplicated:
+            sammie.undo_deduplicate_masks()  # restore the originals from the backup
+            self._invalidate_deduplication()  # flag off, backup deleted, button reset
+        else:
+            self._invalidate_deduplication()  # make sure no stale backup exists
+            if sammie.deduplicate_masks(parent_window=self):
+                self.sam_manager.deduplicated = True
+                self.update_deduplicate_status()
+
         self._update_current_frame_display()
-        
-        # Update the button status
-        if hasattr(self, 'segmentation_tab'):
-            self.update_deduplicate_status()
         self.settings_mgr.save_session_settings()
 
     def run_matting(self):
@@ -2454,9 +2476,17 @@ class MainWindow(QMainWindow):
             self.segmentation_tab.update_tracking_status_helper(self.sam_manager.propagated)
             # Clear deduplication, matting, and dedupe status when tracking is cleared
             if not self.sam_manager.propagated:
-                self.sam_manager.deduplicated = False
+                self._invalidate_deduplication()
                 self.matany_manager.propagated = False
                 self.removal_manager.propagated = False
+            self.update_deduplicate_status()
+
+    def _invalidate_deduplication(self):
+        """The original masks are changing (or gone): the deduplicated flag and its
+        backup are no longer valid. Clear both so a stale backup can never be restored."""
+        self.sam_manager.deduplicated = False
+        sammie.remove_backup_mattes()
+        if hasattr(self, 'segmentation_tab'):
             self.update_deduplicate_status()
 
     def update_deduplicate_status(self):
@@ -2775,7 +2805,7 @@ class MainWindow(QMainWindow):
             self, 
             "Open File", 
             "", 
-            "*.mp4 *.m4v *.mkv *.mov *.avi *webm *.png *.jpg *.jpeg *.bmp *.tiff *.gif *.webp"
+            "*.mp4 *.m4v *.mkv *.mov *.avi *webm *.png *.jpg *.jpeg *.bmp *.tiff *.gif *.webp *.exr"
         )
         
         if file_name:  # Only proceed if a file was selected
@@ -2798,7 +2828,7 @@ class MainWindow(QMainWindow):
         # Check if file type is supported
         supported_extensions = [
             '.mp4', '.m4v', '.mkv', '.mov', '.avi', '.webm',
-            '.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif', '.webp'
+            '.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif', '.webp', '.exr'
         ]
         
         file_ext = os.path.splitext(file_path)[1].lower()
@@ -2815,6 +2845,7 @@ class MainWindow(QMainWindow):
         # Clear all points and propagation data
         self.point_manager.clear_all()
         self.sam_manager.propagated = False
+        self._invalidate_deduplication()
         self.matany_manager.propagated = False
 
         # Create new session
@@ -2835,7 +2866,7 @@ class MainWindow(QMainWindow):
         file_ext = os.path.splitext(file_path)[1].lower()
         
         try:
-            if file_ext in ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif', '.webp']:
+            if file_ext in ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif', '.webp', '.exr']:
                 framecount = sammie.load_image_sequence(file_path, parent_window=self)
             else:
                 framecount = sammie.load_video(file_path, parent_window=self)
@@ -3075,103 +3106,123 @@ class MainWindow(QMainWindow):
                 show_message_dialog(self, title="Restart Required", message="You must restart the application for device changes to take effect.", type="info")
 
     # ==================== UPDATE CHECKER ====================
-    
-    def on_update_available(self, current_version, latest_version):
-        """Handle update available signal from background thread"""
-        # Print to console
-        print(f"🔔 A new version of Sammie-roto is available! ({latest_version}) It can be installed from the File menu.")
-        
-        # Add menu item to file menu if it doesn't already exist
-        if self.update_menu_action is None:
-            # Add separator before update item
-            self.file_menu.addSeparator()
-            
-            # Create update menu action
-            self.update_menu_action = QAction(f"Exit and Update ({latest_version})", self)
-            self.update_menu_action.triggered.connect(
-                lambda: self.run_install_script()
-            )
-            
-            # Find the Exit action and insert before it
-            actions = self.file_menu.actions()
-            exit_action = None
-            
-            # Look for the Exit action
-            for action in actions:
-                if action.text() == "Exit":
-                    exit_action = action
-                    break
-            
-            if exit_action:
-                # Insert separator before Exit if there isn't one already
-                separator_before_exit = False
-                exit_index = actions.index(exit_action)
-                if exit_index > 0 and actions[exit_index - 1].isSeparator():
-                    separator_before_exit = True
-                
-                if not separator_before_exit:
-                    self.file_menu.insertSeparator(exit_action)
-                
-                # Insert update action before Exit
-                self.file_menu.insertAction(exit_action, self.update_menu_action)
+
+    def check_for_updates_manually(self):
+        """Help menu: check now and always report the result"""
+        self.update_status_bar("Checking for updates...")
+        self.update_checker.check_for_updates(__version__, silent=False)
+
+    def _on_update_checked(self, info, silent):
+        """Handle the result of an update check (runs on the main thread)"""
+        if not silent:
+            self.update_status_bar("Ready")
+
+        if info.get("update_available"):
+            self.update_info = info
+            latest = info["latest_version"]
+            ignored = silent and latest == self.settings_mgr.get_app_setting("ignored_update_version", "")
+            if not ignored:
+                print(f"A new version of Sammie-Roto is available ({latest}).")
+                self.update_banner.show_update(latest)
+            if not silent:
+                self.show_update_dialog()
+        elif info.get("error"):
+            if silent:
+                print(f"Update check failed: {info['error']}")
             else:
-                # Fallback: add at the end if Exit not found
-                self.file_menu.addSeparator()
-                self.file_menu.addAction(self.update_menu_action)
+                QMessageBox.warning(self, "Update Check Failed", f"Could not check for updates:\n{info['error']}")
+        elif not silent:
+            QMessageBox.information(self, "No Updates Found", f"You are up to date.\n\nCurrent version: {__version__}")
+
+    def ignore_update(self):
+        """Banner button: stop showing the banner for this version (it returns for a newer one)"""
+        if self.update_info:
+            self.settings_mgr.set_app_setting("ignored_update_version", self.update_info["latest_version"])
+            self.settings_mgr.save_app_settings()
+            print(f"Ignoring update {self.update_info['latest_version']}. ")
+
+    def show_update_dialog(self):
+        """Show the release notes; if the user agrees, run the updater and exit"""
+        if self.update_info and UpdateDialog(self, self.update_info).exec() == QDialog.Accepted:
+            self.run_install_script()
 
     def run_install_script(self):
-        """Launch the platform-appropriate install script and close the application"""
+        """Launch the installer in "--update" mode in its own window, then close the application"""
         script_dir = Path(__file__).resolve().parent
+        script = script_dir / ("install.bat" if sys.platform == "win32" else "install.sh")
+        if not script.exists():
+            QMessageBox.critical(self, "Update Error", f"Install script not found:\n{script}")
+            return
 
         try:
             if sys.platform == "win32":
-                install_script = script_dir / "install.bat"
-                if not install_script.exists():
-                    QMessageBox.critical(self, "Update Error", f"Install script not found:\n{install_script}")
-                    return
                 subprocess.Popen(
-                    ["cmd", "/c", "start", "", str(install_script)],
+                    ["cmd", "/c", "start", "", str(script), "--update"],
                     cwd=str(script_dir),
                     creationflags=subprocess.CREATE_NO_WINDOW,
                 )
-
-            elif sys.platform == "darwin":
-                install_script = script_dir / "install.sh"
-                if not install_script.exists():
-                    QMessageBox.critical(self, "Update Error", f"Install script not found:\n{install_script}")
-                    return
-                install_script.chmod(install_script.stat().st_mode | 0o111)
-                # Launch Terminal.app to run the script directly 
-                subprocess.Popen(["open", "-a", "Terminal", str(install_script)])
-
             else:
-                install_script = script_dir / "install.sh"
-                if not install_script.exists():
-                    QMessageBox.critical(self, "Update Error", f"Install script not found:\n{install_script}")
+                # Run through bash so it works even if the script lost its executable bit
+                command = f"bash {shlex.quote(str(script))} --update"
+                if sys.platform == "darwin":
+                    self._launch_mac_terminal(command)
+                elif not self._launch_linux_terminal(script, script_dir):
+                    # No terminal we know how to drive. Stay open and let the user do it.
+                    QApplication.clipboard().setText(command)
+                    QMessageBox.information(
+                        self,
+                        "Manual Update Required",
+                        "Sammie-Roto could not open a terminal automatically.\n\n"
+                        "Close Sammie-Roto, then run this command in a terminal "
+                        "(it has also been copied to your clipboard):\n\n" + command,
+                    )
                     return
-                install_script.chmod(install_script.stat().st_mode | 0o111)
-                # No reliable single way to auto-launch a terminal across Linux desktops 
-                # Copy the command to the clipboard and let the user run it themselves.
-                QApplication.clipboard().setText(str(install_script))
-                QMessageBox.information(
-                    self,
-                    "Manual Update Required",
-                    "The install script's path has been copied to your clipboard.\n"
-                    f"Please open a terminal, paste, and press Enter:\n\n{install_script}",
-                )
-
         except Exception as e:
-            QMessageBox.critical(self, "Update Error", f"Failed to launch install script:\n{e}")
+            QMessageBox.critical(self, "Update Error", f"Failed to launch the updater:\n{e}")
             return
 
-        # Close the application so the installer can replace files
-        QApplication.quit()
+        # Close through the normal path so the session is saved and the lock file is released
+        self.close()
 
-    def open_update_url(self, version):
-        """Open the GitHub releases page"""
-        url = "https://github.com/Zarxrax/Sammie-Roto-2/releases"
-        webbrowser.open(url)
-    
+    def _launch_mac_terminal(self, command):
+        """Run a shell command in a new Terminal.app window"""
+        escaped = command.replace("\\", "\\\\").replace('"', '\\"')  # for an AppleScript string
+        subprocess.Popen([
+            "osascript",
+            "-e", 'tell application "Terminal"',
+            "-e", "activate",
+            "-e", f'do script "{escaped}"',
+            "-e", "end tell",
+        ])
+
+    def _launch_linux_terminal(self, script, script_dir):
+        """Run the updater in a new terminal window. Returns False if no known terminal was found."""
+        # (executable, arguments that must come before the command to run)
+        terminals = [
+            ("gnome-terminal", ["--"]),
+            ("konsole", ["-e"]),
+            ("xfce4-terminal", ["-x"]),
+            ("x-terminal-emulator", ["-e"]),
+            ("alacritty", ["-e"]),
+            ("kitty", []),
+            ("xterm", ["-e"]),
+        ]
+        # Try the terminal that belongs to the user's desktop first
+        desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
+        preferred = "konsole" if "kde" in desktop else "xfce4-terminal" if "xfce" in desktop else None
+        terminals.sort(key=lambda t: t[0] != preferred)
+
+        for name, prefix in terminals:
+            path = shutil.which(name)
+            if path:
+                subprocess.Popen(
+                    [path, *prefix, "bash", str(script), "--update"],
+                    cwd=str(script_dir),
+                    start_new_session=True,  # keep running after Sammie-Roto exits
+                )
+                return True
+        return False
+
     def show_help(self):
         """Open the GitHub wiki page"""
         url = "https://github.com/Zarxrax/Sammie-Roto-2/wiki"
@@ -3205,7 +3256,6 @@ class MainWindow(QMainWindow):
         
         msg.setStandardButtons(QMessageBox.Ok)
         msg.exec()
-
 
 # ==================== APPLICATION ENTRY POINT ====================
 
@@ -3243,7 +3293,7 @@ Examples:
             return
 
     app = QApplication(sys.argv)
-    app.setWindowIcon(QIcon(":/icon.ico"))
+    app.setWindowIcon(get_icon())
 
     window = MainWindow(initial_file=file_to_load)
     #window.show() is now called inside __init__

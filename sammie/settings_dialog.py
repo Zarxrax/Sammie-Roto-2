@@ -198,19 +198,14 @@ class SettingsDialog(QDialog):
         
         display_layout.addRow("Display Update Frequency:", slider_layout)
         layout.addWidget(display_group)
-        
-        # Deduplication threshold settings group
-        deduplication_group = QGroupBox("Deduplication Threshold")
-        deduplication_layout = QFormLayout(deduplication_group)
-        
-        self.deduplication_threshold_spin = QDoubleSpinBox()
-        self.deduplication_threshold_spin.setRange(0,1)
-        self.deduplication_threshold_spin.setValue(0.8)
-        self.deduplication_threshold_spin.setSingleStep(0.01)
-        self.deduplication_threshold_spin.setToolTip("Value from 0 to 1 used as a threshold for how similar masks have to be before they're considered the same and deduped.\nHigher values are more strict.")
-        deduplication_layout.addRow("Threshold:", self.deduplication_threshold_spin)
-        
-        layout.addWidget(deduplication_group)
+
+        # Update settings group
+        updates_group = QGroupBox("Updates")
+        updates_layout = QFormLayout(updates_group)
+        self.check_updates_cb = QCheckBox()
+        self.check_updates_cb.setToolTip("Look for a new version of Sammie-Roto each time the application starts.")
+        updates_layout.addRow("Check for Updates on Startup:", self.check_updates_cb)
+        layout.addWidget(updates_group)
 
         return tab
     
@@ -241,7 +236,7 @@ class SettingsDialog(QDialog):
         self.frame_format_combo.setCurrentText(app_settings.frame_format)
         self.display_update_slider.setValue(app_settings.display_update_frequency)
         self.display_update_label.setText(str(app_settings.display_update_frequency))
-        self.deduplication_threshold_spin.setValue(app_settings.dedupe_threshold)
+        self.check_updates_cb.setChecked(app_settings.check_for_updates_on_startup)
     
     
     def _save_current_values(self):
@@ -268,7 +263,7 @@ class SettingsDialog(QDialog):
         app_settings.force_cpu = self.force_cpu_cb.isChecked()
         app_settings.frame_format = self.frame_format_combo.currentText()
         app_settings.display_update_frequency = self.display_update_slider.value()
-        app_settings.dedupe_threshold = self.deduplication_threshold_spin.value()
+        app_settings.check_for_updates_on_startup = self.check_updates_cb.isChecked()
             
     
     def accept(self):

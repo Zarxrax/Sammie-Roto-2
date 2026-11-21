@@ -5,7 +5,19 @@ import sys
 import argparse
 import os
 import traceback
+from pathlib import Path
 from sammie.resources import resources
+
+def get_icon():
+    base_dir = Path(__file__).resolve().parent
+    """Set the application icon based on the platform"""
+    if sys.platform == "win32":
+        icon_path = base_dir / "sammie" / "resources" / "icon.ico"
+    elif sys.platform == "darwin":
+        icon_path = base_dir / "sammie" / "resources" / "icon.icns"
+    else:
+        icon_path = base_dir / "sammie" / "resources" / "icon.png"
+    return QIcon(str(icon_path))
 
 def show_splash(app):
     splash_pix = QPixmap(":/splash.webp")
@@ -126,7 +138,10 @@ if __name__ == "__main__":
         pass
 
     app = QApplication(sys.argv)
-    app.setWindowIcon(QIcon(":/icon.ico"))
+    app.setWindowIcon(get_icon())
+    if sys.platform.startswith("linux"):
+        app.setApplicationName("Sammie-Roto-2")      # X11 WM_CLASS -> StartupWMClass
+        app.setDesktopFileName("sammie-roto-2")      # Wayland app_id -> sammie-roto-2.desktop
     
     # Check for single instance
     lock_file, is_first = check_single_instance()
@@ -149,7 +164,6 @@ if __name__ == "__main__":
             window = MainWindow(initial_file=file_to_load)
             window.show()
             splash.finish(window)
-            window.setWindowIcon(QIcon(":/icon.ico"))
         except ImportError as e:
             splash.close()
             error_msg = f"Failed to import required modules: {str(e)}"

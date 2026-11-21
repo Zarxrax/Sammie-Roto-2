@@ -58,13 +58,14 @@ class ApplicationSettings:
     # Playback
     playback_fps: int = 24  # frames per second for playback
     
+    # Updates
+    check_for_updates_on_startup: bool = True
+    ignored_update_version: str = ""  # the banner stays hidden for this version
+
     # Performance
     force_cpu: bool = False    
     frame_format: str = "png"
     display_update_frequency: int = 5
-    
-    # Deduplication
-    dedupe_threshold: float = 0.8
     
     # Export dialog defaults
     export_codec: str = "prores"

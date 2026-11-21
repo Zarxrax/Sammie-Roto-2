@@ -37,7 +37,7 @@ class MEMFOF(
     def __init__(
         self,
         backbone: Literal["resnet18", "resnet34", "resnet50"] = "resnet34",
-        backbone_weights: WeightsEnum = ResNet34_Weights.IMAGENET1K_V1,
+        backbone_weights: WeightsEnum | None = None,
         dim: int = 512,
         corr_levels: int = 4,
         corr_radius: int = 4,

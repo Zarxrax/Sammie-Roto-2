@@ -324,6 +324,15 @@ def load_base_frame(frame_number):
         return None
 
 
+def has_combined_matte(frame_number):
+    """
+    True if a combined matte (saved as object 0) exists on disk for this frame.
+    Combined matting writes its single matte as matting/<frame>/0.png even when
+    0 is not one of the point object IDs.
+    """
+    return os.path.exists(os.path.join(matting_dir, f"{frame_number:05d}", "0.png"))
+
+
 def load_masks_for_frame(frame_number, points, return_combined=True, object_id_filter=None, folder=None):
     """
     Load masks for a frame, returning either individual masks or a combined mask.
@@ -344,6 +353,11 @@ def load_masks_for_frame(frame_number, points, return_combined=True, object_id_f
 
     # Get unique object IDs from points
     object_ids = list(set(p['object_id'] for p in points if 'object_id' in p))
+
+    # Combined matting saves its single matte as object 0, which may not be one of
+    # the point object IDs. Make it visible to the lookup even if there are no points for object 0.
+    if object_ids and folder == matting_dir and 0 not in object_ids and has_combined_matte(frame_number):
+        object_ids.append(0)
 
     # Filter by specific object ID if requested
     if object_id_filter is not None:
