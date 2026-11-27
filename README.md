@@ -27,20 +27,20 @@ Sammie-Roto 2 is free and open source, but runs models produced by several exter
 
 ### Installation
 #### Windows:
-- [Download latest version](https://github.com/Zarxrax/Sammie-Roto-2/releases/latest/download/Sammie-Roto-2.zip)
+- [Download latest version](https://github.com/Zarxrax/Sammie-Roto-2/releases/latest/download/Sammie-Roto.zip)
 - Extract the zip archive to any location that doesn't restrict write permissions (don't put it in Program Files)
 - Run 'install.bat' and follow the prompt.
 - Run 'run_sammie.bat' to launch the software (or double click the desktop shortcut).
 
 #### Mac
-- [Download latest version](https://github.com/Zarxrax/Sammie-Roto-2/releases/latest/download/Sammie-Roto-2.zip)
+- [Download latest version](https://github.com/Zarxrax/Sammie-Roto-2/releases/latest/download/Sammie-Roto.zip)
 - Unzip Sammie-Roto-2 into a folder in your home directory, e.g. ~/Sammie-Roto-2 (avoid Desktop, Documents and Downloads).
 - Open a terminal and navigate to the Sammie-Roto folder that you just extracted from the zip.
 - Execute the following command in the terminal: `bash install.sh` then follow the prompt.
 - When it finishes, launch from the Sammie-Roto-2 icon on your Desktop, from Spotlight, or with `bash run_sammie.sh`.
 
 #### Linux
-- [Download latest version](https://github.com/Zarxrax/Sammie-Roto-2/releases/latest/download/Sammie-Roto-2.zip)
+- [Download latest version](https://github.com/Zarxrax/Sammie-Roto-2/releases/latest/download/Sammie-Roto.zip)
 - Extract the zip archive.
 - Open a terminal and navigate to the Sammie-Roto folder that you just extracted from the zip.
 - Execute the following command in the terminal: `bash install.sh` then follow the prompt.
